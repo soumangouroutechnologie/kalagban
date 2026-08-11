@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -309,146 +310,167 @@ export default function ProfileScreen() {
 
       {/* Auth Modal */}
       <Modal visible={authModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {authMode === 'login' ? 'Connexion' : authMode === 'register' ? 'Créer un Compte' : 'Mot de Passe Oublié'}
-            </Text>
-            <Text style={styles.modalSub}>
-              {authMode === 'forgot'
-                ? 'Saisissez votre identifiant pour recevoir un lien de réinitialisation.'
-                : 'Choisissez votre méthode de connexion (Téléphone ou Email).'}
-            </Text>
-
-            {/* Segmented Tab Switcher */}
-            <View style={styles.tabContainer}>
-              <TouchableOpacity
-                style={[styles.tabBtn, loginMethod === 'phone' && styles.tabBtnActive]}
-                onPress={() => setLoginMethod('phone')}
-              >
-                <Phone size={14} color={loginMethod === 'phone' ? '#4F46E5' : '#64748B'} />
-                <Text style={[styles.tabBtnText, loginMethod === 'phone' && styles.tabBtnTextActive]}>Téléphone</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.tabBtn, loginMethod === 'email' && styles.tabBtnActive]}
-                onPress={() => setLoginMethod('email')}
-              >
-                <Mail size={14} color={loginMethod === 'email' ? '#4F46E5' : '#64748B'} />
-                <Text style={[styles.tabBtnText, loginMethod === 'email' && styles.tabBtnTextActive]}>Adresse Email</Text>
-              </TouchableOpacity>
-            </View>
-
-            {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
-            {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
-
-            {authMode === 'register' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nom &amp; Prénom *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Jean Kouassi"
-                  value={fullName}
-                  onChangeText={setFullName}
-                />
-              </View>
-            )}
-
-            {loginMethod === 'phone' ? (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Numéro de Téléphone *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 07 00 11 22 33"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                />
-              </View>
-            ) : (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Adresse Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: client@kalagban.ci"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            )}
-
-            {authMode !== 'forgot' && (
-              <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.inputLabel}>Mot de Passe *</Text>
-                  {authMode === 'login' && (
-                    <TouchableOpacity onPress={() => {
-                      setAuthError('');
-                      setAuthSuccessMsg('');
-                      setAuthMode('forgot');
-                    }}>
-                      <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={styles.passwordInputWrapper}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="••••••••"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeBtn}
-                    onPress={() => setShowPassword(!showPassword)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={styles.modalSubmitBtn}
-              onPress={handleAuthSubmit}
-              disabled={loadingAuth}
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdropDismiss}
+            activeOpacity={1}
+            onPress={() => setAuthModalVisible(false)}
+          />
+          <View style={[styles.modalContent, { paddingBottom: Math.max(bottomPadding, 24) }]}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: 12, paddingBottom: 10 }}
             >
-              {loadingAuth ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.modalSubmitText}>
-                  {authMode === 'login' ? 'Se Connecter' : authMode === 'register' ? 'Créer mon Compte' : 'Réinitialiser mon Mot de Passe'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ marginTop: 8 }}
-              onPress={() => {
-                setAuthError('');
-                setAuthSuccessMsg('');
-                setAuthMode(authMode === 'login' ? 'register' : 'login');
-              }}
-            >
-              <Text style={styles.switchAuthText}>
-                {authMode === 'login'
-                  ? 'Pas encore de compte ? S\'inscrire'
-                  : 'Déjà un compte ? Se connecter'}
+              <Text style={styles.modalTitle}>
+                {authMode === 'login' ? 'Connexion' : authMode === 'register' ? 'Créer un Compte' : 'Mot de Passe Oublié'}
               </Text>
-            </TouchableOpacity>
+              <Text style={styles.modalSub}>
+                {authMode === 'forgot'
+                  ? 'Saisissez votre identifiant pour recevoir un lien de réinitialisation.'
+                  : 'Choisissez votre méthode de connexion (Téléphone ou Email).'}
+              </Text>
 
-            <TouchableOpacity
-              style={styles.closeModalBtn}
-              onPress={() => setAuthModalVisible(false)}
-            >
-              <Text style={styles.closeModalText}>Fermer</Text>
-            </TouchableOpacity>
+              {/* Segmented Tab Switcher */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tabBtn, loginMethod === 'phone' && styles.tabBtnActive]}
+                  onPress={() => setLoginMethod('phone')}
+                >
+                  <Phone size={14} color={loginMethod === 'phone' ? '#4F46E5' : '#64748B'} />
+                  <Text style={[styles.tabBtnText, loginMethod === 'phone' && styles.tabBtnTextActive]}>Téléphone</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabBtn, loginMethod === 'email' && styles.tabBtnActive]}
+                  onPress={() => setLoginMethod('email')}
+                >
+                  <Mail size={14} color={loginMethod === 'email' ? '#4F46E5' : '#64748B'} />
+                  <Text style={[styles.tabBtnText, loginMethod === 'email' && styles.tabBtnTextActive]}>Adresse Email</Text>
+                </TouchableOpacity>
+              </View>
+
+              {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+              {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
+
+              {authMode === 'register' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Nom &amp; Prénom *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: Jean Kouassi"
+                    placeholderTextColor="#94A3B8"
+                    value={fullName}
+                    onChangeText={setFullName}
+                  />
+                </View>
+              )}
+
+              {loginMethod === 'phone' ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Numéro de Téléphone *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 07 00 11 22 33"
+                    placeholderTextColor="#94A3B8"
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Adresse Email *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: client@kalagban.ci"
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
+              {authMode !== 'forgot' && (
+                <View style={styles.inputGroup}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.inputLabel}>Mot de Passe *</Text>
+                    {authMode === 'login' && (
+                      <TouchableOpacity onPress={() => {
+                        setAuthError('');
+                        setAuthSuccessMsg('');
+                        setAuthMode('forgot');
+                      }}>
+                        <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <View style={styles.passwordInputWrapper}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      placeholder="••••••••"
+                      placeholderTextColor="#94A3B8"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeBtn}
+                      onPress={() => setShowPassword(!showPassword)}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      activeOpacity={0.7}
+                    >
+                      {showPassword ? <EyeOff size={18} color="#4F46E5" /> : <Eye size={18} color="#64748B" />}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleAuthSubmit}
+                disabled={loadingAuth}
+                activeOpacity={0.85}
+              >
+                {loadingAuth ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSubmitText}>
+                    {authMode === 'login' ? 'Se Connecter' : authMode === 'register' ? 'Créer mon Compte' : 'Réinitialiser mon Mot de Passe'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ marginTop: 8 }}
+                onPress={() => {
+                  setAuthError('');
+                  setAuthSuccessMsg('');
+                  setAuthMode(authMode === 'login' ? 'register' : 'login');
+                }}
+              >
+                <Text style={styles.switchAuthText}>
+                  {authMode === 'login'
+                    ? 'Pas encore de compte ? S\'inscrire'
+                    : 'Déjà un compte ? Se connecter'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.closeModalBtn}
+                onPress={() => setAuthModalVisible(false)}
+              >
+                <Text style={styles.closeModalText}>Fermer</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -632,12 +654,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
+  modalBackdropDismiss: {
+    flex: 1,
+  },
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
-    gap: 12,
+    maxHeight: '85%',
   },
   modalTitle: {
     fontSize: 20,

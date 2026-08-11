@@ -11,11 +11,16 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/auth-context';
-import { Store, Mail, Phone, Lock, User as UserIcon, Building2, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { Store, Mail, Phone, Lock, User as UserIcon, Building2, ArrowRight, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 14);
+
   const router = useRouter();
   const { signInWithEmail, signInWithPhone, signUpSeller } = useAuth();
 
@@ -25,6 +30,7 @@ export default function LoginScreen() {
   // Form Fields
   const [identifier, setIdentifier] = useState(''); // Email or Phone number
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [shopName, setShopName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -89,11 +95,14 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#F8FAFC' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: topPadding + 10, paddingBottom: 160 + bottomPadding }
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -257,10 +266,23 @@ export default function LoginScreen() {
                 style={styles.input}
                 placeholder="••••••••"
                 placeholderTextColor="#94A3B8"
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
+                autoCapitalize="none"
               />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                activeOpacity={0.7}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color="#4F46E5" />
+                ) : (
+                  <Eye size={20} color="#64748B" />
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -462,6 +484,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
     fontWeight: '500',
+  },
+  eyeBtn: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   submitBtn: {
     height: 52,

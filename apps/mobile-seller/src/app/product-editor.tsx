@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../context/auth-context';
 import { supabase } from '../lib/supabase';
@@ -29,6 +30,10 @@ import {
 } from 'lucide-react-native';
 
 export default function ProductEditorScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 14);
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const productId = params.id as string | undefined;
@@ -182,7 +187,7 @@ export default function ProductEditorScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Top Modal Header */}
-      <View style={styles.modalHeader}>
+      <View style={[styles.modalHeader, { paddingTop: topPadding + 8 }]}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <X size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -206,7 +211,11 @@ export default function ProductEditorScreen() {
       {fetching ? (
         <ActivityIndicator size="large" color="#4F46E5" style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + bottomPadding }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Image Picker */}
           <Text style={styles.label}>Photo de l'article</Text>
           <TouchableOpacity style={styles.imagePickerBox} onPress={handlePickImage} activeOpacity={0.8}>
