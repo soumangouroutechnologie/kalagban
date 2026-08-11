@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Kalagban Vendeur",
+    "slug": "mobile-seller",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "mobileseller",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.kalagban.mobileseller",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cette application a besoin de l'accès à votre caméra pour prendre en photo les produits de votre boutique.",
+        "NSPhotoLibraryUsageDescription": "Cette application a besoin d'accéder à vos photos pour sélectionner les visuels de votre boutique et vos articles."
+      }
+    },
+    "android": {
+      "package": "com.kalagban.mobileseller"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application a besoin d'accéder à vos photos pour ajouter des produits."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
