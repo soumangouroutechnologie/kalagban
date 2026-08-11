@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "mobileseller",
     "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
     "ios": {
       "bundleIdentifier": "com.kalagban.mobileseller",
       "infoPlist": {

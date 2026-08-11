@@ -11,7 +11,9 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -33,6 +35,10 @@ import { useCart } from '@/context/cart-context';
 import { supabase } from '@/lib/supabase';
 
 export default function FavoritesScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { favorites, toggleFavorite, isAuthenticated, checkAuthStatus } = useFavorites();
   const { addToCart } = useCart();
@@ -127,7 +133,7 @@ export default function FavoritesScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#0F172A" />
         </TouchableOpacity>

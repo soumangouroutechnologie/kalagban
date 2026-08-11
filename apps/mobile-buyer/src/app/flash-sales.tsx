@@ -10,7 +10,9 @@ import {
   Image,
   Dimensions,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Sparkles, ShoppingBag, Check, Tag } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +33,10 @@ interface FlashProduct {
 }
 
 export default function FlashSalesScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { addToCart, totalItems } = useCart();
 
@@ -177,7 +183,7 @@ export default function FlashSalesScreen() {
       )}
 
       {/* Top Red Header */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ChevronLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
@@ -197,7 +203,7 @@ export default function FlashSalesScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + bottomPadding }]}>
         {/* Countdown Banner Box */}
         <View style={styles.timerCard}>
           <Text style={styles.timerCardTitle}>{flashSaleConfig.title}</Text>

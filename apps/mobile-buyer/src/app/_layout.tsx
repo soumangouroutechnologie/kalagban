@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreenNative from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
@@ -6,11 +6,16 @@ import { CartProvider } from '@/context/cart-context';
 import { FavoritesProvider } from '@/context/favorites-context';
 import SplashScreen from '@/components/SplashScreen';
 
-SplashScreenNative.preventAutoHideAsync();
+SplashScreenNative.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // Masquer immédiatement l'écran bleu natif d'Expo pour afficher notre splash animé Kalagban
+    SplashScreenNative.hideAsync().catch(() => {});
+  }, []);
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;

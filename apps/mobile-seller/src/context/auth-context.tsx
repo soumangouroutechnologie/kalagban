@@ -65,27 +65,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(prof as UserProfile);
       }
 
-      // 2. Fetch Shop owned by currentUser (where auth.uid() == shop.id or via user_id link)
-      let { data: shopData } = await supabase
+      // 2. Fetch Shop owned by currentUser (where auth.uid() == shop.id)
+      const { data: shopData } = await supabase
         .from('shops')
         .select('*')
         .eq('id', currentUser.id)
-        .single();
-
-      // If not found by ID directly, fallback search by name or general query
-      if (!shopData) {
-        const { data: fallbackShop } = await supabase
-          .from('shops')
-          .select('*')
-          .limit(1)
-          .single();
-        if (fallbackShop) {
-          shopData = fallbackShop;
-        }
-      }
+        .maybeSingle();
 
       if (shopData) {
         setShop(shopData as ShopProfile);
+      } else {
+        setShop(null);
       }
     } catch (err) {
       console.error('Error loading seller data:', err);

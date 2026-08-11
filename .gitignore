@@ -52,3 +52,14 @@ lerna-debug.log*
 # Expo
 .expo/
 
+# Mobile Builds & APKs
+builds/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Temp files
+current_auth.json
+patch*.json
+

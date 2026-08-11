@@ -10,7 +10,9 @@ import {
   AccessibilityInfo,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Rocket, ShieldCheck, Headphones } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -20,6 +22,10 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   // Animation Values
   const bgOpacity = useRef(new Animated.Value(0)).current;
   
@@ -275,7 +281,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         <View style={styles.decorCircleBottomRight} />
 
         {/* 1. TOP LOGO & BRAND SECTION */}
-        <View style={styles.topSection}>
+        <View style={[styles.topSection, { paddingTop: topPadding }]}>
           <Animated.View
             style={[
               styles.logoWrapper,
@@ -384,7 +390,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         </View>
 
         {/* 6. BOTTOM VALUE CARDS SECTION */}
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: bottomPadding }]}>
           {/* Card 1: Rapide */}
           <Animated.View
             style={[

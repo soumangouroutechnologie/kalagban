@@ -10,7 +10,9 @@ import {
   StatusBar,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -44,6 +46,10 @@ interface ProductDetail {
 }
 
 export default function ProductDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { addToCart, totalItems } = useCart();
@@ -150,7 +156,7 @@ export default function ProductDetailScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#0F172A" />
         </TouchableOpacity>
@@ -169,7 +175,7 @@ export default function ProductDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + bottomPadding }]}>
         {/* Main Product Image */}
         <View style={styles.imageContainer}>
           <Image source={{ uri: product.image_url }} style={styles.mainImage} />
@@ -273,7 +279,7 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       {/* Bottom Floating Action Bar */}
-      <View style={styles.bottomActionBar}>
+      <View style={[styles.bottomActionBar, { paddingBottom: bottomPadding, height: 72 + bottomPadding }]}>
         <TouchableOpacity
           style={[styles.addToCartButton, addedNotice && styles.addToCartNotice]}
           onPress={handleAddToCart}

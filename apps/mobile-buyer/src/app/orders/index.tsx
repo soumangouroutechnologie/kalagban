@@ -8,7 +8,9 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -36,6 +38,10 @@ interface OrderItem {
 }
 
 export default function OrderHistoryScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +114,7 @@ export default function OrderHistoryScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => {
           if (router.canGoBack()) router.back();
           else router.replace('/');

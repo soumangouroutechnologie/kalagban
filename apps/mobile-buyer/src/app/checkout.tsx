@@ -8,8 +8,10 @@ import {
   TextInput, 
   ActivityIndicator, 
   SafeAreaView,
-  Alert
+  Alert,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, 
@@ -37,6 +39,10 @@ interface PickupPoint {
 }
 
 export default function MobileCheckoutScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { items, totalAmount, clearCart } = useCart();
 
@@ -173,7 +179,7 @@ export default function MobileCheckoutScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -181,7 +187,7 @@ export default function MobileCheckoutScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + bottomPadding }]}>
         {/* Order Items Preview */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>

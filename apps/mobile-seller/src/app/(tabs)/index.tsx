@@ -46,15 +46,21 @@ interface DashboardOrder {
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
-  const { shop, user } = useAuth();
+  const { shop, user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/(auth)/login');
+    }
+  }, [user, authLoading]);
+
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
-    productViews: 42,
+    productViews: 0,
     outOfStockCount: 0,
     pendingOrdersCount: 0,
   });

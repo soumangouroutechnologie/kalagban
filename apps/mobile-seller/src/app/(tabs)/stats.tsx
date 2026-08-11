@@ -30,7 +30,7 @@ export default function SellerStatsScreen() {
   const [analytics, setAnalytics] = useState({
     totalEarnings: 0,
     itemsSold: 0,
-    visitorsCount: 124,
+    visitorsCount: 0,
   });
 
   const fetchAnalytics = async () => {

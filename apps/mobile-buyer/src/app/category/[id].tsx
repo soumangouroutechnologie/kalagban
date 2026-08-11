@@ -12,7 +12,9 @@ import {
   TextInput,
   Dimensions,
   Alert,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -102,6 +104,10 @@ interface ProductItem {
 }
 
 export default function CategoryJumiaStyleScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addToCart, totalItems } = useCart();
@@ -246,7 +252,7 @@ export default function CategoryJumiaStyleScreen() {
       )}
 
       {/* Top Header Bar with Search */}
-      <View style={styles.headerBar}>
+      <View style={[styles.headerBar, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => {

@@ -6,8 +6,10 @@ import {
   ScrollView, 
   TouchableOpacity, 
   ActivityIndicator, 
-  SafeAreaView 
+  SafeAreaView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle2, KeyRound, Package, Home } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +29,10 @@ interface OrderDetail {
 }
 
 export default function OrderDetailsReceiptScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -80,7 +86,7 @@ export default function OrderDetailsReceiptScreen() {
     <SafeAreaView style={styles.safeArea}>
       
       {/* Top Header */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
           <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>

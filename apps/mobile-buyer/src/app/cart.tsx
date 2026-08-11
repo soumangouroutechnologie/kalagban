@@ -8,7 +8,9 @@ import {
   Image,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -24,6 +26,10 @@ import {
 import { useCart } from '@/context/cart-context';
 
 export default function CartScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { items, updateQuantity, removeFromCart, clearCart, totalAmount, totalItems } = useCart();
 
@@ -39,7 +45,7 @@ export default function CartScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#0F172A" />
         </TouchableOpacity>
@@ -81,7 +87,7 @@ export default function CartScreen() {
         </View>
       ) : (
         <>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + bottomPadding }]}>
             {/* Cart Items List */}
             <View style={styles.itemsList}>
               {items.map((item) => (
@@ -163,7 +169,7 @@ export default function CartScreen() {
           </ScrollView>
 
           {/* Checkout Footer Button */}
-          <View style={styles.footerBar}>
+          <View style={[styles.footerBar, { paddingBottom: bottomPadding, height: 72 + bottomPadding }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.footerLabel}>Total à payer</Text>
               <Text style={styles.footerTotal}>{formatPrice(grandTotal)}</Text>

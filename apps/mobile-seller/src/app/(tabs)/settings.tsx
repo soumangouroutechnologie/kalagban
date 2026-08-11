@@ -290,7 +290,8 @@ export default function SellerSettingsScreen() {
                 <Mail size={18} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: '#64748B' }]}
-                  value={user?.email || 'vendeur@kalagban.com'}
+                  value={user?.email || ''}
+                  placeholder="Non renseigné"
                   editable={false}
                 />
               </View>

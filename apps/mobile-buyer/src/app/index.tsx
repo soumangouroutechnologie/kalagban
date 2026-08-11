@@ -13,7 +13,9 @@ import {
   Dimensions,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   Search,
@@ -62,6 +64,10 @@ interface PromoBannerConfig {
 }
 
 export default function MarketplaceHomeScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { addToCart, totalItems } = useCart();
   const { isFavorite, toggleFavorite, favorites } = useFavorites();
@@ -369,7 +375,7 @@ export default function MarketplaceHomeScreen() {
       )}
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <View style={styles.brandRow}>
           <View style={styles.logoBadge}>
             <Text style={styles.logoLetter}>K</Text>
@@ -418,7 +424,7 @@ export default function MarketplaceHomeScreen() {
         </View>
       ) : null}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 76 + bottomPadding }]}>
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Search size={20} color="#64748B" style={styles.searchIcon} />
@@ -702,7 +708,7 @@ export default function MarketplaceHomeScreen() {
       </ScrollView>
 
       {/* Bottom Floating Nav Bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: bottomPadding, height: 56 + bottomPadding }]}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push('/')}>
           <Store size={22} color="#4F46E5" />
           <Text style={[styles.navLabel, { color: '#4F46E5' }]}>Accueil</Text>

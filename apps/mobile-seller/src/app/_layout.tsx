@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from '../context/auth-context';
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
   return (
     <AuthProvider>
       <StatusBar style="light" />
@@ -13,6 +19,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: '#F8FAFC' },
         }}
       >
+        <Stack.Screen name="index" />
         <Stack.Screen name="splash" />
         <Stack.Screen name="(auth)/login" />
         <Stack.Screen name="(tabs)" />

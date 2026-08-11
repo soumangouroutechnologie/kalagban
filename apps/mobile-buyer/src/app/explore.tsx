@@ -11,7 +11,9 @@ import {
   Image,
   TextInput,
   Dimensions,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   Store,
@@ -61,6 +63,10 @@ interface PromoBannerConfig {
 }
 
 export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 36 : 14);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
+
   const router = useRouter();
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -175,7 +181,7 @@ export default function ExploreScreen() {
       )}
 
       {/* Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => {
           if (router.canGoBack()) router.back();
           else router.replace('/');
@@ -188,7 +194,7 @@ export default function ExploreScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + bottomPadding }]}>
         {/* Search Input */}
         <View style={styles.searchContainer}>
           <Search size={18} color="#64748B" style={{ marginRight: 8 }} />
