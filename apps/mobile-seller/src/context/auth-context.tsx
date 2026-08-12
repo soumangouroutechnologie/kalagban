@@ -32,6 +32,21 @@ interface AuthContextType {
   loading: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<{ error?: any }>;
   signInWithPhone: (phone: string, pass: string) => Promise<{ error?: any }>;
+  sendOtpSeller: (
+    identifier: string,
+    type: 'email' | 'phone',
+    shopName?: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<{ error?: any }>;
+  verifyOtpSeller: (
+    identifier: string,
+    type: 'email' | 'phone',
+    token: string,
+    shopName?: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<{ error?: any }>;
   signUpSeller: (
     identifier: string,
     type: 'email' | 'phone',
@@ -149,6 +164,142 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const formatPhone = (p: string) => {
+    let clean = p.replace(/[^0-9]/g, '');
+    if (clean.length === 10 && (clean.startsWith('07') || clean.startsWith('05') || clean.startsWith('01'))) {
+      clean = '+225' + clean;
+    } else if (!clean.startsWith('+')) {
+      clean = '+' + clean;
+    }
+    return clean;
+  };
+
+  const sendOtpSeller = async (
+    identifier: string,
+    type: 'email' | 'phone',
+    shopName: string = '',
+    firstName: string = '',
+    lastName: string = ''
+  ) => {
+    setLoading(true);
+    try {
+      if (type === 'email') {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: identifier.trim(),
+          options: {
+            shouldCreateUser: true,
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              full_name: `${firstName} ${lastName}`.trim() || shopName,
+              shop_name: shopName,
+              role: 'seller',
+            },
+          },
+        });
+        if (error) throw error;
+      } else {
+        const formatted = formatPhone(identifier);
+        const { error } = await supabase.auth.signInWithOtp({
+          phone: formatted,
+          options: {
+            shouldCreateUser: true,
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              full_name: `${firstName} ${lastName}`.trim() || shopName,
+              shop_name: shopName,
+              role: 'seller',
+            },
+          },
+        });
+        if (error) throw error;
+      }
+      return {};
+    } catch (error) {
+      return { error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtpSeller = async (
+    identifier: string,
+    type: 'email' | 'phone',
+    token: string,
+    shopName: string = '',
+    firstName: string = '',
+    lastName: string = ''
+  ) => {
+    setLoading(true);
+    try {
+      let authRes;
+      if (type === 'email') {
+        authRes = await supabase.auth.verifyOtp({
+          email: identifier.trim(),
+          token: token.trim(),
+          type: 'email',
+        });
+      } else {
+        const formatted = formatPhone(identifier);
+        authRes = await supabase.auth.verifyOtp({
+          phone: formatted,
+          token: token.trim(),
+          type: 'sms',
+        });
+      }
+
+      if (authRes.error) throw authRes.error;
+
+      if (authRes.data.user) {
+        const u = authRes.data.user;
+        setUser(u);
+
+        // Upsert Profile
+        await supabase.from('profiles').upsert({
+          id: u.id,
+          first_name: firstName || u.user_metadata?.first_name,
+          last_name: lastName || u.user_metadata?.last_name,
+          full_name: `${firstName} ${lastName}`.trim() || u.user_metadata?.full_name || shopName,
+          phone: type === 'phone' ? identifier : u.user_metadata?.phone,
+          email: type === 'email' ? identifier : u.email,
+          role: 'seller',
+        });
+
+        // Create/Verify Shop if shopName provided
+        if (shopName) {
+          const { data: existingShop } = await supabase
+            .from('shops')
+            .select('*')
+            .eq('id', u.id)
+            .maybeSingle();
+
+          if (!existingShop) {
+            const { data: newShop } = await supabase.from('shops').insert({
+              id: u.id,
+              name: shopName,
+              description: `Boutique officielle de ${shopName}`,
+              status: 'active',
+              is_featured: false,
+            }).select().single();
+
+            if (newShop) setShop(newShop as ShopProfile);
+          } else {
+            setShop(existingShop as ShopProfile);
+          }
+        }
+
+        await fetchUserData(u);
+      }
+
+      return {};
+    } catch (error) {
+      return { error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signUpSeller = async (
     identifier: string,
     type: 'email' | 'phone',
@@ -233,6 +384,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         signInWithEmail,
         signInWithPhone,
+        sendOtpSeller,
+        verifyOtpSeller,
         signUpSeller,
         signOut,
         refreshShopData,

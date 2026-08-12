@@ -22,10 +22,12 @@ export default function LoginScreen() {
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 14);
 
   const router = useRouter();
-  const { signInWithEmail, signInWithPhone, signUpSeller } = useAuth();
+  const { signInWithEmail, signInWithPhone, sendOtpSeller, verifyOtpSeller, signUpSeller } = useAuth();
 
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(true);
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
+  const [authType, setAuthType] = useState<'otp' | 'password'>('otp');
+  const [authStep, setAuthStep] = useState<'form' | 'otp'>('form');
 
   // Form Fields
   const [identifier, setIdentifier] = useState(''); // Email or Phone number
@@ -34,11 +36,109 @@ export default function LoginScreen() {
   const [shopName, setShopName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleSubmit = async () => {
+  // Countdown timer for OTP
+  React.useEffect(() => {
+    let timer: any;
+    if (authStep === 'otp' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [authStep, countdown]);
+
+  const handleSendOtp = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!identifier.trim()) {
+      setErrorMessage(authMethod === 'email' ? 'Veuillez entrer votre adresse email.' : 'Veuillez entrer votre numéro de téléphone.');
+      return;
+    }
+
+    if (isRegistering && !shopName.trim()) {
+      setErrorMessage('Le nom de votre boutique est obligatoire.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await sendOtpSeller(
+        identifier.trim(),
+        authMethod,
+        shopName.trim(),
+        firstName.trim(),
+        lastName.trim()
+      );
+
+      if (res.error) {
+        setErrorMessage(res.error.message || "Erreur lors de l'envoi du code OTP.");
+      } else {
+        setAuthStep('otp');
+        setCountdown(60);
+        setCanResend(false);
+        setSuccessMessage(`Code de confirmation envoyé à ${identifier.trim()}`);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setErrorMessage('Veuillez saisir le code complet à 6 chiffres.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await verifyOtpSeller(
+        identifier.trim(),
+        authMethod,
+        otpCode.trim(),
+        shopName.trim(),
+        firstName.trim(),
+        lastName.trim()
+      );
+
+      if (res.error) {
+        setErrorMessage(res.error.message || 'Code de vérification invalide ou expiré.');
+      } else {
+        Alert.alert(
+          'Félicitations ! 🎉',
+          isRegistering ? 'Votre boutique a été créée avec succès sur Kalagban.' : 'Connexion réussie !',
+          [{ text: 'Accéder à mon tableau de bord', onPress: () => router.replace('/(tabs)') }]
+        );
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Erreur lors de la validation du code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async () => {
     setErrorMessage('');
     if (!identifier.trim() || !password.trim()) {
       setErrorMessage('Veuillez remplir tous les champs obligatoires.');
@@ -96,7 +196,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: '#F8FAFC' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={[
@@ -104,7 +204,7 @@ export default function LoginScreen() {
           { paddingTop: topPadding + 10, paddingBottom: 160 + bottomPadding }
         ]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
       >
         {/* Top Header Card */}
         <View style={styles.headerBox}>
@@ -112,208 +212,305 @@ export default function LoginScreen() {
             <Store size={36} color="#4F46E5" />
           </View>
           <Text style={styles.headerTitle}>
-            {isRegistering ? 'Ouvrir ma Boutique' : 'Espace Vendeur'}
+            {authStep === 'otp'
+              ? 'Vérification du Code'
+              : (isRegistering ? 'Ouvrir ma Boutique' : 'Espace Vendeur')}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {isRegistering
-              ? 'Rejoignez des milliers de commerçants et vendez vos articles à travers tout le pays.'
-              : 'Connectez-vous pour gérer votre catalogue et vos commandes.'}
+            {authStep === 'otp'
+              ? `Saisissez le code à 6 chiffres envoyé à ${identifier.trim()}`
+              : (isRegistering
+                ? 'Rejoignez des milliers de commerçants et vendez vos articles à travers tout le pays.'
+                : 'Connectez-vous pour gérer votre catalogue et vos commandes.')}
           </Text>
         </View>
 
-        {/* Tab Switcher: Login vs Register */}
-        <View style={styles.modeSwitcher}>
-          <TouchableOpacity
-            style={[styles.modeTab, !isRegistering && styles.activeModeTab]}
-            onPress={() => {
-              setIsRegistering(false);
-              setErrorMessage('');
-            }}
-          >
-            <Text style={[styles.modeTabText, !isRegistering && styles.activeModeTabText]}>
-              Connexion
-            </Text>
-          </TouchableOpacity>
+        {authStep === 'otp' ? (
+          /* === STEP 2: OTP ENTRY FORM === */
+          <View style={styles.formCard}>
+            {!!errorMessage && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            )}
+            {!!successMessage && (
+              <View style={[styles.errorBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <Text style={[styles.errorText, { color: '#047857' }]}>{successMessage}</Text>
+              </View>
+            )}
 
-          <TouchableOpacity
-            style={[styles.modeTab, isRegistering && styles.activeModeTab]}
-            onPress={() => {
-              setIsRegistering(true);
-              setErrorMessage('');
-            }}
-          >
-            <Text style={[styles.modeTabText, isRegistering && styles.activeModeTabText]}>
-              Créer une Boutique
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Auth Method Toggle: Email vs Phone */}
-        <View style={styles.methodToggleRow}>
-          <Text style={styles.methodLabel}>S'identifier par :</Text>
-          <View style={styles.methodButtonsGroup}>
-            <TouchableOpacity
-              style={[styles.methodBtn, authMethod === 'email' && styles.activeMethodBtn]}
-              onPress={() => setAuthMethod('email')}
-            >
-              <Mail size={16} color={authMethod === 'email' ? '#FFFFFF' : '#64748B'} />
-              <Text style={[styles.methodBtnText, authMethod === 'email' && styles.activeMethodBtnText]}>
-                Email
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.methodBtn, authMethod === 'phone' && styles.activeMethodBtn]}
-              onPress={() => setAuthMethod('phone')}
-            >
-              <Phone size={16} color={authMethod === 'phone' ? '#FFFFFF' : '#64748B'} />
-              <Text style={[styles.methodBtnText, authMethod === 'phone' && styles.activeMethodBtnText]}>
-                Téléphone
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Error Alert Box */}
-        {!!errorMessage && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        )}
-
-        {/* Form Inputs */}
-        <View style={styles.formCard}>
-          {isRegistering && (
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nom de la Boutique *</Text>
-              <View style={styles.inputWrapper}>
-                <Building2 size={20} color="#64748B" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Pendyra Mode, TechIvoir Store..."
-                  placeholderTextColor="#94A3B8"
-                  value={shopName}
-                  onChangeText={setShopName}
-                />
-              </View>
+              <Text style={styles.label}>Code de Confirmation (6 chiffres) *</Text>
+              <TextInput
+                style={styles.otpInputField}
+                placeholder="• • • • • •"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otpCode}
+                onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                autoFocus
+              />
             </View>
-          )}
 
-          {/* Identifier Input (Email or Phone) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              {authMethod === 'email' ? 'Adresse Email *' : 'Numéro de Téléphone *'}
-            </Text>
-            <View style={styles.inputWrapper}>
-              {authMethod === 'email' ? (
-                <Mail size={20} color="#64748B" style={styles.inputIcon} />
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleVerifyOtp}
+              disabled={loading || otpCode.length < 6}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Phone size={20} color="#64748B" style={styles.inputIcon} />
+                <>
+                  <Text style={styles.submitBtnText}>Valider et Accéder ➔</Text>
+                </>
               )}
-              <TextInput
-                style={styles.input}
-                placeholder={
-                  authMethod === 'email'
-                    ? 'vendeur@kalagban.com'
-                    : '+225 07 00 00 00 00'
-                }
-                placeholderTextColor="#94A3B8"
-                keyboardType={authMethod === 'email' ? 'email-address' : 'phone-pad'}
-                autoCapitalize="none"
-                value={identifier}
-                onChangeText={setIdentifier}
-              />
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 12 }}>
+              <Text style={{ fontSize: 13, color: '#64748B' }}>Pas reçu de code ?</Text>
+              {canResend ? (
+                <TouchableOpacity onPress={handleSendOtp} disabled={loading}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#4F46E5', textDecorationLine: 'underline' }}>Renvoyer le code</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#94A3B8' }}>Renvoyer dans {countdown}s</Text>
+              )}
             </View>
+
+            <TouchableOpacity
+              style={{ alignItems: 'center', marginTop: 16 }}
+              onPress={() => {
+                setAuthStep('form');
+                setErrorMessage('');
+                setSuccessMessage('');
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }}>← Modifier mes informations</Text>
+            </TouchableOpacity>
           </View>
-
-          {isRegistering && (
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Prénom</Text>
-                <View style={styles.inputWrapper}>
-                  <UserIcon size={18} color="#64748B" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Kevino"
-                    placeholderTextColor="#94A3B8"
-                    value={firstName}
-                    onChangeText={setFirstName}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Nom</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={[styles.input, { paddingLeft: 16 }]}
-                    placeholder="Geek"
-                    placeholderTextColor="#94A3B8"
-                    value={lastName}
-                    onChangeText={setLastName}
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Mot de passe *</Text>
-            <View style={styles.inputWrapper}>
-              <Lock size={20} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#94A3B8"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                autoCapitalize="none"
-              />
+        ) : (
+          /* === STEP 1: FORM INPUTS === */
+          <>
+            {/* Tab Switcher: Login vs Register */}
+            <View style={styles.modeSwitcher}>
               <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                activeOpacity={0.7}
+                style={[styles.modeTab, !isRegistering && styles.activeModeTab]}
+                onPress={() => {
+                  setIsRegistering(false);
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
               >
-                {showPassword ? (
-                  <EyeOff size={20} color="#4F46E5" />
-                ) : (
-                  <Eye size={20} color="#64748B" />
-                )}
+                <Text style={[styles.modeTabText, !isRegistering && styles.activeModeTabText]}>
+                  Connexion
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modeTab, isRegistering && styles.activeModeTab]}
+                onPress={() => {
+                  setIsRegistering(true);
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
+              >
+                <Text style={[styles.modeTabText, isRegistering && styles.activeModeTabText]}>
+                  Créer une Boutique
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={styles.submitBtn}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.submitBtnText}>
-                  {isRegistering ? 'Créer ma Boutique' : 'Se Connecter'}
-                </Text>
-                <ArrowRight size={20} color="#FFFFFF" />
-              </>
+            {/* Auth Method Toggle: Email vs Phone */}
+            <View style={styles.methodToggleRow}>
+              <Text style={styles.methodLabel}>S'identifier par :</Text>
+              <View style={styles.methodButtonsGroup}>
+                <TouchableOpacity
+                  style={[styles.methodBtn, authMethod === 'email' && styles.activeMethodBtn]}
+                  onPress={() => setAuthMethod('email')}
+                >
+                  <Mail size={16} color={authMethod === 'email' ? '#FFFFFF' : '#64748B'} />
+                  <Text style={[styles.methodBtnText, authMethod === 'email' && styles.activeMethodBtnText]}>
+                    Email
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.methodBtn, authMethod === 'phone' && styles.activeMethodBtn]}
+                  onPress={() => setAuthMethod('phone')}
+                >
+                  <Phone size={16} color={authMethod === 'phone' ? '#FFFFFF' : '#64748B'} />
+                  <Text style={[styles.methodBtnText, authMethod === 'phone' && styles.activeMethodBtnText]}>
+                    Téléphone
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Error / Success Alert Box */}
+            {!!errorMessage && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
+            {!!successMessage && (
+              <View style={[styles.errorBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                <Text style={[styles.errorText, { color: '#047857' }]}>{successMessage}</Text>
+              </View>
+            )}
 
-        {/* Demo Fast Account Tip */}
-        {!isRegistering && (
-          <View style={styles.quickAccessCard}>
-            <CheckCircle2 size={20} color="#16A34A" />
-            <Text style={styles.quickAccessText}>
-              Vous possédez déjà une boutique test ? Saisissez vos identifiants ou cliquez sur se connecter.
-            </Text>
-          </View>
+            {/* Form Inputs */}
+            <View style={styles.formCard}>
+              {isRegistering && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nom de la Boutique *</Text>
+                  <View style={styles.inputWrapper}>
+                    <Building2 size={20} color="#64748B" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Pendyra Mode, TechIvoir..."
+                      placeholderTextColor="#94A3B8"
+                      value={shopName}
+                      onChangeText={setShopName}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Identifier Input (Email or Phone) */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  {authMethod === 'email' ? 'Adresse Email *' : 'Numéro de Téléphone *'}
+                </Text>
+                <View style={styles.inputWrapper}>
+                  {authMethod === 'email' ? (
+                    <Mail size={20} color="#64748B" style={styles.inputIcon} />
+                  ) : (
+                    <Phone size={20} color="#64748B" style={styles.inputIcon} />
+                  )}
+                  <TextInput
+                    style={styles.input}
+                    placeholder={
+                      authMethod === 'email'
+                        ? 'vendeur@kalagban.com'
+                        : '+225 07 77 62 08 64'
+                    }
+                    placeholderTextColor="#94A3B8"
+                    keyboardType={authMethod === 'email' ? 'email-address' : 'phone-pad'}
+                    autoCapitalize="none"
+                    value={identifier}
+                    onChangeText={setIdentifier}
+                  />
+                </View>
+              </View>
+
+              {isRegistering && (
+                <View style={styles.rowInputs}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>Prénom</Text>
+                    <View style={styles.inputWrapper}>
+                      <UserIcon size={18} color="#64748B" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Kévin"
+                        placeholderTextColor="#94A3B8"
+                        value={firstName}
+                        onChangeText={setFirstName}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>Nom</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={[styles.input, { paddingLeft: 16 }]}
+                        placeholder="Stéphane"
+                        placeholderTextColor="#94A3B8"
+                        value={lastName}
+                        onChangeText={setLastName}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {authType === 'password' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Mot de Passe *</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={20} color="#64748B" style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { paddingRight: 48 }]}
+                      placeholder="••••••••"
+                      placeholderTextColor="#94A3B8"
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      value={password}
+                      onChangeText={setPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeBtn}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff size={20} color="#4F46E5" />
+                      ) : (
+                        <Eye size={20} color="#64748B" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={authType === 'otp' ? handleSendOtp : handlePasswordSubmit}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.submitBtnText}>
+                      {authType === 'otp'
+                        ? 'Envoyer mon Code OTP ➔'
+                        : (isRegistering ? 'Créer ma Boutique' : 'Se Connecter')}
+                    </Text>
+                    <ArrowRight size={20} color="#FFFFFF" />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ backgroundColor: '#F1F5F9', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 12 }}
+                onPress={() => {
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                  setAuthType(authType === 'otp' ? 'password' : 'otp');
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>
+                  {authType === 'otp'
+                    ? '🔑 Se connecter plutôt par mot de passe'
+                    : '⚡ Utiliser la validation rapide par Code OTP'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Fast Account Tip */}
+            {!isRegistering && (
+              <View style={styles.quickAccessCard}>
+                <CheckCircle2 size={20} color="#16A34A" />
+                <Text style={styles.quickAccessText}>
+                  Boutique déjà enregistrée ? Saisissez vos identifiants pour recevoir un code ou entrer votre mot de passe.
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -526,5 +723,17 @@ const styles = StyleSheet.create({
     color: '#15803D',
     fontWeight: '600',
     lineHeight: 17,
+  },
+  otpInputField: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#4F46E5',
+    borderRadius: 16,
+    height: 56,
+    fontSize: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 10,
+    color: '#0F172A',
   },
 });

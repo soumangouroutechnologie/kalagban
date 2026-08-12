@@ -47,13 +47,18 @@ export default function ProfileScreen() {
 
   // Auth Modal States
   const [authModalVisible, setAuthModalVisible] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
-  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('phone');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('register');
+  const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('email');
+  const [authType, setAuthType] = useState<'otp' | 'password'>('otp'); // 'otp' by default as requested
+  const [authStep, setAuthStep] = useState<'form' | 'otp'>('form'); // 'form' or 'otp'
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
@@ -61,6 +66,23 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    let timer: any;
+    if (authStep === 'otp' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [authStep, countdown]);
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -78,11 +100,140 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleAuthSubmit = async () => {
+  const getCleanPhone = () => {
+    let clean = phone.replace(/[^0-9]/g, '');
+    if (clean.length === 10 && (clean.startsWith('07') || clean.startsWith('05') || clean.startsWith('01'))) {
+      clean = '+225' + clean;
+    } else if (!clean.startsWith('+')) {
+      clean = '+' + clean;
+    }
+    return clean;
+  };
+
+  // Step 1: Send OTP Code
+  const handleSendOtp = async () => {
+    setAuthError('');
+    setAuthSuccessMsg('');
+
+    if (loginMethod === 'phone') {
+      if (!phone.trim()) {
+        setAuthError('Veuillez entrer votre numéro de téléphone.');
+        return;
+      }
+    } else {
+      if (!email.trim() || !email.includes('@')) {
+        setAuthError('Veuillez entrer une adresse email valide.');
+        return;
+      }
+    }
+
+    setLoadingAuth(true);
+
+    try {
+      if (loginMethod === 'email') {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: true,
+            data: {
+              full_name: fullName.trim() || 'Client Kalagban',
+              role: 'buyer',
+            },
+          },
+        });
+        if (error) throw error;
+      } else {
+        const targetPhone = getCleanPhone();
+        const { error } = await supabase.auth.signInWithOtp({
+          phone: targetPhone,
+          options: {
+            shouldCreateUser: true,
+            data: {
+              full_name: fullName.trim() || 'Client Kalagban',
+              role: 'buyer',
+            },
+          },
+        });
+        if (error) throw error;
+      }
+
+      setAuthStep('otp');
+      setCountdown(60);
+      setCanResend(false);
+      setAuthSuccessMsg(`Un code de vérification à 6 chiffres a été envoyé par ${loginMethod === 'email' ? 'email' : 'SMS / WhatsApp'}.`);
+    } catch (err: any) {
+      setAuthError(err?.message || "Impossible d'envoyer le code OTP. Veuillez réessayer.");
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  // Step 2: Verify OTP Code
+  const handleVerifyOtp = async () => {
+    setAuthError('');
+    setAuthSuccessMsg('');
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setAuthError('Veuillez saisir le code complet à 6 chiffres.');
+      return;
+    }
+
+    setLoadingAuth(true);
+
+    try {
+      let authRes;
+      if (loginMethod === 'email') {
+        authRes = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otpCode.trim(),
+          type: 'email',
+        });
+      } else {
+        const targetPhone = getCleanPhone();
+        authRes = await supabase.auth.verifyOtp({
+          phone: targetPhone,
+          token: otpCode.trim(),
+          type: 'sms',
+        });
+      }
+
+      if (authRes.error) throw authRes.error;
+
+      if (authRes.data.user) {
+        setUser(authRes.data.user);
+        // Ensure profile exists in profiles table
+        await supabase.from('profiles').upsert({
+          id: authRes.data.user.id,
+          full_name: fullName.trim() || authRes.data.user.user_metadata?.full_name || 'Client Kalagban',
+          phone: loginMethod === 'phone' ? phone : (authRes.data.user.user_metadata?.phone || null),
+          email: loginMethod === 'email' ? email.trim() : (authRes.data.user.email || null),
+          role: 'buyer',
+        });
+      }
+
+      await checkAuthStatus();
+      setAuthModalVisible(false);
+      setAuthStep('form');
+      setOtpCode('');
+      Alert.alert('Connexion réussie ! 🎉', 'Bienvenue sur votre compte Kalagban.');
+    } catch (err: any) {
+      setAuthError(err?.message || 'Code de vérification invalide ou expiré.');
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  // Password fallback flow
+  const handlePasswordAuth = async () => {
+    setLoadingAuth(true);
+    setAuthError('');
+    setAuthSuccessMsg('');
+
     let authEmail = '';
     if (loginMethod === 'phone') {
       if (!phone || (authMode !== 'forgot' && !password)) {
         setAuthError('Veuillez remplir votre numéro.');
+        setLoadingAuth(false);
         return;
       }
       const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -90,14 +241,11 @@ export default function ProfileScreen() {
     } else {
       if (!email || (authMode !== 'forgot' && !password)) {
         setAuthError('Veuillez remplir votre adresse email.');
+        setLoadingAuth(false);
         return;
       }
       authEmail = email.trim();
     }
-
-    setLoadingAuth(true);
-    setAuthError('');
-    setAuthSuccessMsg('');
 
     try {
       if (authMode === 'forgot') {
@@ -309,10 +457,10 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Auth Modal */}
-      <Modal visible={authModalVisible} animationType="slide" transparent>
+      <Modal visible={authModalVisible} animationType="slide" transparent statusBarTranslucent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <TouchableOpacity
             style={styles.modalBackdropDismiss}
@@ -321,153 +469,251 @@ export default function ProfileScreen() {
           />
           <View style={[styles.modalContent, { paddingBottom: Math.max(bottomPadding, 24) }]}>
             <ScrollView
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: 12, paddingBottom: 10 }}
+              contentContainerStyle={{ gap: 14, paddingBottom: 40 }}
             >
-              <Text style={styles.modalTitle}>
-                {authMode === 'login' ? 'Connexion' : authMode === 'register' ? 'Créer un Compte' : 'Mot de Passe Oublié'}
-              </Text>
-              <Text style={styles.modalSub}>
-                {authMode === 'forgot'
-                  ? 'Saisissez votre identifiant pour recevoir un lien de réinitialisation.'
-                  : 'Choisissez votre méthode de connexion (Téléphone ou Email).'}
-              </Text>
+              {authStep === 'otp' ? (
+                /* === STEP 2: OTP VERIFICATION UI === */
+                <View style={{ gap: 16 }}>
+                  <View style={{ alignItems: 'center', gap: 6, marginVertical: 8 }}>
+                    <View style={styles.otpIconBadge}>
+                      <ShieldCheck size={32} color="#4F46E5" />
+                    </View>
+                    <Text style={styles.modalTitle}>Vérification du Code</Text>
+                    <Text style={[styles.modalSub, { textAlign: 'center', paddingHorizontal: 10 }]}>
+                      Nous avons envoyé un code de vérification à 6 chiffres à :
+                    </Text>
+                    <Text style={styles.targetDestinationBadge}>
+                      {loginMethod === 'phone' ? getCleanPhone() : email.trim()}
+                    </Text>
+                  </View>
 
-              {/* Segmented Tab Switcher */}
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  style={[styles.tabBtn, loginMethod === 'phone' && styles.tabBtnActive]}
-                  onPress={() => setLoginMethod('phone')}
-                >
-                  <Phone size={14} color={loginMethod === 'phone' ? '#4F46E5' : '#64748B'} />
-                  <Text style={[styles.tabBtnText, loginMethod === 'phone' && styles.tabBtnTextActive]}>Téléphone</Text>
-                </TouchableOpacity>
+                  {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+                  {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
 
-                <TouchableOpacity
-                  style={[styles.tabBtn, loginMethod === 'email' && styles.tabBtnActive]}
-                  onPress={() => setLoginMethod('email')}
-                >
-                  <Mail size={14} color={loginMethod === 'email' ? '#4F46E5' : '#64748B'} />
-                  <Text style={[styles.tabBtnText, loginMethod === 'email' && styles.tabBtnTextActive]}>Adresse Email</Text>
-                </TouchableOpacity>
-              </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Code de confirmation (6 chiffres) *</Text>
+                    <TextInput
+                      style={styles.otpInput}
+                      placeholder="• • • • • •"
+                      placeholderTextColor="#94A3B8"
+                      value={otpCode}
+                      onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoFocus
+                    />
+                  </View>
 
-              {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
-              {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
+                  <TouchableOpacity
+                    style={styles.modalSubmitBtn}
+                    onPress={handleVerifyOtp}
+                    disabled={loadingAuth || otpCode.length < 6}
+                    activeOpacity={0.85}
+                  >
+                    {loadingAuth ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>Valider et Continuer ➔</Text>
+                    )}
+                  </TouchableOpacity>
 
-              {authMode === 'register' && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Nom &amp; Prénom *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: Jean Kouassi"
-                    placeholderTextColor="#94A3B8"
-                    value={fullName}
-                    onChangeText={setFullName}
-                  />
-                </View>
-              )}
-
-              {loginMethod === 'phone' ? (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Numéro de Téléphone *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: 07 00 11 22 33"
-                    placeholderTextColor="#94A3B8"
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              ) : (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Adresse Email *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: client@kalagban.ci"
-                    placeholderTextColor="#94A3B8"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-              )}
-
-              {authMode !== 'forgot' && (
-                <View style={styles.inputGroup}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.inputLabel}>Mot de Passe *</Text>
-                    {authMode === 'login' && (
-                      <TouchableOpacity onPress={() => {
-                        setAuthError('');
-                        setAuthSuccessMsg('');
-                        setAuthMode('forgot');
-                      }}>
-                        <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
+                  <View style={styles.otpResendRow}>
+                    <Text style={styles.resendInfoText}>Vous n'avez pas reçu le code ?</Text>
+                    {canResend ? (
+                      <TouchableOpacity onPress={handleSendOtp} disabled={loadingAuth}>
+                        <Text style={styles.resendBtnActive}>Renvoyer le code</Text>
                       </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.resendTimerText}>Renvoyer dans {countdown}s</Text>
                     )}
                   </View>
-                  <View style={styles.passwordInputWrapper}>
-                    <TextInput
-                      style={styles.passwordInput}
-                      placeholder="••••••••"
-                      placeholderTextColor="#94A3B8"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                    />
+
+                  <TouchableOpacity
+                    style={styles.backStepBtn}
+                    onPress={() => {
+                      setAuthStep('form');
+                      setAuthError('');
+                      setAuthSuccessMsg('');
+                    }}
+                  >
+                    <Text style={styles.backStepBtnText}>← Modifier mon {loginMethod === 'phone' ? 'numéro' : 'email'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* === STEP 1: CREDENTIALS INPUT UI === */
+                <View style={{ gap: 12 }}>
+                  <Text style={styles.modalTitle}>
+                    {authType === 'otp'
+                      ? 'Connexion / Inscription rapide'
+                      : (authMode === 'login' ? 'Connexion par Mot de Passe' : authMode === 'register' ? 'Créer un Compte' : 'Mot de Passe Oublié')}
+                  </Text>
+                  <Text style={styles.modalSub}>
+                    {authType === 'otp'
+                      ? 'Recevez un code de validation sécurisé par SMS ou Email pour vous connecter instantanément.'
+                      : (authMode === 'forgot'
+                        ? 'Saisissez votre identifiant pour recevoir un lien de réinitialisation.'
+                        : 'Choisissez votre méthode de connexion (Téléphone ou Email).')}
+                  </Text>
+
+                  {/* Segmented Tab Switcher: Phone vs Email */}
+                  <View style={styles.tabContainer}>
                     <TouchableOpacity
-                      style={styles.eyeBtn}
-                      onPress={() => setShowPassword(!showPassword)}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                      activeOpacity={0.7}
+                      style={[styles.tabBtn, loginMethod === 'phone' && styles.tabBtnActive]}
+                      onPress={() => setLoginMethod('phone')}
                     >
-                      {showPassword ? <EyeOff size={18} color="#4F46E5" /> : <Eye size={18} color="#64748B" />}
+                      <Phone size={14} color={loginMethod === 'phone' ? '#4F46E5' : '#64748B'} />
+                      <Text style={[styles.tabBtnText, loginMethod === 'phone' && styles.tabBtnTextActive]}>Téléphone</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.tabBtn, loginMethod === 'email' && styles.tabBtnActive]}
+                      onPress={() => setLoginMethod('email')}
+                    >
+                      <Mail size={14} color={loginMethod === 'email' ? '#4F46E5' : '#64748B'} />
+                      <Text style={[styles.tabBtnText, loginMethod === 'email' && styles.tabBtnTextActive]}>Adresse Email</Text>
                     </TouchableOpacity>
                   </View>
+
+                  {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+                  {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
+
+                  {authMode === 'register' && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Nom &amp; Prénom *</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Ex: Kévin Stéphane"
+                        placeholderTextColor="#94A3B8"
+                        value={fullName}
+                        onChangeText={setFullName}
+                      />
+                    </View>
+                  )}
+
+                  {loginMethod === 'phone' ? (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Numéro de Téléphone *</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Ex: 07 77 62 08 64"
+                        placeholderTextColor="#94A3B8"
+                        value={phone}
+                        onChangeText={setPhone}
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Adresse Email *</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Ex: client@kalagban.ci"
+                        placeholderTextColor="#94A3B8"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  )}
+
+                  {authType === 'password' && authMode !== 'forgot' && (
+                    <View style={styles.inputGroup}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.inputLabel}>Mot de Passe *</Text>
+                        {authMode === 'login' && (
+                          <TouchableOpacity onPress={() => {
+                            setAuthError('');
+                            setAuthSuccessMsg('');
+                            setAuthMode('forgot');
+                          }}>
+                            <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={styles.passwordInputWrapper}>
+                        <TextInput
+                          style={styles.passwordInput}
+                          placeholder="••••••••"
+                          placeholderTextColor="#94A3B8"
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowPassword(!showPassword)}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          activeOpacity={0.7}
+                        >
+                          {showPassword ? <EyeOff size={18} color="#4F46E5" /> : <Eye size={18} color="#64748B" />}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Submit Button: OTP vs Password */}
+                  <TouchableOpacity
+                    style={styles.modalSubmitBtn}
+                    onPress={authType === 'otp' ? handleSendOtp : handlePasswordAuth}
+                    disabled={loadingAuth}
+                    activeOpacity={0.85}
+                  >
+                    {loadingAuth ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalSubmitText}>
+                        {authType === 'otp'
+                          ? 'Envoyer mon Code OTP ➔'
+                          : (authMode === 'login' ? 'Se Connecter' : authMode === 'register' ? 'Créer mon Compte' : 'Réinitialiser')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Switch between OTP and Password method */}
+                  <TouchableOpacity
+                    style={styles.toggleAuthTypeBtn}
+                    onPress={() => {
+                      setAuthError('');
+                      setAuthSuccessMsg('');
+                      setAuthType(authType === 'otp' ? 'password' : 'otp');
+                    }}
+                  >
+                    <Text style={styles.toggleAuthTypeText}>
+                      {authType === 'otp'
+                        ? '🔑 Se connecter plutôt avec un mot de passe'
+                        : '⚡ Utiliser la connexion rapide par Code OTP'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {authType === 'password' && (
+                    <TouchableOpacity
+                      style={{ marginTop: 4 }}
+                      onPress={() => {
+                        setAuthError('');
+                        setAuthSuccessMsg('');
+                        setAuthMode(authMode === 'login' ? 'register' : 'login');
+                      }}
+                    >
+                      <Text style={styles.switchAuthText}>
+                        {authMode === 'login'
+                          ? "Pas encore de compte ? S'inscrire"
+                          : 'Déjà un compte ? Se connecter'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.closeModalBtn}
+                    onPress={() => setAuthModalVisible(false)}
+                  >
+                    <Text style={styles.closeModalText}>Fermer</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-
-              <TouchableOpacity
-                style={styles.modalSubmitBtn}
-                onPress={handleAuthSubmit}
-                disabled={loadingAuth}
-                activeOpacity={0.85}
-              >
-                {loadingAuth ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalSubmitText}>
-                    {authMode === 'login' ? 'Se Connecter' : authMode === 'register' ? 'Créer mon Compte' : 'Réinitialiser mon Mot de Passe'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{ marginTop: 8 }}
-                onPress={() => {
-                  setAuthError('');
-                  setAuthSuccessMsg('');
-                  setAuthMode(authMode === 'login' ? 'register' : 'login');
-                }}
-              >
-                <Text style={styles.switchAuthText}>
-                  {authMode === 'login'
-                    ? 'Pas encore de compte ? S\'inscrire'
-                    : 'Déjà un compte ? Se connecter'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.closeModalBtn}
-                onPress={() => setAuthModalVisible(false)}
-              >
-                <Text style={styles.closeModalText}>Fermer</Text>
-              </TouchableOpacity>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -777,6 +1023,83 @@ const styles = StyleSheet.create({
     color: '#4F46E5',
     fontSize: 12,
     fontWeight: '700',
+  },
+  toggleAuthTypeBtn: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  toggleAuthTypeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  otpIconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    marginBottom: 4,
+  },
+  targetDestinationBadge: {
+    backgroundColor: '#F1F5F9',
+    color: '#0F172A',
+    fontWeight: '800',
+    fontSize: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  otpInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#4F46E5',
+    borderRadius: 16,
+    height: 56,
+    fontSize: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 10,
+    color: '#0F172A',
+  },
+  otpResendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  resendInfoText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  resendBtnActive: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#4F46E5',
+    textDecorationLine: 'underline',
+  },
+  resendTimerText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#94A3B8',
+  },
+  backStepBtn: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  backStepBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
   },
   closeModalBtn: {
     alignItems: 'center',
