@@ -644,10 +644,45 @@ export default function ProfileScreen() {
                     </View>
                   )}
 
+                  {/* Password Input Field */}
+                  <View style={styles.inputGroup}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.inputLabel}>Mot de Passe *</Text>
+                      {authMode === 'login' && (
+                        <TouchableOpacity onPress={() => {
+                          setAuthError('');
+                          setAuthSuccessMsg('');
+                          setAuthMode('forgot');
+                        }}>
+                          <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={styles.passwordInputWrapper}>
+                      <TextInput
+                        style={styles.passwordInput}
+                        placeholder="••••••••"
+                        placeholderTextColor="#94A3B8"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeBtn}
+                        onPress={() => setShowPassword(!showPassword)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        activeOpacity={0.7}
+                      >
+                        {showPassword ? <EyeOff size={18} color="#4F46E5" /> : <Eye size={18} color="#64748B" />}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
                   {/* Main Action Button */}
                   <TouchableOpacity
                     style={styles.modalSubmitBtn}
-                    onPress={handleSendOtp}
+                    onPress={handlePasswordAuth}
                     disabled={loadingAuth}
                     activeOpacity={0.85}
                   >
@@ -655,7 +690,7 @@ export default function ProfileScreen() {
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
                       <Text style={styles.modalSubmitText}>
-                        {authMode === 'register' ? 'Créer mon Compte ➔' : 'Se Connecter ➔'}
+                        {authMode === 'register' ? 'Créer mon Compte ➔' : (authMode === 'login' ? 'Se Connecter ➔' : 'Réinitialiser ➔')}
                       </Text>
                     )}
                   </TouchableOpacity>

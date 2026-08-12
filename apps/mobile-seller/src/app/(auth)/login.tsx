@@ -436,38 +436,37 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {authType === 'password' && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Mot de Passe *</Text>
-                  <View style={styles.inputWrapper}>
-                    <Lock size={20} color="#64748B" style={styles.inputIcon} />
-                    <TextInput
-                      style={[styles.input, { paddingRight: 48 }]}
-                      placeholder="••••••••"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      value={password}
-                      onChangeText={setPassword}
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeBtn}
-                      onPress={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff size={20} color="#4F46E5" />
-                      ) : (
-                        <Eye size={20} color="#64748B" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
+              {/* Password Field - Always Visible */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Mot de Passe *</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock size={20} color="#64748B" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { paddingRight: 48 }]}
+                    placeholder="••••••••"
+                    placeholderTextColor="#94A3B8"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={20} color="#4F46E5" />
+                    ) : (
+                      <Eye size={20} color="#64748B" />
+                    )}
+                  </TouchableOpacity>
                 </View>
-              )}
+              </View>
 
               {/* Submit Button */}
               <TouchableOpacity
                 style={styles.submitBtn}
-                onPress={handleSendOtp}
+                onPress={handlePasswordSubmit}
                 disabled={loading}
                 activeOpacity={0.85}
               >
