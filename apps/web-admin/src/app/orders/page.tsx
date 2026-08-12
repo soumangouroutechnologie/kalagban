@@ -41,6 +41,15 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+
+    const channel = supabase
+      .channel("admin_orders_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredOrders = orders.filter(o => 

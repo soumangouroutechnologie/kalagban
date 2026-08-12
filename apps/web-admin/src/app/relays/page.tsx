@@ -121,6 +121,15 @@ export default function AdminRelaysPage() {
 
   useEffect(() => {
     fetchRelays();
+
+    const channel = supabase
+      .channel("admin_relays_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Open Edit Modal with pre-filled data

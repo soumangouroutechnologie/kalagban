@@ -85,7 +85,9 @@ export default function BuyerHomePage() {
     title: "CATÉGORIE DU JOUR",
     subtitle: "Télévisions & Tech",
     price_tag: "DÈS 45 000 FCFA",
-    image_url: "/promo_banner_tech.png"
+    image_url: "/promo_banner_tech.png",
+    image_position: "top",
+    banner_height: "standard",
   });
 
   const [categoryBubblesConfig, setCategoryBubblesConfig] = useState({
@@ -629,12 +631,25 @@ export default function BuyerHomePage() {
               <div dangerouslySetInnerHTML={{ __html: promoBannerConfig.raw_html_code }} />
             </div>
           ) : (promoBannerConfig.ad_type === "full_image" || (promoBannerConfig.image_url && promoBannerConfig.ad_type !== "standard")) ? (
-            <div className="relative rounded-3xl overflow-hidden shadow-lg border border-gray-100 group bg-slate-900 w-full flex items-center justify-center cursor-pointer">
+            <div className={`relative rounded-3xl overflow-hidden shadow-lg border border-gray-100 group bg-slate-900 w-full flex items-center justify-center cursor-pointer ${
+              promoBannerConfig.banner_height === "compact" ? "h-44 sm:h-56" :
+              promoBannerConfig.banner_height === "large" ? "h-72 sm:h-96 md:h-105" :
+              promoBannerConfig.banner_height === "auto" ? "h-auto max-h-125" :
+              "h-56 sm:h-64 md:h-80"
+            }`}>
               <a href={promoBannerConfig.target_url || "#catalogue"} className="block w-full h-full">
                 <img
                   src={promoBannerConfig.image_url}
                   alt={promoBannerConfig.title || "Bannière Publicitaire"}
-                  className="w-full h-auto max-h-56 sm:max-h-64 md:max-h-72 object-cover transition-transform duration-700 group-hover:scale-[1.005]"
+                  className={`w-full h-full transition-transform duration-700 group-hover:scale-[1.005] ${
+                    promoBannerConfig.image_position === "contain"
+                      ? "object-contain"
+                      : promoBannerConfig.image_position === "bottom"
+                      ? "object-cover object-bottom"
+                      : promoBannerConfig.image_position === "center"
+                      ? "object-cover object-center"
+                      : "object-cover object-top"
+                  }`}
                 />
               </a>
             </div>
@@ -937,31 +952,39 @@ export default function BuyerHomePage() {
         const isExternal = activeSlide.link_url?.startsWith("http");
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-300">
-            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl w-[92vw] sm:w-full max-w-md sm:max-w-lg lg:max-w-xl relative border border-white/20 flex flex-col group">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-300">
+            <div className="bg-white rounded-3xl overflow-hidden shadow-2xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[92vh] relative border border-white/20 flex flex-col group">
               
               {/* Top Close Button (X) */}
               <button
                 onClick={() => setShowPopupModal(false)}
-                className="absolute top-3 right-3 z-30 w-9 h-9 sm:w-10 sm:h-10 bg-black/70 hover:bg-black text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg border border-white/30 hover:scale-105"
+                className="absolute top-3 right-3 z-30 w-9 h-9 sm:w-10 sm:h-10 bg-black/75 hover:bg-black text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg border border-white/30 hover:scale-105"
                 title="Fermer la publicité"
               >
                 <X size={20} />
               </button>
 
-              {/* Modal Image Slider */}
-              <div className="relative aspect-4/3 sm:aspect-16/10 w-full bg-slate-900 overflow-hidden">
+              {/* Modal Image Slider - Adaptive Container respecting full image dimensions */}
+              <div className="relative w-full bg-slate-950 overflow-hidden flex items-center justify-center min-h-65 max-h-[68vh]">
+                {/* Ambient Blurred Background to fill empty aspect ratio borders cleanly */}
+                <img
+                  src={activeSlide.image_url}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-125 pointer-events-none"
+                />
+
                 <a
                   href={activeSlide.link_url}
                   target={isExternal ? "_blank" : "_self"}
                   rel={isExternal ? "noopener noreferrer" : undefined}
                   onClick={() => setShowPopupModal(false)}
-                  className="block w-full h-full cursor-pointer"
+                  className="relative z-10 w-full h-full flex items-center justify-center cursor-pointer p-1"
                 >
                   <img
                     src={activeSlide.image_url}
                     alt="Offre Spéciale Pop-up"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="w-auto h-auto max-w-full max-h-[65vh] object-contain transition-transform duration-500 group-hover:scale-[1.02]"
                   />
                 </a>
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { UserCheck, Search, Loader2, Users, ShoppingBag, ShieldCheck, UserX, UserPlus, Eye, Ban, CheckCircle2, X } from "lucide-react";
+import { UserCheck, Search, Loader2, Users, ShoppingBag, ShieldCheck, UserPlus, Eye, Ban, CheckCircle2, X } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -24,14 +24,52 @@ export default function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
+      // 1. Fetch from profiles
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setUsers(data as UserProfile[]);
+      // 2. Fetch from shops
+      const { data: shopsData } = await supabase
+        .from("shops")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const unifiedMap = new Map<string, UserProfile>();
+
+      if (profileData && profileData.length > 0) {
+        profileData.forEach((p: any) => {
+          const name = p.full_name || (p.first_name ? `${p.first_name} ${p.last_name || ''}`.trim() : '');
+          unifiedMap.set(p.id, {
+            id: p.id,
+            full_name: name,
+            phone: p.phone || '',
+            role: p.role || (p.admin_role ? 'admin' : 'buyer'),
+            admin_role: p.admin_role,
+            status: p.status || 'active',
+            created_at: p.created_at,
+          });
+        });
       }
+
+      if (shopsData && shopsData.length > 0) {
+        shopsData.forEach((s: any) => {
+          const sellerId = s.owner_id || s.id;
+          const existing = unifiedMap.get(sellerId);
+          unifiedMap.set(sellerId, {
+            id: sellerId,
+            full_name: existing?.full_name ? `${existing.full_name} (${s.name})` : s.name,
+            phone: existing?.phone || s.phone || '',
+            role: 'seller',
+            admin_role: existing?.admin_role,
+            status: s.status || existing?.status || 'active',
+            created_at: s.created_at || existing?.created_at,
+          });
+        });
+      }
+
+      setUsers(Array.from(unifiedMap.values()));
     } catch (err) {
       console.error("Error fetching users:", err);
     } finally {
@@ -41,29 +79,46 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
+
+    // Supabase Live Realtime Subscription for Users & Shops
+    const channel = supabase
+      .channel("admin_users_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        fetchUsers();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleToggleUserStatus = async (user: UserProfile) => {
     const newStatus = user.status === "suspended" ? "active" : "suspended";
     setUpdatingId(user.id);
     try {
-      const { error } = await supabase
+      // Update in profiles if exists
+      await supabase
         .from("profiles")
         .update({ status: newStatus })
         .eq("id", user.id);
 
-      if (!error) {
-        setUsers((prev) =>
-          prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
-        );
-        if (selectedUser?.id === user.id) {
-          setSelectedUser((prev) => (prev ? { ...prev, status: newStatus } : null));
-        }
-      } else {
-        // Fallback for UI responsiveness
-        setUsers((prev) =>
-          prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
-        );
+      // Update in shops if seller
+      if (user.role === "seller") {
+        await supabase
+          .from("shops")
+          .update({ status: newStatus })
+          .or(`id.eq.${user.id},owner_id.eq.${user.id}`);
+      }
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
+      );
+      if (selectedUser?.id === user.id) {
+        setSelectedUser((prev) => (prev ? { ...prev, status: newStatus } : null));
       }
     } catch (err) {
       console.error("Error updating user status:", err);
@@ -82,7 +137,7 @@ export default function AdminUsersPage() {
 
     if (activeTab === "buyer") return u.role === "buyer";
     if (activeTab === "seller") return u.role === "seller";
-    if (activeTab === "admin") return u.admin_role || u.role === "admin";
+    if (activeTab === "admin") return !!(u.admin_role || u.role === "admin");
     return true;
   });
 
@@ -100,7 +155,7 @@ export default function AdminUsersPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Utilisateurs &amp; Profils</h1>
-            <p className="text-xs text-gray-500 font-medium">Gestion et modération des acheteurs, vendeurs et administrateurs</p>
+            <p className="text-xs text-gray-500 font-medium">Gestion et modération des acheteurs, vendeurs et administrateurs en temps réel</p>
           </div>
         </div>
 
@@ -195,7 +250,7 @@ export default function AdminUsersPage() {
         {loading ? (
           <div className="py-16 flex flex-col items-center justify-center">
             <Loader2 className="animate-spin text-indigo-600 w-10 h-10 mb-3" />
-            <p className="text-gray-400 text-xs font-bold animate-pulse">Chargement des comptes...</p>
+            <p className="text-gray-400 text-xs font-bold animate-pulse">Chargement des comptes en temps réel...</p>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="p-12 text-center text-gray-400 font-medium text-xs">
@@ -215,7 +270,7 @@ export default function AdminUsersPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-extrabold text-sm text-gray-900">
-                        {user.full_name || (user.role === "seller" ? "Boutique Soumangourou tech" : "Nom non renseigné")}
+                        {user.full_name || "Utilisateur Kalagban"}
                       </h3>
                       {user.status === "suspended" && (
                         <span className="bg-red-50 text-red-600 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-red-200">

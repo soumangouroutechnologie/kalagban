@@ -49,6 +49,15 @@ export default function AdminShopsPage() {
 
   useEffect(() => {
     fetchShops();
+
+    const channel = supabase
+      .channel("admin_shops_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => fetchShops())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleUpdateShopStatus = async (shopId: string, newStatus: string) => {

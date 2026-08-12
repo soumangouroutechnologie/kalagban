@@ -108,6 +108,16 @@ export default function TeamPage() {
 
   useEffect(() => {
     fetchTeamMembers();
+
+    const channel = supabase
+      .channel("admin_team_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => fetchTeamMembers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_permissions" }, () => fetchTeamMembers())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleCreateMember = async (e: React.FormEvent) => {

@@ -38,6 +38,15 @@ export default function AdminFinancePage() {
 
   useEffect(() => {
     fetchFinanceMetrics();
+
+    const channel = supabase
+      .channel("admin_finance_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchFinanceMetrics())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (

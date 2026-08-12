@@ -82,6 +82,18 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchDashboardMetrics();
+
+    // Supabase Live Realtime Subscription
+    const channel = supabase
+      .channel("admin_dashboard_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => fetchDashboardMetrics())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (

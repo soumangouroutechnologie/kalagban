@@ -47,6 +47,9 @@ interface PromoBannerConfig {
   subtitle: string;
   price_tag: string;
   image_url: string;
+  target_url?: string;
+  image_position?: "top" | "center" | "bottom" | "contain";
+  banner_height?: "auto" | "compact" | "standard" | "large";
 }
 
 interface FooterContactConfig {
@@ -293,6 +296,15 @@ export default function CMSPage() {
 
   useEffect(() => {
     fetchSiteSettings();
+
+    const channel = supabase
+      .channel("admin_cms_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => fetchSiteSettings())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleSaveCMS = async () => {
@@ -989,12 +1001,62 @@ export default function CMSPage() {
                     </div>
                   </div>
 
+                  {/* Options de Cadrage et Hauteur pour la Bannière */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-gray-200">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700 block">📐 Cadrage / Position du Visuel</label>
+                      <select
+                        value={promoBanner.image_position || "top"}
+                        onChange={(e) => setPromoBanner({ ...promoBanner, image_position: e.target.value as any })}
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 outline-none focus:border-indigo-600"
+                      >
+                        <option value="top">👤 Cadrer vers le Haut (Visages et Personnes visibles)</option>
+                        <option value="center">🎯 Centré (Standard)</option>
+                        <option value="bottom">⬇️ Cadrer vers le Bas</option>
+                        <option value="contain">🖼️ Image Entière (Sans aucun rognage)</option>
+                      </select>
+                      <span className="text-[11px] text-gray-500">Permet d&apos;ajuster la photo pour voir les têtes et visages.</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700 block">📏 Hauteur de la Bannière</label>
+                      <select
+                        value={promoBanner.banner_height || "standard"}
+                        onChange={(e) => setPromoBanner({ ...promoBanner, banner_height: e.target.value as any })}
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 outline-none focus:border-indigo-600"
+                      >
+                        <option value="auto">🌟 Automatique (Selon le format de l&apos;image)</option>
+                        <option value="compact">📱 Compact (220px)</option>
+                        <option value="standard">💻 Standard (320px)</option>
+                        <option value="large">🖥️ Grand Format (440px)</option>
+                      </select>
+                      <span className="text-[11px] text-gray-500">Contrôle l&apos;espace vertical occupé par la publicité.</span>
+                    </div>
+                  </div>
+
                   {promoBanner.image_url && (
                     <div className="pt-2 space-y-1.5">
-                      <span className="text-xs font-extrabold text-gray-700 block">👁️ Aperçu de la Bannière Pub (Remplace TOUT le bloc encadré de la page d&apos;accueil) :</span>
-                      <div className="w-full h-32 sm:h-40 rounded-2xl overflow-hidden border border-gray-200 bg-slate-900 shadow-md">
+                      <span className="text-xs font-extrabold text-gray-700 block">👁️ Aperçu du Cadrage en Temps Réel :</span>
+                      <div className={`w-full rounded-2xl overflow-hidden border border-gray-200 bg-slate-900 shadow-md ${
+                        promoBanner.banner_height === "compact" ? "h-36 sm:h-48" :
+                        promoBanner.banner_height === "large" ? "h-64 sm:h-80" :
+                        promoBanner.banner_height === "auto" ? "h-auto max-h-96" :
+                        "h-48 sm:h-60"
+                      }`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={promoBanner.image_url} alt="Aperçu Pub Plein Écran" className="w-full h-full object-cover" />
+                        <img
+                          src={promoBanner.image_url}
+                          alt="Aperçu Pub Plein Écran"
+                          className={`w-full h-full ${
+                            promoBanner.image_position === "contain"
+                              ? "object-contain"
+                              : promoBanner.image_position === "bottom"
+                              ? "object-cover object-bottom"
+                              : promoBanner.image_position === "center"
+                              ? "object-cover object-center"
+                              : "object-cover object-top"
+                          }`}
+                        />
                       </div>
                     </div>
                   )}
