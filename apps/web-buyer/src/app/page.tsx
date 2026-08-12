@@ -706,7 +706,7 @@ export default function BuyerHomePage() {
                 <div key={shop.id} className="bg-slate-50/70 rounded-2xl p-5 border border-gray-100 flex flex-col justify-between gap-4 group">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-linear-to-br from-[#6d28d9] to-purple-600 text-white rounded-xl overflow-hidden shrink-0 flex items-center justify-center font-black text-lg shadow-xs">
-                      {shop.logo_url ? (
+                      {shop.logo_url && !shop.logo_url.startsWith("file://") ? (
                         <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
                       ) : (
                         shop.name.charAt(0).toUpperCase()

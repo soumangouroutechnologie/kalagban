@@ -45,19 +45,23 @@ export default function ProductCard({ product }: { product: ProductType }) {
     setIsFav(!isFav);
   };
 
+  const [imgError, setImgError] = useState(false);
+  const isValidUrl = product.image_url && !product.image_url.startsWith("file://") && !imgError;
+
   return (
     <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 flex flex-col group relative">
       
       {/* Image Container */}
       <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-4">
-        {product.image_url ? (
+        {isValidUrl ? (
           <img 
-            src={product.image_url} 
+            src={product.image_url!} 
             alt={product.title}
+            onError={() => setImgError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-indigo-50/50 text-indigo-300">
             <ImageIcon size={48} strokeWidth={1.5} />
           </div>
         )}

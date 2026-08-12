@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/auth-context';
 import { supabase } from '../../lib/supabase';
+import { uploadMedia } from '../../lib/storage';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Store,
@@ -85,12 +86,21 @@ export default function SellerSettingsScreen() {
       const targetId = shop?.id || user?.id;
 
       if (targetId) {
+        let finalLogoUrl = bannerUrl;
+        if (bannerUrl && !bannerUrl.startsWith('http://') && !bannerUrl.startsWith('https://')) {
+          const uploadedUrl = await uploadMedia(bannerUrl, `logo_${targetId}`);
+          if (uploadedUrl) {
+            finalLogoUrl = uploadedUrl;
+            setBannerUrl(uploadedUrl);
+          }
+        }
+
         // Save Shop details & Payout settings
         await supabase.from('shops').upsert({
           id: targetId,
           name: shopName,
           description: shopDescription,
-          logo_url: bannerUrl,
+          logo_url: finalLogoUrl,
           payout_provider: payoutProvider,
           payout_phone: payoutPhone,
         });
