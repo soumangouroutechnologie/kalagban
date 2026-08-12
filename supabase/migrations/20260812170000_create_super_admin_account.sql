@@ -4,14 +4,13 @@
 -- Identifiants: admin@kalagban.ci / password123
 -- ==============================================================================
 
--- 1. Création de l'utilisateur Super Admin dans auth.users et public.profiles
 DO $$
 DECLARE
     admin_uid UUID := 'a0000000-0000-0000-0000-000000000001';
     admin_email TEXT := 'admin@kalagban.ci';
     admin_pwd TEXT := 'password123';
 BEGIN
-    -- Insertion dans auth.users
+    -- 1. Inscription dans auth.users
     INSERT INTO auth.users (
         id,
         instance_id,
@@ -44,7 +43,9 @@ BEGIN
         email_confirmed_at = NOW(),
         raw_user_meta_data = '{"full_name":"Super Administrateur Kalagban","role":"admin","admin_role":"super_admin"}'::jsonb;
 
-    -- Insertion dans auth.identities
+    -- 2. Liaison auth.identities (Nettoyage préalable puis réinsertion propre)
+    DELETE FROM auth.identities WHERE user_id = admin_uid OR id = admin_uid::text;
+
     INSERT INTO auth.identities (
         id,
         user_id,
@@ -55,17 +56,16 @@ BEGIN
         updated_at
     )
     VALUES (
-        admin_uid,
+        admin_uid::text,
         admin_uid,
         format('{"sub":"%s","email":"%s"}', admin_uid, admin_email)::jsonb,
         'email',
         NOW(),
         NOW(),
         NOW()
-    )
-    ON CONFLICT (provider, id) DO NOTHING;
+    );
 
-    -- Insertion dans public.profiles
+    -- 3. Fiche de profil dans public.profiles
     INSERT INTO public.profiles (
         id,
         full_name,
@@ -90,7 +90,7 @@ BEGIN
         admin_role = 'super_admin',
         status = 'active';
 
-    -- Insertion des permissions maximales dans public.admin_permissions
+    -- 4. Droits complets dans public.admin_permissions
     INSERT INTO public.admin_permissions (
         user_id,
         can_manage_team,
@@ -116,40 +116,25 @@ BEGIN
 
 END $$;
 
--- 2. Débloquer la lecture des profils utilisateurs pour le Back-Office Admin
+-- 5. Déblocage de la visibilité des profils pour l'administration (RLS)
 ALTER TABLE IF EXISTS public.profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Public read profiles" ON public.profiles;
+CREATE POLICY "Public read profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Admin update profiles" ON public.profiles FOR UPDATE USING (true);
+CREATE POLICY "Admin insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
 
-DO $$ 
-BEGIN
-    DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
-    DROP POLICY IF EXISTS "Public read profiles" ON public.profiles;
-    DROP POLICY IF EXISTS "Allow read profiles" ON public.profiles;
-    
-    CREATE POLICY "Public read profiles" ON public.profiles FOR SELECT USING (true);
-    CREATE POLICY "Admin update profiles" ON public.profiles FOR UPDATE USING (true);
-    CREATE POLICY "Admin insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
-EXCEPTION
-    WHEN OTHERS THEN NULL;
-END $$;
-
--- 3. Débloquer la lecture des boutiques pour le Back-Office Admin
+-- 6. Déblocage des boutiques (RLS)
 ALTER TABLE IF EXISTS public.shops ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public read shops" ON public.shops;
+CREATE POLICY "Public read shops" ON public.shops FOR SELECT USING (true);
+CREATE POLICY "Admin update shops" ON public.shops FOR ALL USING (true);
 
-DO $$ 
-BEGIN
-    DROP POLICY IF EXISTS "Public read shops" ON public.shops;
-    CREATE POLICY "Public read shops" ON public.shops FOR SELECT USING (true);
-    CREATE POLICY "Admin update shops" ON public.shops FOR ALL USING (true);
-EXCEPTION
-    WHEN OTHERS THEN NULL;
-END $$;
-
--- 4. Activer le Temps Réel (Supabase Realtime) sur toutes les tables d'administration
+-- 7. Activation de la synchronisation Temps Réel (Supabase Realtime)
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.shops; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.orders; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.pickup_points; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.site_settings; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
--- 5. Rafraîchissement du cache de schéma PostgREST
 NOTIFY pgrst, 'reload schema';
