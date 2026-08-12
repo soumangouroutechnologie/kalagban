@@ -106,7 +106,7 @@ export default function LoginScreen() {
     setSuccessMessage('');
 
     if (!otpCode || otpCode.trim().length < 6) {
-      setErrorMessage('Veuillez saisir le code complet à 6 chiffres.');
+      setErrorMessage('Veuillez saisir le code de vérification reçu.');
       return;
     }
 
@@ -219,7 +219,7 @@ export default function LoginScreen() {
           </Text>
           <Text style={styles.headerSubtitle}>
             {authStep === 'otp'
-              ? `Saisissez le code à 6 chiffres envoyé à ${identifier.trim()}`
+              ? `Saisissez le code de validation envoyé à ${identifier.trim()}`
               : (isRegistering
                 ? 'Rejoignez des milliers de commerçants et vendez vos articles à travers tout le pays.'
                 : 'Connectez-vous pour gérer votre catalogue et vos commandes.')}
@@ -241,15 +241,15 @@ export default function LoginScreen() {
             )}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Code de Confirmation (6 chiffres) *</Text>
+              <Text style={styles.label}>Code de Confirmation OTP *</Text>
               <TextInput
                 style={styles.otpInputField}
-                placeholder="• • • • • •"
+                placeholder="• • • • • • • •"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={8}
                 value={otpCode}
-                onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 8))}
                 autoFocus
               />
             </View>

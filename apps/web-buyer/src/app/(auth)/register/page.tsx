@@ -279,16 +279,16 @@ function RegisterContent() {
 
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5 text-center">
-                  Code OTP (6 chiffres)
+                  Code de Validation OTP
                 </label>
                 <input
                   type="text"
-                  maxLength={6}
+                  maxLength={8}
                   required
                   autoFocus
                   value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="• • • • • •"
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="• • • • • • • •"
                   className="w-full bg-gray-50 border-2 border-indigo-600 text-gray-900 rounded-2xl py-3 px-4 text-center font-black text-2xl tracking-[10px] focus:ring-4 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
                 />
               </div>

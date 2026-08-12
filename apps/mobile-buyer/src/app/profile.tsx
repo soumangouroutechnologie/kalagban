@@ -174,7 +174,7 @@ export default function ProfileScreen() {
     setAuthSuccessMsg('');
 
     if (!otpCode || otpCode.trim().length < 6) {
-      setAuthError('Veuillez saisir le code complet à 6 chiffres.');
+      setAuthError('Veuillez saisir le code de vérification reçu.');
       return;
     }
 
@@ -491,7 +491,7 @@ export default function ProfileScreen() {
                     </View>
                     <Text style={styles.modalTitle}>Vérification du Code</Text>
                     <Text style={[styles.modalSub, { textAlign: 'center', paddingHorizontal: 10 }]}>
-                      Nous avons envoyé un code de vérification à 6 chiffres à :
+                      Nous avons envoyé un code de vérification à :
                     </Text>
                     <Text style={styles.targetDestinationBadge}>
                       {loginMethod === 'phone' ? getCleanPhone() : email.trim()}
@@ -502,15 +502,15 @@ export default function ProfileScreen() {
                   {authSuccessMsg ? <Text style={styles.successText}>{authSuccessMsg}</Text> : null}
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Code de confirmation (6 chiffres) *</Text>
+                    <Text style={styles.inputLabel}>Code de confirmation OTP *</Text>
                     <TextInput
                       style={styles.otpInput}
-                      placeholder="• • • • • •"
+                      placeholder="• • • • • • • •"
                       placeholderTextColor="#94A3B8"
                       value={otpCode}
-                      onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
+                      onChangeText={(t) => setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 8))}
                       keyboardType="number-pad"
-                      maxLength={6}
+                      maxLength={8}
                       autoFocus
                     />
                   </View>
