@@ -284,9 +284,9 @@ export default function AdminUsersPage() {
 
                 <div className="flex items-center gap-3">
                   <div>
-                    {user.admin_role ? (
+                    {user.role === "admin" || user.admin_role ? (
                       <span className="bg-amber-50 text-amber-700 font-extrabold px-3 py-1 rounded-full border border-amber-200 text-xs">
-                        Admin ({user.admin_role}) 👑
+                        Admin ({user.admin_role || "super_admin"}) 👑
                       </span>
                     ) : user.role === "seller" ? (
                       <span className="bg-indigo-50 text-indigo-700 font-extrabold px-3 py-1 rounded-full border border-indigo-200 text-xs">
