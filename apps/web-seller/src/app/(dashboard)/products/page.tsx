@@ -11,7 +11,7 @@ import {
   Edit,
   Loader2, 
   Image as ImageIcon,
-  AlertTriangle,
+  AlertTriangle, 
   X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +26,8 @@ interface Product extends SellerProduct {
   price: number;
   stock_quantity: number;
   status: string;
+  moderation_status?: "pending_review" | "approved" | "rejected";
+  rejection_reason?: string | null;
   image_url?: string | null;
 }
 
@@ -40,55 +42,73 @@ export default function ProductsPage() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadProducts = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data } = await supabase
-        .from('products')
-        .select('*, product_media(url)')
-        .eq('shop_id', session.user.id)
-        .order('created_at', { ascending: false });
-        
-      if (data) {
-        const formatted: Product[] = data.map((p: {
-          id: string;
-          title: string;
-          description?: string;
-          category?: string;
-          sku?: string;
-          price: number;
-          old_price?: number | null;
-          stock_quantity: number;
-          status: string;
-          product_media?: { url: string }[];
-        }) => ({
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          category: p.category,
-          sku: p.sku,
-          price: Number(p.price),
-          old_price: p.old_price ? Number(p.old_price) : undefined,
-          stock_quantity: p.stock_quantity,
-          status: p.status,
-          image_url: p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null,
-          images: p.product_media ? p.product_media.map(m => m.url) : [],
-        }));
-        setProducts(formatted);
-      }
-    } catch (error) {
-      console.error("Error loading products:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    setTimeout(() => {
-      loadProducts();
-    }, 0);
+    let isMounted = true;
+
+    async function fetchShopProducts() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !isMounted) return;
+
+        const { data } = await supabase
+          .from('products')
+          .select('*, product_media(url)')
+          .eq('shop_id', session.user.id)
+          .order('created_at', { ascending: false });
+          
+        if (data && isMounted) {
+          const formatted: Product[] = data.map((p: {
+            id: string;
+            title: string;
+            description?: string;
+            category?: string;
+            sku?: string;
+            price: number;
+            old_price?: number | null;
+            stock_quantity: number;
+            status: string;
+            moderation_status?: "pending_review" | "approved" | "rejected";
+            rejection_reason?: string | null;
+            product_media?: { url: string }[];
+          }) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            category: p.category,
+            sku: p.sku,
+            price: Number(p.price),
+            old_price: p.old_price ? Number(p.old_price) : undefined,
+            stock_quantity: p.stock_quantity,
+            status: p.status,
+            moderation_status: p.moderation_status || (p.status === "active" ? "approved" : "pending_review"),
+            rejection_reason: p.rejection_reason,
+            image_url: p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null,
+            images: p.product_media ? p.product_media.map(m => m.url) : [],
+          }));
+          setProducts(formatted);
+        }
+      } catch (error) {
+        console.error("Error loading products:", error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void fetchShopProducts();
+
+    const channel = supabase
+      .channel("seller_products_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        void fetchShopProducts();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const confirmDeleteProduct = async () => {
@@ -267,14 +287,28 @@ export default function ProductsPage() {
                       </span>
                     </td>
 
-                    {/* Status */}
+                    {/* Status / Moderation Badge */}
                     <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                        product.status === "active" ? "bg-success/10 text-success" : 
-                        "bg-gray-100 text-gray-600"
-                      }`}>
-                        {product.status === "active" ? "En ligne" : "Brouillon"}
-                      </span>
+                      {product.moderation_status === "pending_review" ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shadow-xs animate-pulse">
+                          ⏳ En attente de validation
+                        </span>
+                      ) : product.moderation_status === "rejected" ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-red-50 text-red-700 border border-red-200 w-fit">
+                            ❌ Rejeté
+                          </span>
+                          {product.rejection_reason && (
+                            <span className="text-[10px] text-red-600 font-semibold max-w-45 line-clamp-1" title={product.rejection_reason}>
+                              {product.rejection_reason}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          🟢 En ligne &amp; Vérifié
+                        </span>
+                      )}
                     </td>
 
                     {/* Action Buttons (ALWAYS VISIBLE & CLEAR) */}

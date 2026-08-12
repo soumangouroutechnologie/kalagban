@@ -26,6 +26,7 @@ export default function AdminSidebar() {
   const [adminUser, setAdminUser] = useState<{ email?: string; role?: string; full_name?: string } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -45,7 +46,27 @@ export default function AdminSidebar() {
       }
     };
 
+    const fetchPendingProducts = async () => {
+      const { count } = await supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("moderation_status", "pending_review");
+      setPendingCount(count || 0);
+    };
+
     fetchAdminProfile();
+    fetchPendingProducts();
+
+    const channel = supabase
+      .channel("sidebar_moderation_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        fetchPendingProducts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -55,6 +76,7 @@ export default function AdminSidebar() {
 
   const navItems = [
     { label: "Tableau de Bord", href: "/", icon: LayoutDashboard, role: "all" },
+    { label: "Modération Produits", href: "/products-moderation", icon: ShieldAlert, role: "all", badge: pendingCount },
     { label: "Points Relais & Carte", href: "/relays", icon: MapPin, role: "all" },
     { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, role: "cms" },
     { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, role: "super_admin" },
@@ -138,14 +160,21 @@ export default function AdminSidebar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+                  className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
                     isActive
                       ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-[1.02]"
                       : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                   }`}
                 >
-                  <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
-                  <span>{item.label}</span>
+                  <div className="flex items-center gap-3">
+                    <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
+                    <span>{item.label}</span>
+                  </div>
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-xs">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}

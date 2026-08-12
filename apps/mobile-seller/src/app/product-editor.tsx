@@ -220,7 +220,7 @@ export default function ProductEditorScreen() {
       let currentProductId = productId;
 
       if (productId) {
-        // Update existing product
+        // Update existing product and reset to pending review
         await supabase
           .from('products')
           .update({
@@ -230,10 +230,12 @@ export default function ProductEditorScreen() {
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
             description: description.trim(),
+            status: 'pending_review',
+            moderation_status: 'pending_review',
           })
           .eq('id', productId);
       } else {
-        // Insert new product
+        // Insert new product in pending_review
         const { data: newProd, error: insertErr } = await supabase
           .from('products')
           .insert({
@@ -244,7 +246,8 @@ export default function ProductEditorScreen() {
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
             description: description.trim(),
-            status: 'active',
+            status: 'pending_review',
+            moderation_status: 'pending_review',
           })
           .select()
           .single();
@@ -276,8 +279,10 @@ export default function ProductEditorScreen() {
       }
 
       Alert.alert(
-        'Succès ! 🎉',
-        productId ? 'Produit mis à jour avec succès.' : 'Votre nouveau produit a été publié dans votre boutique.',
+        'Produit Soumis ! 🎉',
+        productId 
+          ? 'Votre produit modifié a été renvoyé à l\'équipe de modération pour validation.' 
+          : 'Votre nouvel article a été envoyé à l\'équipe de modération. Il sera mis en ligne dès sa validation.',
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (err: any) {

@@ -34,6 +34,8 @@ interface ProductItem {
   stock_quantity: number;
   category: string;
   status?: string;
+  moderation_status?: "pending_review" | "approved" | "rejected";
+  rejection_reason?: string | null;
   product_media?: { url: string }[];
 }
 
@@ -57,7 +59,7 @@ export default function SellerProductsScreen() {
 
       const { data, error } = await supabase
         .from('products')
-        .select('id, title, description, price, old_price, stock_quantity, category, status, product_media(url)')
+        .select('id, title, description, price, old_price, stock_quantity, category, status, moderation_status, rejection_reason, product_media(url)')
         .eq('shop_id', targetShopId)
         .order('created_at', { ascending: false });
 
@@ -74,6 +76,17 @@ export default function SellerProductsScreen() {
 
   useEffect(() => {
     fetchProducts();
+
+    const channel = supabase
+      .channel("mobile_seller_products_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        fetchProducts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [shop, user]);
 
   const onRefresh = () => {
@@ -212,8 +225,24 @@ export default function SellerProductsScreen() {
                   )}
 
                   <View style={styles.productDetails}>
-                    <Text style={styles.categoryBadge}>{p.category || 'Général'}</Text>
-                    <Text style={styles.productTitle}>{p.title}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text style={styles.categoryBadge}>{p.category || 'Général'}</Text>
+                      {p.moderation_status === 'pending_review' ? (
+                        <View style={styles.moderationPendingBadge}>
+                          <Text style={styles.moderationPendingText}>⏳ En attente</Text>
+                        </View>
+                      ) : p.moderation_status === 'rejected' ? (
+                        <View style={styles.moderationRejectedBadge}>
+                          <Text style={styles.moderationRejectedText}>❌ Rejeté</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.moderationApprovedBadge}>
+                          <Text style={styles.moderationApprovedText}>🟢 En ligne</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles.productTitle} numberOfLines={1}>{p.title}</Text>
                     
                     <View style={styles.priceRow}>
                       <Text style={styles.productPrice}>
@@ -225,6 +254,12 @@ export default function SellerProductsScreen() {
                         </Text>
                       )}
                     </View>
+
+                    {p.moderation_status === 'rejected' && !!p.rejection_reason && (
+                      <Text style={styles.rejectionReasonText} numberOfLines={1}>
+                        Motif : {p.rejection_reason}
+                      </Text>
+                    )}
 
                     <View style={styles.stockRow}>
                       <View
@@ -484,5 +519,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  moderationPendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  moderationPendingText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  moderationApprovedBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  moderationApprovedText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  moderationRejectedBadge: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  moderationRejectedText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B91C1C',
+  },
+  rejectionReasonText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginTop: 2,
   },
 });

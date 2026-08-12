@@ -25,6 +25,7 @@ interface AdminPermissions {
   can_edit_cms: boolean;
   can_view_finance: boolean;
   can_moderate_shops: boolean;
+  can_moderate_products: boolean;
 }
 
 interface TeamMember {
@@ -55,6 +56,7 @@ export default function TeamPage() {
     can_edit_cms: true,
     can_view_finance: false,
     can_moderate_shops: true,
+    can_moderate_products: true,
   });
 
   const fetchTeamMembers = async () => {
@@ -81,6 +83,7 @@ export default function TeamPage() {
             can_edit_cms: p.can_edit_cms ?? false,
             can_view_finance: p.can_view_finance ?? false,
             can_moderate_shops: p.can_moderate_shops ?? false,
+            can_moderate_products: p.can_moderate_products ?? true,
           });
         });
       }
@@ -93,6 +96,7 @@ export default function TeamPage() {
             can_edit_cms: p.admin_role === "super_admin" || p.admin_role === "developer",
             can_view_finance: p.admin_role === "super_admin" || p.admin_role === "accountant",
             can_moderate_shops: p.admin_role === "super_admin" || p.admin_role === "moderator",
+            can_moderate_products: p.admin_role === "super_admin" || p.admin_role === "moderator",
           },
         }));
         setMembers(enriched);
@@ -157,6 +161,7 @@ export default function TeamPage() {
           can_edit_cms: formData.can_edit_cms || formData.admin_role === "developer" || formData.admin_role === "super_admin",
           can_view_finance: formData.can_view_finance || formData.admin_role === "accountant" || formData.admin_role === "super_admin",
           can_moderate_shops: formData.can_moderate_shops || formData.admin_role === "moderator" || formData.admin_role === "super_admin",
+          can_moderate_products: formData.can_moderate_products || formData.admin_role === "moderator" || formData.admin_role === "super_admin",
         });
 
         setShowAddModal(false);
@@ -169,6 +174,7 @@ export default function TeamPage() {
           can_edit_cms: true,
           can_view_finance: false,
           can_moderate_shops: true,
+          can_moderate_products: true,
         });
         fetchTeamMembers();
       }
@@ -187,11 +193,12 @@ export default function TeamPage() {
       const member = members.find((m) => m.id === memberId);
       if (!member) return;
 
-      const newPerms = {
+      const newPerms: AdminPermissions = {
         can_manage_team: member.permissions?.can_manage_team ?? false,
         can_edit_cms: member.permissions?.can_edit_cms ?? false,
         can_view_finance: member.permissions?.can_view_finance ?? false,
         can_moderate_shops: member.permissions?.can_moderate_shops ?? false,
+        can_moderate_products: member.permissions?.can_moderate_products ?? true,
         [permKey]: !currentValue,
       };
 
@@ -402,7 +409,7 @@ export default function TeamPage() {
                 </div>
 
                 {/* Individual Permission Toggles */}
-                <div className="bg-slate-50/80 p-4 rounded-2xl border border-gray-200/60 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-slate-50/80 p-4 rounded-2xl border border-gray-200/60 grid grid-cols-2 md:grid-cols-5 gap-3">
                   <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -420,7 +427,7 @@ export default function TeamPage() {
                       onChange={() => handleTogglePermission(member.id, "can_edit_cms", member.permissions?.can_edit_cms ?? false)}
                       className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
-                    <span>🎨 Éditeur CMS &amp; Pubs</span>
+                    <span>🎨 Éditeur CMS</span>
                   </label>
 
                   <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
@@ -430,7 +437,7 @@ export default function TeamPage() {
                       onChange={() => handleTogglePermission(member.id, "can_view_finance", member.permissions?.can_view_finance ?? false)}
                       className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
-                    <span>💰 Finances &amp; Reversements</span>
+                    <span>💰 Finances</span>
                   </label>
 
                   <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
@@ -440,7 +447,17 @@ export default function TeamPage() {
                       onChange={() => handleTogglePermission(member.id, "can_moderate_shops", member.permissions?.can_moderate_shops ?? false)}
                       className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
-                    <span>🛡️ Modération Boutiques</span>
+                    <span>🏪 Modération Boutiques</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={member.permissions?.can_moderate_products ?? true}
+                      onChange={() => handleTogglePermission(member.id, "can_moderate_products", member.permissions?.can_moderate_products ?? true)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span>🛍️ Modération Produits</span>
                   </label>
                 </div>
               </div>
@@ -571,7 +588,17 @@ export default function TeamPage() {
                       onChange={(e) => setFormData({ ...formData, can_moderate_shops: e.target.checked })}
                       className="w-4 h-4 rounded text-indigo-600"
                     />
-                    <span>🛡️ Modération Boutiques</span>
+                    <span>🏪 Modération Boutiques</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.can_moderate_products}
+                      onChange={(e) => setFormData({ ...formData, can_moderate_products: e.target.checked })}
+                      className="w-4 h-4 rounded text-indigo-600"
+                    />
+                    <span>🛍️ Modération Produits</span>
                   </label>
                 </div>
               </div>
