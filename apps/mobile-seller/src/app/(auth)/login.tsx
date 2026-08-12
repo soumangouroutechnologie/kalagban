@@ -181,14 +181,19 @@ export default function LoginScreen() {
         } else {
           res = await signInWithPhone(identifier.trim(), password);
         }
-        if (res.error) {
-          setErrorMessage('Identifiants incorrects. Veuillez vérifier vos informations.');
+        if (res?.error) {
+          const msg = res.error.message || '';
+          if (msg.includes('Invalid login credentials')) {
+            setErrorMessage('Email ou mot de passe incorrect. Si vous venez de créer votre compte, veuillez finaliser la validation par code OTP dans "Créer une Boutique".');
+          } else {
+            setErrorMessage(msg || 'Identifiants incorrects. Veuillez vérifier vos informations.');
+          }
         } else {
           router.replace('/(tabs)');
         }
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Une erreur est survenue.');
+      setErrorMessage(err.message || 'Une erreur est survenue lors de la connexion.');
     } finally {
       setLoading(false);
     }

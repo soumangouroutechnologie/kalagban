@@ -129,14 +129,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password: pass,
       });
-      if (error) throw error;
+      if (error) {
+        return { error };
+      }
       if (data.user) {
+        setUser(data.user);
         await fetchUserData(data.user);
       }
-      return {};
+      return { data };
     } catch (error) {
       return { error };
     } finally {
@@ -147,17 +150,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithPhone = async (phone: string, pass: string) => {
     setLoading(true);
     try {
-      // In Supabase, phone auth password login can use formatted email or phone auth
       const emailFormatted = phone.replace(/[^0-9]/g, '') + '@kalagban.seller';
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailFormatted,
         password: pass,
       });
-      if (error) throw error;
+      if (error) {
+        return { error };
+      }
       if (data.user) {
+        setUser(data.user);
         await fetchUserData(data.user);
       }
-      return {};
+      return { data };
     } catch (error) {
       return { error };
     } finally {
@@ -252,6 +257,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (authRes.error) throw authRes.error;
+
+      if (authRes.data.session) {
+        await supabase.auth.setSession({
+          access_token: authRes.data.session.access_token,
+          refresh_token: authRes.data.session.refresh_token,
+        });
+      }
 
       if (authRes.data.user) {
         const u = authRes.data.user;
