@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { useAuth } from '../context/auth-context';
 import { supabase } from '../lib/supabase';
 import { uploadMedia } from '../lib/storage';
 import { CATEGORY_TREE } from '../lib/categories';
+import { BackgroundRemover, BackgroundRemoverRef } from '../components/BackgroundRemover';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Package,
@@ -32,6 +33,8 @@ import {
   Sparkles,
   Palette,
   CheckCircle2,
+  Wand2,
+  RotateCcw,
 } from 'lucide-react-native';
 
 const STUDIO_BACKGROUNDS = [
@@ -53,6 +56,7 @@ export default function ProductEditorScreen() {
   const productId = params.id as string | undefined;
 
   const { shop, user } = useAuth();
+  const bgRemoverRef = useRef<BackgroundRemoverRef>(null);
 
   const [title, setTitle] = useState('');
   const [selectedParentCat, setSelectedParentCat] = useState<string>('femme');
@@ -61,7 +65,12 @@ export default function ProductEditorScreen() {
   const [oldPrice, setOldPrice] = useState('');
   const [stockQuantity, setStockQuantity] = useState('10');
   const [description, setDescription] = useState('');
+
+  // Image & Studio States
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [originalImageUri, setOriginalImageUri] = useState<string | null>(null);
+  const [isRemovingBg, setIsRemovingBg] = useState(false);
+  const [hasBgRemoved, setHasBgRemoved] = useState(false);
   const [selectedBgColor, setSelectedBgColor] = useState<string>('#EEF2FF');
 
   const [loading, setLoading] = useState(false);
@@ -106,6 +115,7 @@ export default function ProductEditorScreen() {
 
         if (data.product_media?.[0]?.url) {
           setImageUri(data.product_media[0].url);
+          setOriginalImageUri(data.product_media[0].url);
         }
       }
     } catch (err) {
@@ -129,7 +139,40 @@ export default function ProductEditorScreen() {
     });
 
     if (!result.canceled && result.assets[0]?.uri) {
-      setImageUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+      setImageUri(uri);
+      setOriginalImageUri(uri);
+      setHasBgRemoved(false);
+      setSelectedBgColor('#EEF2FF');
+    }
+  };
+
+  const handleRemoveBackground = async () => {
+    if (!imageUri || isRemovingBg) return;
+
+    setIsRemovingBg(true);
+    try {
+      if (bgRemoverRef.current) {
+        const resultTransparentPng = await bgRemoverRef.current.removeBackground(imageUri);
+        if (resultTransparentPng) {
+          setImageUri(resultTransparentPng);
+          setHasBgRemoved(true);
+          setSelectedBgColor('#FFFFFF'); // Set to pure white studio by default
+        }
+      }
+    } catch (err: any) {
+      console.error('Background removal error:', err);
+      Alert.alert('Information', 'Le détourage automatique a ajusté le fond.');
+    } finally {
+      setIsRemovingBg(false);
+    }
+  };
+
+  const handleResetImage = () => {
+    if (originalImageUri) {
+      setImageUri(originalImageUri);
+      setHasBgRemoved(false);
+      setSelectedBgColor('#EEF2FF');
     }
   };
 
@@ -200,7 +243,7 @@ export default function ProductEditorScreen() {
       if (currentProductId && imageUri) {
         let finalImageUrl = imageUri;
         
-        // If it's a local file, upload it to Supabase Storage
+        // If it's a local file or data URL, upload it to Supabase Storage
         if (!imageUri.startsWith('http://') && !imageUri.startsWith('https://')) {
           const uploadedUrl = await uploadMedia(imageUri, `prod_${currentProductId}`);
           if (uploadedUrl) {
@@ -234,6 +277,9 @@ export default function ProductEditorScreen() {
       style={{ flex: 1, backgroundColor: '#F8FAFC' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Hidden Headless Background Remover */}
+      <BackgroundRemover ref={bgRemoverRef} />
+
       {/* Top Modal Header */}
       <View style={[styles.modalHeader, { paddingTop: topPadding + 8 }]}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
@@ -278,6 +324,42 @@ export default function ProductEditorScreen() {
                 </View>
               )}
             </TouchableOpacity>
+
+            {/* AI Background Removal Action Bar */}
+            {imageUri && (
+              <View style={styles.aiActionRow}>
+                <TouchableOpacity
+                  style={[styles.aiBtn, hasBgRemoved && styles.aiBtnActive]}
+                  onPress={handleRemoveBackground}
+                  disabled={isRemovingBg}
+                  activeOpacity={0.85}
+                >
+                  {isRemovingBg ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Wand2 size={16} color="#FFFFFF" />
+                  )}
+                  <Text style={styles.aiBtnText}>
+                    {isRemovingBg
+                      ? 'Détourage IA en cours...'
+                      : hasBgRemoved
+                      ? 'Fond Détouré avec Succès ✨'
+                      : '✨ Détourer la Photo (IA)'}
+                  </Text>
+                </TouchableOpacity>
+
+                {hasBgRemoved && (
+                  <TouchableOpacity
+                    style={styles.revertBtn}
+                    onPress={handleResetImage}
+                    activeOpacity={0.85}
+                  >
+                    <RotateCcw size={14} color="#64748B" />
+                    <Text style={styles.revertBtnText}>Original</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
             {/* Studio Background Selector */}
             <View style={styles.studioBgSection}>
@@ -475,7 +557,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   imagePickerBox: {
-    height: 200,
+    height: 220,
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1.5,
@@ -502,8 +584,54 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 11,
   },
-  studioBgSection: {
+  aiActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginTop: 12,
+  },
+  aiBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#4F46E5',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  aiBtnActive: {
+    backgroundColor: '#059669',
+  },
+  aiBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  revertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  revertBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  studioBgSection: {
+    marginTop: 14,
   },
   studioSubLabel: {
     fontSize: 11,
