@@ -64,7 +64,7 @@ function AdminLoginForm() {
           </span>
           <div className="text-gray-700 font-mono text-[11px] pt-1 space-y-0.5">
             <p><span className="text-gray-500 font-sans font-medium">Email :</span> <strong className="text-indigo-950 font-bold">admin@kalagban.ci</strong></p>
-            <p><span className="text-gray-500 font-sans font-medium">Mot de passe :</span> <strong className="text-indigo-950 font-bold">Kalagban2026!</strong></p>
+            <p><span className="text-gray-500 font-sans font-medium">Mot de passe :</span> <strong className="text-indigo-950 font-bold">password123</strong></p>
           </div>
         </div>
 
