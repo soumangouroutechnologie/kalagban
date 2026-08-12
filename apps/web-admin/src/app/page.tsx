@@ -180,20 +180,20 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Stat 4: Registered Buyers */}
+        {/* Stat 4: Registered Users & Buyers */}
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Acheteurs Inscrites</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Comptes Utilisateurs</span>
             <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black">
               <Users size={20} />
             </div>
           </div>
           <div>
             <h3 className="text-2xl font-black text-gray-900 tracking-tight">
-              {stats.totalBuyers} <span className="text-xs font-bold text-gray-400">client(s)</span>
+              {stats.totalBuyers + stats.activeShops} <span className="text-xs font-bold text-gray-400">compte(s)</span>
             </h3>
             <p className="text-[11px] font-bold text-amber-600 mt-1">
-              Comptes acheteurs actifs
+              {stats.totalBuyers} acheteur(s) · {stats.activeShops} boutique(s)
             </p>
           </div>
         </div>
