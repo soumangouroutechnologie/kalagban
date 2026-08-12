@@ -152,8 +152,24 @@ export default function ProductEditorScreen() {
 
     setIsRemovingBg(true);
     try {
+      let dataUrlToSend = imageUri;
+      if (imageUri.startsWith('file://') || imageUri.startsWith('content://')) {
+        try {
+          const res = await fetch(imageUri);
+          const blob = await res.blob();
+          dataUrlToSend = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (readErr) {
+          console.warn('Error reading local image as dataUrl:', readErr);
+        }
+      }
+
       if (bgRemoverRef.current) {
-        const resultTransparentPng = await bgRemoverRef.current.removeBackground(imageUri);
+        const resultTransparentPng = await bgRemoverRef.current.removeBackground(dataUrlToSend);
         if (resultTransparentPng) {
           setImageUri(resultTransparentPng);
           setHasBgRemoved(true);
@@ -162,7 +178,7 @@ export default function ProductEditorScreen() {
       }
     } catch (err: any) {
       console.error('Background removal error:', err);
-      Alert.alert('Information', 'Le détourage automatique a ajusté le fond.');
+      Alert.alert('Information', 'Impossible de détourer cette image. Vous pouvez choisir un fond studio directement.');
     } finally {
       setIsRemovingBg(false);
     }

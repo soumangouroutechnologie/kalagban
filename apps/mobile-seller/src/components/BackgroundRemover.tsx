@@ -17,122 +17,182 @@ const HTML_WORKER = `
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/bundle.js"></script>
 </head>
 <body style="margin:0;padding:0;background:transparent;">
-  <canvas id="c" style="display:none;"></canvas>
   <script>
-    let isProcessing = false;
-
-    window.processImage = async function(imageData) {
-      if (isProcessing) return;
-      isProcessing = true;
-
-      try {
-        // 1. Try AI-based background removal if @imgly is available
-        if (window.imglyRemoveBackground) {
-          const blob = await window.imglyRemoveBackground(imageData);
-          const reader = new FileReader();
-          reader.onloadend = function() {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'SUCCESS',
-              data: reader.result
-            }));
-            isProcessing = false;
-          };
-          reader.readAsDataURL(blob);
-          return;
-        }
-
-        // 2. Fallback high-speed intelligent edge-segmentation canvas algorithm
-        fallbackCanvasRemoval(imageData);
-      } catch (err) {
-        // Fallback to canvas removal on any network or WebAssembly error
-        try {
-          fallbackCanvasRemoval(imageData);
-        } catch (e) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'ERROR',
-            message: err.message || e.message
-          }));
-          isProcessing = false;
-        }
-      }
-    };
-
-    function fallbackCanvasRemoval(imageData) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function() {
-        const canvas = document.getElementById('c');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const d = imgData.data;
-
-        // Sample background corner color
-        const bgR = (d[0] + d[(canvas.width - 1) * 4] + d[(canvas.height - 1) * canvas.width * 4] + d[(canvas.height * canvas.width - 1) * 4]) / 4;
-        const bgG = (d[1] + d[(canvas.width - 1) * 4 + 1] + d[(canvas.height - 1) * canvas.width * 4 + 1] + d[(canvas.height * canvas.width - 1) * 4 + 1]) / 4;
-        const bgB = (d[2] + d[(canvas.width - 1) * 4 + 2] + d[(canvas.height - 1) * canvas.width * 4 + 2] + d[(canvas.height * canvas.width - 1) * 4 + 2]) / 4;
-
-        const tolerance = 45;
-        const feather = 20;
-
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i];
-          const g = d[i+1];
-          const b = d[i+2];
-
-          const diff = Math.sqrt((r - bgR)**2 + (g - bgG)**2 + (b - bgB)**2);
-
-          if (diff < tolerance) {
-            d[i+3] = 0; // Fully transparent
-          } else if (diff < tolerance + feather) {
-            d[i+3] = Math.round(((diff - tolerance) / feather) * 255); // Soft antialiased edge
-          }
-        }
-
-        ctx.putImageData(imgData, 0, 0);
-        const resultUrl = canvas.toDataURL('image/png');
-
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'SUCCESS',
-          data: resultUrl
-        }));
-        isProcessing = false;
-      };
-
-      img.onerror = function() {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'ERROR',
-          message: 'Erreur de chargement de image'
-        }));
-        isProcessing = false;
-      };
-
-      img.src = imageData;
+    function log(msg) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', msg: msg }));
     }
 
-    document.addEventListener('message', function(e) {
+    function processImage(imageData) {
       try {
-        const msg = JSON.parse(e.data);
-        if (msg.action === 'removeBg') {
-          window.processImage(msg.imageData);
-        }
-      } catch (err) {}
-    });
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
 
-    window.addEventListener('message', function(e) {
+        img.onload = function() {
+          try {
+            // Cap dimensions for mobile performance (max 1000px)
+            let w = img.width;
+            let h = img.height;
+            const maxDim = 1000;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const d = imgData.data;
+
+            // 1. Detect background color by sampling outer edges
+            let totalR = 0, totalG = 0, totalB = 0, count = 0;
+            const step = Math.max(1, Math.floor(w / 40));
+
+            // Top & Bottom rows
+            for (let x = 0; x < w; x += step) {
+              const topIdx = (x) * 4;
+              const botIdx = ((h - 1) * w + x) * 4;
+              totalR += d[topIdx] + d[botIdx];
+              totalG += d[topIdx + 1] + d[botIdx + 1];
+              totalB += d[topIdx + 2] + d[botIdx + 2];
+              count += 2;
+            }
+
+            // Left & Right cols
+            for (let y = 0; y < h; y += step) {
+              const leftIdx = (y * w) * 4;
+              const rightIdx = (y * w + (w - 1)) * 4;
+              totalR += d[leftIdx] + d[rightIdx];
+              totalG += d[leftIdx + 1] + d[rightIdx + 1];
+              totalB += d[leftIdx + 2] + d[rightIdx + 2];
+              count += 2;
+            }
+
+            const bgR = Math.round(totalR / count);
+            const bgG = Math.round(totalG / count);
+            const bgB = Math.round(totalB / count);
+
+            // 2. BFS Flood Fill from all 4 borders to remove exterior background
+            const visited = new Uint8Array(w * h);
+            const queue = [];
+
+            // Add border pixels to queue
+            for (let x = 0; x < w; x++) {
+              queue.push(x, 0);
+              queue.push(x, h - 1);
+              visited[x] = 1;
+              visited[(h - 1) * w + x] = 1;
+            }
+            for (let y = 0; y < h; y++) {
+              queue.push(0, y);
+              queue.push(w - 1, y);
+              visited[y * w] = 1;
+              visited[y * w + (w - 1)] = 1;
+            }
+
+            const tolerance = 48;
+            const feather = 24;
+            let head = 0;
+
+            while (head < queue.length) {
+              const x = queue[head++];
+              const y = queue[head++];
+              const idx = (y * w + x) * 4;
+
+              const r = d[idx];
+              const g = d[idx + 1];
+              const b = d[idx + 2];
+
+              // Color distance to sampled background
+              const dist = Math.sqrt((r - bgR)**2 + (g - bgG)**2 + (b - bgB)**2);
+
+              if (dist < tolerance) {
+                d[idx + 3] = 0; // Transparent
+
+                // Check 4 neighbors
+                const neighbors = [
+                  [x + 1, y],
+                  [x - 1, y],
+                  [x, y + 1],
+                  [x, y - 1]
+                ];
+
+                for (let i = 0; i < 4; i++) {
+                  const nx = neighbors[i][0];
+                  const ny = neighbors[i][1];
+                  if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                    const nPos = ny * w + nx;
+                    if (!visited[nPos]) {
+                      visited[nPos] = 1;
+                      queue.push(nx, ny);
+                    }
+                  }
+                }
+              } else if (dist < tolerance + feather) {
+                // Soft alpha boundary
+                const alphaFactor = (dist - tolerance) / feather;
+                d[idx + 3] = Math.round(d[idx + 3] * alphaFactor);
+              }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            const resultPng = canvas.toDataURL('image/png', 0.92);
+
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'SUCCESS',
+              data: resultPng
+            }));
+          } catch (innerErr) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'ERROR',
+              message: innerErr.message || 'Erreur traitement canvas'
+            }));
+          }
+        };
+
+        img.onerror = function(e) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'ERROR',
+            message: 'Impossible de charger image source'
+          }));
+        };
+
+        img.src = imageData;
+      } catch (outerErr) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'ERROR',
+          message: outerErr.message || 'Erreur globale'
+        }));
+      }
+    }
+
+    function handleIncomingMessage(event) {
       try {
-        const msg = JSON.parse(e.data);
-        if (msg.action === 'removeBg') {
-          window.processImage(msg.imageData);
+        const raw = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+        const parsed = JSON.parse(raw);
+        if (parsed.action === 'removeBg' && parsed.imageData) {
+          processImage(parsed.imageData);
         }
-      } catch (err) {}
-    });
+      } catch (err) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'ERROR',
+          message: 'Erreur parsing: ' + err.message
+        }));
+      }
+    }
+
+    window.addEventListener('message', handleIncomingMessage);
+    document.addEventListener('message', handleIncomingMessage);
   </script>
 </body>
 </html>
@@ -154,7 +214,17 @@ export const BackgroundRemover = forwardRef<BackgroundRemoverRef, Props>(({ onPr
           imageData,
         });
 
-        webViewRef.current?.postMessage(payload);
+        // Send via injectJavaScript to guarantee execution on all Android WebViews
+        const script = `
+          if (window.handleIncomingMessage) {
+            window.handleIncomingMessage({ data: ${JSON.stringify(payload)} });
+          } else {
+            window.processImage(${JSON.stringify(imageData)});
+          }
+          true;
+        `;
+
+        webViewRef.current?.injectJavaScript(script);
       });
     },
   }));
@@ -188,12 +258,13 @@ export const BackgroundRemover = forwardRef<BackgroundRemoverRef, Props>(({ onPr
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: HTML_WORKER }}
+        source={{ html: HTML_WORKER, baseUrl: 'https://localhost' }}
         onMessage={handleMessage}
         javaScriptEnabled
         domStorageEnabled
         allowFileAccess
         allowUniversalAccessFromFileURLs
+        mixedContentMode="always"
         style={styles.webView}
       />
     </View>
@@ -206,8 +277,8 @@ const styles = StyleSheet.create({
     height: 1,
     opacity: 0,
     position: 'absolute',
-    left: -100,
-    top: -100,
+    left: -200,
+    top: -200,
   },
   webView: {
     width: 1,
