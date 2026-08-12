@@ -545,19 +545,44 @@ export default function ProfileScreen() {
                 /* === STEP 1: CREDENTIALS INPUT UI === */
                 <View style={{ gap: 12 }}>
                   <Text style={styles.modalTitle}>
-                    {authType === 'otp'
-                      ? 'Connexion / Inscription rapide'
-                      : (authMode === 'login' ? 'Connexion par Mot de Passe' : authMode === 'register' ? 'Créer un Compte' : 'Mot de Passe Oublié')}
+                    {authMode === 'register' ? 'Créer un Compte' : 'Se Connecter'}
                   </Text>
                   <Text style={styles.modalSub}>
-                    {authType === 'otp'
-                      ? 'Recevez un code de validation sécurisé par SMS ou Email pour vous connecter instantanément.'
-                      : (authMode === 'forgot'
-                        ? 'Saisissez votre identifiant pour recevoir un lien de réinitialisation.'
-                        : 'Choisissez votre méthode de connexion (Téléphone ou Email).')}
+                    {authMode === 'register'
+                      ? 'Inscrivez-vous rapidement avec votre numéro ou adresse email.'
+                      : 'Accédez à vos commandes et favoris Kalagban.'}
                   </Text>
 
-                  {/* Segmented Tab Switcher: Phone vs Email */}
+                  {/* Mode Switcher: Inscription vs Connexion */}
+                  <View style={styles.tabContainer}>
+                    <TouchableOpacity
+                      style={[styles.tabBtn, authMode === 'register' && styles.tabBtnActive]}
+                      onPress={() => {
+                        setAuthMode('register');
+                        setAuthError('');
+                        setAuthSuccessMsg('');
+                      }}
+                    >
+                      <Text style={[styles.tabBtnText, authMode === 'register' && styles.tabBtnTextActive]}>
+                        Créer un Compte
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.tabBtn, authMode === 'login' && styles.tabBtnActive]}
+                      onPress={() => {
+                        setAuthMode('login');
+                        setAuthError('');
+                        setAuthSuccessMsg('');
+                      }}
+                    >
+                      <Text style={[styles.tabBtnText, authMode === 'login' && styles.tabBtnTextActive]}>
+                        Se Connecter
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Method Switcher: Téléphone vs Email */}
                   <View style={styles.tabContainer}>
                     <TouchableOpacity
                       style={[styles.tabBtn, loginMethod === 'phone' && styles.tabBtnActive]}
@@ -619,46 +644,10 @@ export default function ProfileScreen() {
                     </View>
                   )}
 
-                  {authType === 'password' && authMode !== 'forgot' && (
-                    <View style={styles.inputGroup}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.inputLabel}>Mot de Passe *</Text>
-                        {authMode === 'login' && (
-                          <TouchableOpacity onPress={() => {
-                            setAuthError('');
-                            setAuthSuccessMsg('');
-                            setAuthMode('forgot');
-                          }}>
-                            <Text style={styles.forgotLink}>Mot de passe oublié ?</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      <View style={styles.passwordInputWrapper}>
-                        <TextInput
-                          style={styles.passwordInput}
-                          placeholder="••••••••"
-                          placeholderTextColor="#94A3B8"
-                          value={password}
-                          onChangeText={setPassword}
-                          secureTextEntry={!showPassword}
-                          autoCapitalize="none"
-                        />
-                        <TouchableOpacity
-                          style={styles.eyeBtn}
-                          onPress={() => setShowPassword(!showPassword)}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          activeOpacity={0.7}
-                        >
-                          {showPassword ? <EyeOff size={18} color="#4F46E5" /> : <Eye size={18} color="#64748B" />}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Submit Button: OTP vs Password */}
+                  {/* Main Action Button */}
                   <TouchableOpacity
                     style={styles.modalSubmitBtn}
-                    onPress={authType === 'otp' ? handleSendOtp : handlePasswordAuth}
+                    onPress={handleSendOtp}
                     disabled={loadingAuth}
                     activeOpacity={0.85}
                   >
@@ -666,45 +655,26 @@ export default function ProfileScreen() {
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
                       <Text style={styles.modalSubmitText}>
-                        {authType === 'otp'
-                          ? 'Envoyer mon Code OTP ➔'
-                          : (authMode === 'login' ? 'Se Connecter' : authMode === 'register' ? 'Créer mon Compte' : 'Réinitialiser')}
+                        {authMode === 'register' ? 'Créer mon Compte ➔' : 'Se Connecter ➔'}
                       </Text>
                     )}
                   </TouchableOpacity>
 
-                  {/* Switch between OTP and Password method */}
+                  {/* Switch between Inscription and Connexion */}
                   <TouchableOpacity
-                    style={styles.toggleAuthTypeBtn}
+                    style={{ marginTop: 6 }}
                     onPress={() => {
                       setAuthError('');
                       setAuthSuccessMsg('');
-                      setAuthType(authType === 'otp' ? 'password' : 'otp');
+                      setAuthMode(authMode === 'login' ? 'register' : 'login');
                     }}
                   >
-                    <Text style={styles.toggleAuthTypeText}>
-                      {authType === 'otp'
-                        ? '🔑 Se connecter plutôt avec un mot de passe'
-                        : '⚡ Utiliser la connexion rapide par Code OTP'}
+                    <Text style={styles.switchAuthText}>
+                      {authMode === 'login'
+                        ? "Pas encore de compte ? Créer un compte"
+                        : 'Déjà un compte ? Se connecter'}
                     </Text>
                   </TouchableOpacity>
-
-                  {authType === 'password' && (
-                    <TouchableOpacity
-                      style={{ marginTop: 4 }}
-                      onPress={() => {
-                        setAuthError('');
-                        setAuthSuccessMsg('');
-                        setAuthMode(authMode === 'login' ? 'register' : 'login');
-                      }}
-                    >
-                      <Text style={styles.switchAuthText}>
-                        {authMode === 'login'
-                          ? "Pas encore de compte ? S'inscrire"
-                          : 'Déjà un compte ? Se connecter'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
 
                   <TouchableOpacity
                     style={styles.closeModalBtn}

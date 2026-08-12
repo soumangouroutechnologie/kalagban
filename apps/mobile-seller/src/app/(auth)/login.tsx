@@ -467,7 +467,7 @@ export default function LoginScreen() {
               {/* Submit Button */}
               <TouchableOpacity
                 style={styles.submitBtn}
-                onPress={authType === 'otp' ? handleSendOtp : handlePasswordSubmit}
+                onPress={handleSendOtp}
                 disabled={loading}
                 activeOpacity={0.85}
               >
@@ -476,28 +476,11 @@ export default function LoginScreen() {
                 ) : (
                   <>
                     <Text style={styles.submitBtnText}>
-                      {authType === 'otp'
-                        ? 'Envoyer mon Code OTP ➔'
-                        : (isRegistering ? 'Créer ma Boutique' : 'Se Connecter')}
+                      {isRegistering ? 'Créer ma Boutique ➔' : 'Se Connecter ➔'}
                     </Text>
                     <ArrowRight size={20} color="#FFFFFF" />
                   </>
                 )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{ backgroundColor: '#F1F5F9', borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginTop: 12 }}
-                onPress={() => {
-                  setErrorMessage('');
-                  setSuccessMessage('');
-                  setAuthType(authType === 'otp' ? 'password' : 'otp');
-                }}
-              >
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>
-                  {authType === 'otp'
-                    ? '🔑 Se connecter plutôt par mot de passe'
-                    : '⚡ Utiliser la validation rapide par Code OTP'}
-                </Text>
               </TouchableOpacity>
             </View>
 
@@ -506,7 +489,7 @@ export default function LoginScreen() {
               <View style={styles.quickAccessCard}>
                 <CheckCircle2 size={20} color="#16A34A" />
                 <Text style={styles.quickAccessText}>
-                  Boutique déjà enregistrée ? Saisissez vos identifiants pour recevoir un code ou entrer votre mot de passe.
+                  Boutique déjà enregistrée ? Saisissez vos identifiants pour vous connecter instantanément.
                 </Text>
               </View>
             )}
