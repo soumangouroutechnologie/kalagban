@@ -45,7 +45,8 @@ interface AuthContextType {
     token: string,
     shopName?: string,
     firstName?: string,
-    lastName?: string
+    lastName?: string,
+    password?: string
   ) => Promise<{ error?: any }>;
   signUpSeller: (
     identifier: string,
@@ -229,7 +230,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     token: string,
     shopName: string = '',
     firstName: string = '',
-    lastName: string = ''
+    lastName: string = '',
+    password?: string
   ) => {
     setLoading(true);
     try {
@@ -253,6 +255,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authRes.data.user) {
         const u = authRes.data.user;
+
+        if (password && password.length >= 6) {
+          try {
+            await supabase.auth.updateUser({ password });
+          } catch (e) {
+            console.warn('Seller password save error:', e);
+          }
+        }
+
         setUser(u);
 
         // Upsert Profile

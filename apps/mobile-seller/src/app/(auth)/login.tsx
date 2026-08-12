@@ -119,7 +119,8 @@ export default function LoginScreen() {
         otpCode.trim(),
         shopName.trim(),
         firstName.trim(),
-        lastName.trim()
+        lastName.trim(),
+        password.trim()
       );
 
       if (res.error) {
@@ -466,7 +467,29 @@ export default function LoginScreen() {
               {/* Submit Button */}
               <TouchableOpacity
                 style={styles.submitBtn}
-                onPress={handlePasswordSubmit}
+                onPress={() => {
+                  if (isRegistering) {
+                    if (!shopName.trim()) {
+                      setErrorMessage('Le nom de votre boutique est obligatoire.');
+                      return;
+                    }
+                    if (!firstName.trim() || !lastName.trim()) {
+                      setErrorMessage('Veuillez entrer votre prénom et nom.');
+                      return;
+                    }
+                    if (!identifier.trim()) {
+                      setErrorMessage(authMethod === 'email' ? 'Veuillez entrer votre adresse email.' : 'Veuillez entrer votre numéro de téléphone.');
+                      return;
+                    }
+                    if (!password || password.length < 6) {
+                      setErrorMessage('Le mot de passe doit contenir au moins 6 caractères.');
+                      return;
+                    }
+                    handleSendOtp();
+                  } else {
+                    handlePasswordSubmit();
+                  }
+                }}
                 disabled={loading}
                 activeOpacity={0.85}
               >

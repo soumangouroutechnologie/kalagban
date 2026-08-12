@@ -200,6 +200,15 @@ export default function ProfileScreen() {
       if (authRes.error) throw authRes.error;
 
       if (authRes.data.user) {
+        // If password was provided during registration, update user password
+        if (password && password.length >= 6) {
+          try {
+            await supabase.auth.updateUser({ password });
+          } catch (e) {
+            console.warn('Password save error:', e);
+          }
+        }
+
         setUser(authRes.data.user);
         // Ensure profile exists in profiles table
         await supabase.from('profiles').upsert({
@@ -682,7 +691,29 @@ export default function ProfileScreen() {
                   {/* Main Action Button */}
                   <TouchableOpacity
                     style={styles.modalSubmitBtn}
-                    onPress={handlePasswordAuth}
+                    onPress={() => {
+                      if (authMode === 'register') {
+                        if (!fullName.trim()) {
+                          setAuthError('Veuillez entrer votre nom complet.');
+                          return;
+                        }
+                        if (loginMethod === 'phone' && !phone.trim()) {
+                          setAuthError('Veuillez entrer votre numéro de téléphone.');
+                          return;
+                        }
+                        if (loginMethod === 'email' && (!email.trim() || !email.includes('@'))) {
+                          setAuthError('Veuillez entrer une adresse email valide.');
+                          return;
+                        }
+                        if (!password || password.length < 6) {
+                          setAuthError('Le mot de passe doit contenir au moins 6 caractères.');
+                          return;
+                        }
+                        handleSendOtp();
+                      } else {
+                        handlePasswordAuth();
+                      }
+                    }}
                     disabled={loadingAuth}
                     activeOpacity={0.85}
                   >

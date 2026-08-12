@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
@@ -13,7 +13,9 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Eye, 
-  EyeOff 
+  EyeOff,
+  ShieldCheck,
+  RotateCcw
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -29,13 +31,48 @@ function RegisterContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const [authStep, setAuthStep] = useState<"form" | "otp">("form");
+  const [otpCode, setOtpCode] = useState("");
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Countdown timer for OTP
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    if (authStep === "otp" && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [authStep, countdown]);
+
+  const getCleanPhone = () => {
+    let clean = phone.replace(/\D/g, "");
+    if (clean.length === 10 && (clean.startsWith("07") || clean.startsWith("05") || clean.startsWith("01"))) {
+      clean = "225" + clean;
+    }
+    return clean.startsWith("+") ? clean : "+" + clean;
+  };
+
+  // Step 1: Send OTP code
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setIsLoading(true);
     setErrorMsg("");
+    setSuccessMsg("");
 
     if (!fullName.trim()) {
       setErrorMsg("Veuillez entrer votre nom complet.");
@@ -62,46 +99,99 @@ function RegisterContent() {
     }
 
     try {
-      let authEmail = "";
-      const cleanPhone = phone.replace(/\D/g, "");
-
-      if (authMethod === "phone") {
-        authEmail = `${cleanPhone}@kalagban.ci`;
-      } else {
-        authEmail = email.trim();
-      }
-
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: authEmail,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            phone: cleanPhone || phone || null,
-            email: authMethod === "email" ? email.trim() : null,
-            role: "buyer",
+      if (authMethod === "email") {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: true,
+            data: {
+              full_name: fullName.trim(),
+              role: "buyer",
+            },
           },
-        },
-      });
-
-      if (authError || !authData.user) {
-        setErrorMsg(authError?.message || "Impossible de créer le compte.");
-        setIsLoading(false);
-        return;
+        });
+        if (error) throw error;
+      } else {
+        const formatted = getCleanPhone();
+        const { error } = await supabase.auth.signInWithOtp({
+          phone: formatted,
+          options: {
+            shouldCreateUser: true,
+            data: {
+              full_name: fullName.trim(),
+              role: "buyer",
+            },
+          },
+        });
+        if (error) throw error;
       }
 
-      // Upsert profile in public.profiles table
-      await supabase.from("profiles").upsert({
-        id: authData.user.id,
-        full_name: fullName.trim(),
-        phone: cleanPhone || phone || null,
-        email: authMethod === "email" ? email.trim() : null,
-        role: "buyer",
-      });
+      setAuthStep("otp");
+      setCountdown(60);
+      setCanResend(false);
+      setSuccessMsg(`Un code de validation à 6 chiffres a été envoyé à ${authMethod === "email" ? email : phone}.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Impossible d'envoyer le code de vérification.";
+      setErrorMsg(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP code & set password
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setErrorMsg("Veuillez saisir le code complet à 6 chiffres.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      let authRes;
+      if (authMethod === "email") {
+        authRes = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otpCode.trim(),
+          type: "email",
+        });
+      } else {
+        const formatted = getCleanPhone();
+        authRes = await supabase.auth.verifyOtp({
+          phone: formatted,
+          token: otpCode.trim(),
+          type: "sms",
+        });
+      }
+
+      if (authRes.error) throw authRes.error;
+
+      if (authRes.data.user) {
+        // Save user password for future direct password logins
+        if (password && password.length >= 6) {
+          try {
+            await supabase.auth.updateUser({ password });
+          } catch (e) {
+            console.warn("Password update error:", e);
+          }
+        }
+
+        // Upsert profile in public.profiles table
+        await supabase.from("profiles").upsert({
+          id: authRes.data.user.id,
+          full_name: fullName.trim(),
+          phone: authMethod === "phone" ? phone : null,
+          email: authMethod === "email" ? email.trim() : null,
+          role: "buyer",
+        });
+      }
 
       router.push(redirectPath);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Une erreur inattendue est survenue.";
+      const msg = err instanceof Error ? err.message : "Code de validation invalide ou expiré.";
       setErrorMsg(msg);
     } finally {
       setIsLoading(false);
@@ -121,39 +211,43 @@ function RegisterContent() {
         </div>
 
         <h2 className="text-center text-3xl font-black text-gray-900 tracking-tight">
-          Créer un Compte Client
+          {authStep === "otp" ? "Validation du Compte" : "Créer un Compte Client"}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-500 font-medium">
-          Inscrivez-vous en 30s pour enregistrer vos commandes et adresses.
+          {authStep === "otp" 
+            ? "Saisissez le code reçu pour valider votre inscription."
+            : "Inscrivez-vous en 30s pour enregistrer vos commandes et adresses."}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white py-8 px-6 shadow-xl rounded-3xl border border-gray-100 sm:px-10">
           
-          {/* Auth Method Selector */}
-          <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-6 border border-gray-200/80">
-            <button
-              type="button"
-              onClick={() => setAuthMethod("phone")}
-              className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
-                authMethod === "phone" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <Phone size={15} />
-              Téléphone
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMethod("email")}
-              className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
-                authMethod === "email" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              <Mail size={15} />
-              Adresse Email
-            </button>
-          </div>
+          {authStep === "form" && (
+            /* Auth Method Selector */
+            <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-6 border border-gray-200/80">
+              <button
+                type="button"
+                onClick={() => setAuthMethod("phone")}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                  authMethod === "phone" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                <Phone size={15} />
+                Téléphone
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMethod("email")}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                  authMethod === "email" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                <Mail size={15} />
+                Adresse Email
+              </button>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-xs font-bold flex items-center gap-2">
@@ -162,94 +256,174 @@ function RegisterContent() {
             </div>
           )}
 
-          <form className="space-y-4" onSubmit={handleRegister}>
-            <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
-                Nom & Prénom *
-              </label>
-              <div className="relative">
+          {successMsg && (
+            <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {authStep === "otp" ? (
+            /* === STEP 2: OTP CODE VALIDATION === */
+            <form className="space-y-5" onSubmit={handleVerifyOtp}>
+              <div className="text-center py-2">
+                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-indigo-100">
+                  <ShieldCheck size={24} />
+                </div>
+                <h3 className="text-lg font-black text-gray-900">Vérification de Sécurité</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Code à 6 chiffres envoyé à{" "}
+                  <span className="font-bold text-gray-900">{authMethod === "email" ? email : phone}</span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5 text-center">
+                  Code OTP (6 chiffres)
+                </label>
                 <input
                   type="text"
+                  maxLength={6}
                   required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="ex: Kevin Kouassi"
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
+                  autoFocus
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="• • • • • •"
+                  className="w-full bg-gray-50 border-2 border-indigo-600 text-gray-900 rounded-2xl py-3 px-4 text-center font-black text-2xl tracking-[10px] focus:ring-4 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
                 />
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               </div>
-            </div>
 
-            {authMethod === "phone" ? (
-              <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
-                  Numéro de Téléphone *
-                </label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="ex: 07 08 09 10 11"
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
-                  />
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
-                  Adresse Email *
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="votre.email@exemple.com"
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
-                  />
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                </div>
-              </div>
-            )}
+              <button
+                type="submit"
+                disabled={isLoading || otpCode.length < 6}
+                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                <span>{isLoading ? "Validation en cours..." : "Valider mon Inscription ➔"}</span>
+              </button>
 
-            <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
-                Mot de passe *
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 pr-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
-                />
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <div className="flex items-center justify-center gap-2 text-xs font-medium text-gray-500 pt-2">
+                <span>Pas reçu de code ?</span>
+                {canResend ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp()}
+                    disabled={isLoading}
+                    className="font-extrabold text-indigo-600 hover:underline flex items-center gap-1"
+                  >
+                    <RotateCcw size={13} />
+                    Renvoyer le code
+                  </button>
+                ) : (
+                  <span className="font-bold text-gray-400">Renvoyer dans {countdown}s</span>
+                )}
+              </div>
+
+              <div className="text-center pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
-                  title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  onClick={() => {
+                    setAuthStep("form");
+                    setErrorMsg("");
+                    setSuccessMsg("");
+                  }}
+                  className="text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  ← Modifier mes informations
                 </button>
               </div>
-            </div>
+            </form>
+          ) : (
+            /* === STEP 1: REGISTRATION FORM === */
+            <form className="space-y-4" onSubmit={handleSendOtp}>
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Nom & Prénom *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="ex: Kevin Kouassi"
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
+                  />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              {isLoading ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-              <span>{isLoading ? "Création du compte..." : "Créer mon Compte Client ➔"}</span>
-            </button>
-          </form>
+              {authMethod === "phone" ? (
+                <div>
+                  <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
+                    Numéro de Téléphone *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="ex: 07 08 09 10 11"
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
+                    />
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
+                    Adresse Email *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="votre.email@exemple.com"
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
+                    />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Mot de passe *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl py-3 px-4 pl-11 pr-11 focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 font-medium text-sm transition-all"
+                  />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                    title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {isLoading ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                <span>{isLoading ? "Envoi du code OTP..." : "Créer mon Compte Client ➔"}</span>
+              </button>
+            </form>
+          )}
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center">
             <p className="text-xs text-gray-500 font-medium">
