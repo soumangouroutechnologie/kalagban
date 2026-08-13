@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Wallet, ArrowDownRight, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Wallet, ArrowDownRight, CheckCircle2, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 interface PayoutRecord {
   id: string;
@@ -19,35 +20,113 @@ export default function RelayEarningsPage() {
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [relayPointId, setRelayPointId] = useState<string | null>(null);
 
   const [availableBalance, setAvailableBalance] = useState(0);
   const [totalWithdrawn, setTotalWithdrawn] = useState(0);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
 
-  const handleRequestPayout = (e: React.FormEvent) => {
+  const fetchEarningsData = async () => {
+    const relayCode = localStorage.getItem("kalagban_relay_code");
+    
+    // Find pickup_point id
+    let pId = null;
+    if (relayCode) {
+      const { data: pt } = await supabase
+        .from("pickup_points")
+        .select("id")
+        .eq("code", relayCode)
+        .maybeSingle();
+      if (pt) {
+        pId = pt.id;
+        setRelayPointId(pt.id);
+      }
+    }
+
+    // 1. Calculate earned commissions from relay_logs
+    const { data: logs } = await supabase
+      .from("relay_logs")
+      .select("commission_earned, action_type")
+      .eq("action_type", "pickup");
+
+    const totalEarned = (logs || []).reduce((acc, l) => acc + (Number(l.commission_earned) || 300), 0);
+
+    // 2. Fetch payouts
+    const { data: payoutsData } = await supabase
+      .from("relay_payouts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (payoutsData && payoutsData.length > 0) {
+      const processedSum = payoutsData
+        .filter(p => p.status === "processed")
+        .reduce((acc, p) => acc + Number(p.amount), 0);
+      const pendingSum = payoutsData
+        .filter(p => p.status === "pending")
+        .reduce((acc, p) => acc + Number(p.amount), 0);
+
+      setTotalWithdrawn(processedSum);
+      setAvailableBalance(Math.max(0, totalEarned - processedSum - pendingSum));
+
+      setPayouts(payoutsData.map(p => ({
+        id: p.id.slice(0, 8).toUpperCase(),
+        amount: `${Number(p.amount).toLocaleString()} FCFA`,
+        provider: p.payment_method || "Wave",
+        phone: p.reference_code || "--",
+        status: p.status,
+        date: new Date(p.created_at).toLocaleDateString("fr-FR"),
+        ref: p.status === "processed" ? "Virement Effectué" : "En cours d'approbation Admin"
+      })));
+    } else {
+      setAvailableBalance(totalEarned);
+      setPayouts([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchEarningsData();
+  }, []);
+
+  const handleRequestPayout = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) return;
+    const reqAmount = Number(amount);
+    if (!reqAmount || reqAmount <= 0) return;
+    if (reqAmount > availableBalance) {
+      alert("Le montant demandé dépasse votre solde disponible.");
+      return;
+    }
 
     setIsSubmitting(true);
     setSuccessMsg("");
 
-    setTimeout(() => {
-      setPayouts(prev => [
-        { 
-          id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, 
-          amount: `${Number(amount).toLocaleString()} FCFA`, 
-          provider, 
-          phone, 
-          status: "pending", 
-          date: "Aujourd'hui", 
-          ref: "En cours d'approbation Admin" 
-        },
-        ...prev
-      ]);
-      setSuccessMsg(`Demande de retrait de ${Number(amount).toLocaleString()} FCFA soumise à l'Administration Kalagban.`);
-      setIsSubmitting(false);
+    try {
+      if (relayPointId) {
+        await supabase.from("relay_payouts").insert({
+          pickup_point_id: relayPointId,
+          amount: reqAmount,
+          status: "pending",
+          payment_method: provider,
+          reference_code: phone,
+        });
+
+        await supabase.from("relay_notifications").insert({
+          pickup_point_id: relayPointId,
+          title: "Demande de Retrait Enregistrée",
+          message: `Votre demande de virement de ${reqAmount.toLocaleString()} FCFA via ${provider} (${phone}) est en cours de traitement par l'Administration.`,
+          type: "payout"
+        });
+      }
+
+      setSuccessMsg(`Demande de retrait de ${reqAmount.toLocaleString()} FCFA transmise avec succès à l'Administration Kalagban.`);
       setAmount("");
-    }, 600);
+      setPhone("");
+      await fetchEarningsData();
+    } catch (err) {
+      console.error("Payout error:", err);
+      alert("Erreur lors de la demande de virement.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

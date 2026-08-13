@@ -13,6 +13,9 @@ node_modules
 out/
 build/
 dist/
+.turbo/
+apps/*/dist/
+apps/*/.turbo/
 
 # Environment files & Secrets
 .env
