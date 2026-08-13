@@ -11,7 +11,6 @@ import {
   CheckCircle, 
   Wand2, 
   Loader2, 
-  Trash2, 
   AlertTriangle 
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -141,7 +140,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // 1. Mettre à jour la table products
+      // 1. Mettre à jour la table products et repasser en modération
       const { error: updateError } = await supabase
         .from('products')
         .update({
@@ -152,7 +151,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           category: category === "autre" ? (customCategory.trim() || "Autre") : category,
           stock_quantity: parseInt(stock) || 0,
           sku,
-          status
+          status: 'pending_review',
+          moderation_status: 'pending_review',
+          rejection_reason: null, // Reset previous rejection
         })
         .eq('id', productId)
         .eq('shop_id', session.user.id);
@@ -184,9 +185,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       }
 
       setIsSaved(true);
-      setTimeout(() => {
-        router.push("/products");
-      }, 1200);
+      alert("Produit mis à jour et re-soumis avec succès à l'équipe de modération ! 🎉");
+      router.push("/products");
 
     } catch (error) {
       console.error("Erreur de mise à jour du produit:", error);
@@ -208,6 +208,16 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto pb-16">
       
+      {/* Moderation Warning Banner */}
+      <div className="bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+          <AlertTriangle size={22} />
+        </div>
+        <div className="flex-1 text-sm text-amber-900">
+          <span className="font-bold">Information de modération :</span> La modification des informations (titre, prix, photo) re-soumet automatiquement cet article à l&apos;équipe de modération pour validation.
+        </div>
+      </div>
+
       {/* Header Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -216,7 +226,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           </Link>
           <div>
             <h1 className="text-3xl font-black text-text-main tracking-tight">Modifier le Produit</h1>
-            <p className="text-text-muted text-sm mt-0.5">Mettez à jour le stock, les prix et les informations de l&apos;article.</p>
+            <p className="text-text-muted text-sm mt-0.5">Mettez à jour les informations et re-soumettez pour validation.</p>
           </div>
         </div>
 
@@ -225,8 +235,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           disabled={isSaving}
           className="bg-primary text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-all flex items-center gap-2 disabled:opacity-70"
         >
-          {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-          {isSaving ? "Enregistrement..." : "Enregistrer les modifications"}
+          {isSaving ? <Loader2 className="animate-spin" size={18} /> : isSaved ? <CheckCircle size={18} /> : <Save size={18} />}
+          {isSaving ? "Soumission..." : isSaved ? "Re-soumis !" : "Soumettre les modifications"}
         </button>
       </div>
 

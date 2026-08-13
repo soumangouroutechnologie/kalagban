@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -86,7 +87,13 @@ export default function ProductDetailScreen() {
         .eq('id', productId)
         .single();
 
-      if (!error && data) {
+      if (error || !data || (data as any).status !== 'active' || (data as any).moderation_status === 'rejected' || (data as any).moderation_status === 'pending_review') {
+        Alert.alert('Article Indisponible', 'Ce produit est en cours de modération ou n\'est plus disponible.');
+        router.back();
+        return;
+      }
+
+      if (data) {
         setProduct({
           id: data.id,
           shop_id: data.shop_id,

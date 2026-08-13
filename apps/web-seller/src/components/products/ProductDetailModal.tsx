@@ -26,6 +26,8 @@ export interface SellerProduct {
   old_price?: number | null;
   stock_quantity: number;
   status: string;
+  moderation_status?: "pending_review" | "approved" | "rejected";
+  rejection_reason?: string | null;
   image_url?: string | null;
   images?: string[];
   shop_name?: string;
@@ -72,12 +74,22 @@ export default function ProductDetailModal({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold ${
-              product.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gray-100 text-gray-600'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${product.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
-              {product.status === 'active' ? 'En ligne' : 'Brouillon'}
-            </span>
+            {product.moderation_status === "pending_review" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                En attente de modération
+              </span>
+            ) : product.moderation_status === "rejected" ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-red-50 text-red-700 border border-red-200">
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Refusé par la modération
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                En ligne &amp; Approuvé
+              </span>
+            )}
 
             <button 
               onClick={onClose}
@@ -201,6 +213,30 @@ export default function ProductDetailModal({
                     {product.description || "Aucune description fournie pour ce produit."}
                   </p>
                 </div>
+                {/* Rejection Alert Box */}
+                {product.moderation_status === "rejected" && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-red-700 font-bold text-xs uppercase tracking-wider">
+                      <AlertCircle size={16} /> Motif du refus par la modération :
+                    </div>
+                    <p className="text-sm font-semibold text-red-900 bg-white/70 p-3 rounded-xl border border-red-100">
+                      « {product.rejection_reason || "Cet article ne respecte pas les critères de qualité ou de description de la marketplace."} »
+                    </p>
+                    <p className="text-xs text-red-600 font-medium">
+                      👉 Vous pouvez modifier votre article ci-dessous pour corriger ces points et le re-soumettre à l&apos;équipe.
+                    </p>
+                  </div>
+                )}
+
+                {/* Moderation Pending Notice */}
+                {product.moderation_status === "pending_review" && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0 mt-1.5 animate-pulse" />
+                    <div>
+                      <span className="font-bold">Article en cours d&apos;examen :</span> Votre produit est actuellement dans la file de vérification des modérateurs. Il sera visible dès sa validation.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Shop Badge */}

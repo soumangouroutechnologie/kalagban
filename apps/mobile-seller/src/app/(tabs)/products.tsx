@@ -49,8 +49,13 @@ export default function SellerProductsScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [moderationTab, setModerationTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   const categoriesList = ['all', 'Électronique', 'Mode', 'Maison', 'Beauté & Santé', 'Accessoires'];
+
+  const pendingCount = products.filter(p => p.moderation_status === 'pending_review').length;
+  const approvedCount = products.filter(p => p.moderation_status === 'approved' || (!p.moderation_status && p.status === 'active')).length;
+  const rejectedCount = products.filter(p => p.moderation_status === 'rejected').length;
 
   const fetchProducts = async () => {
     try {
@@ -117,7 +122,13 @@ export default function SellerProductsScreen() {
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
-    return matchesSearch && matchesCat;
+    
+    let matchesMod = true;
+    if (moderationTab === 'pending') matchesMod = p.moderation_status === 'pending_review';
+    else if (moderationTab === 'approved') matchesMod = p.moderation_status === 'approved' || (!p.moderation_status && p.status === 'active');
+    else if (moderationTab === 'rejected') matchesMod = p.moderation_status === 'rejected';
+
+    return matchesSearch && matchesCat && matchesMod;
   });
 
   return (
@@ -126,7 +137,7 @@ export default function SellerProductsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Mes Produits</Text>
-          <Text style={styles.subtitle}>Gérez votre inventaire et ajoutez de nouveaux articles.</Text>
+          <Text style={styles.subtitle}>Gérez votre inventaire et suivez la modération.</Text>
         </View>
 
         <TouchableOpacity
@@ -135,7 +146,46 @@ export default function SellerProductsScreen() {
           activeOpacity={0.85}
         >
           <Plus size={18} color="#FFFFFF" />
-          <Text style={styles.newProductBtnText}>Nouveau Produit</Text>
+          <Text style={styles.newProductBtnText}>Ajouter</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Moderation Status Tabs */}
+      <View style={styles.modTabsContainer}>
+        <TouchableOpacity
+          style={[styles.modTab, moderationTab === 'all' && styles.activeModTab]}
+          onPress={() => setModerationTab('all')}
+        >
+          <Text style={[styles.modTabText, moderationTab === 'all' && styles.activeModTabText]}>
+            Tous ({products.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modTab, moderationTab === 'pending' && styles.activePendingTab]}
+          onPress={() => setModerationTab('pending')}
+        >
+          <Text style={[styles.modTabText, moderationTab === 'pending' && styles.activePendingTabText]}>
+            ⏳ En attente ({pendingCount})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modTab, moderationTab === 'approved' && styles.activeApprovedTab]}
+          onPress={() => setModerationTab('approved')}
+        >
+          <Text style={[styles.modTabText, moderationTab === 'approved' && styles.activeApprovedTabText]}>
+            🟢 En ligne ({approvedCount})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modTab, moderationTab === 'rejected' && styles.activeRejectedTab]}
+          onPress={() => setModerationTab('rejected')}
+        >
+          <Text style={[styles.modTabText, moderationTab === 'rejected' && styles.activeRejectedTabText]}>
+            ❌ Refusés ({rejectedCount})
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -145,7 +195,7 @@ export default function SellerProductsScreen() {
           <Search size={18} color="#64748B" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher un produit (nom, catégorie)..."
+            placeholder="Rechercher un produit..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -173,7 +223,7 @@ export default function SellerProductsScreen() {
                   selectedCategory === cat && styles.activeCategoryChipText,
                 ]}
               >
-                {cat === 'all' ? 'Toutes les catégories' : cat}
+                {cat === 'all' ? 'Toutes catégories' : cat}
               </Text>
             </TouchableOpacity>
           ))}
@@ -347,9 +397,57 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+  modTabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  modTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  activeModTab: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  activePendingTab: {
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
+  },
+  activeApprovedTab: {
+    backgroundColor: '#16A34A',
+    borderColor: '#16A34A',
+  },
+  activeRejectedTab: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  modTabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  activeModTabText: {
+    color: '#FFFFFF',
+  },
+  activePendingTabText: {
+    color: '#FFFFFF',
+  },
+  activeApprovedTabText: {
+    color: '#FFFFFF',
+  },
+  activeRejectedTabText: {
+    color: '#FFFFFF',
+  },
   searchSection: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   searchBox: {
     flexDirection: 'row',

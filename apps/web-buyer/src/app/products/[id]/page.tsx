@@ -68,8 +68,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
         if (!isMounted) return;
 
-        if (prodError || !prodData) {
-          console.error("Product not found:", prodError);
+        if (prodError || !prodData || prodData.status !== "active" || prodData.moderation_status === "rejected" || prodData.moderation_status === "pending_review") {
+          console.error("Product not available or under moderation:", prodError);
           setIsLoading(false);
           return;
         }

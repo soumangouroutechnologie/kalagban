@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, UploadCloud, Save, CheckCircle, Wand2 } from "lucide-react";
+import { ArrowLeft, UploadCloud, Save, CheckCircle, Wand2, ShieldCheck, Clock, ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
 
@@ -37,6 +37,8 @@ export default function NewProductPage() {
     { name: "Jaune Pâle", value: "#fef3c7", border: "border-yellow-200" },
   ];
 
+  const [submittedModal, setSubmittedModal] = useState(false);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !price) {
@@ -53,7 +55,7 @@ export default function NewProductPage() {
         return;
       }
 
-      // 1. Insertion du produit dans la base de données
+      // 1. Insertion du produit dans la base de données en attente de modération
       const { data: newProd, error: prodError } = await supabase
         .from('products')
         .insert({
@@ -98,11 +100,10 @@ export default function NewProductPage() {
       }
 
       setIsSaved(true);
-      setTitle(""); setPrice(""); setUploadedImage(null); setImageFile(null);
-      setTimeout(() => setIsSaved(false), 3000);
+      setSubmittedModal(true);
     } catch (err) {
       const error = err as Error;
-      alert("Erreur lors de la sauvegarde : " + error.message);
+      alert("Erreur lors de la soumission : " + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -170,6 +171,16 @@ export default function NewProductPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto pb-10">
       
+      {/* Moderation Process Notice Banner */}
+      <div className="bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+          <ShieldCheck size={22} />
+        </div>
+        <div className="flex-1 text-sm text-amber-900">
+          <span className="font-bold">Processus de modération Kalagban :</span> Tout nouvel article soumis est examiné par l&apos;équipe de modération avant sa mise en ligne publique afin de garantir la qualité du catalogue.
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
@@ -177,15 +188,15 @@ export default function NewProductPage() {
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-3xl font-black text-text-main tracking-tight">Créer un produit</h1>
-            <p className="text-text-muted mt-1">Ajoutez un nouvel article à votre catalogue.</p>
+            <h1 className="text-3xl font-black text-text-main tracking-tight">Ajouter un produit</h1>
+            <p className="text-text-muted mt-1">Soumettez votre article à l&apos;équipe de modération pour publication.</p>
           </div>
         </div>
         
         <div className="flex gap-3">
-          <button className="px-5 py-2.5 rounded-xl font-bold border border-gray-200 text-text-main hover:bg-white transition-colors bg-surface">
-            Brouillon
-          </button>
+          <Link href="/products" className="px-5 py-2.5 rounded-xl font-bold border border-gray-200 text-text-main hover:bg-white transition-colors bg-surface flex items-center">
+            Annuler
+          </Link>
           <button 
             onClick={handleSave}
             disabled={isSaving}
@@ -198,7 +209,7 @@ export default function NewProductPage() {
             ) : (
               <Save size={20} />
             )}
-            {isSaving ? "Sauvegarde..." : isSaved ? "Publié !" : "Publier"}
+            {isSaving ? "Soumission en cours..." : isSaved ? "Soumis pour validation !" : "Soumettre pour validation"}
           </button>
         </div>
       </div>
@@ -490,6 +501,50 @@ export default function NewProductPage() {
         </div>
 
       </div>
+
+      {/* Confirmation Modal: Produit soumis avec succès */}
+      {submittedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col items-center text-center animate-scale-up">
+            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6 text-amber-500 ring-8 ring-amber-50/50">
+              <Clock size={40} className="animate-pulse" />
+            </div>
+            
+            <h3 className="text-2xl font-black text-gray-900 mb-2">
+              Produit Soumis pour Validation ! 🎉
+            </h3>
+            
+            <p className="text-gray-600 text-sm leading-relaxed mb-6">
+              Votre article <span className="font-bold text-gray-800">« {title || "Sans titre"} »</span> a été transmis avec succès à l&apos;équipe de modération de Kalagban. Il sera examiné avant d&apos;apparaître en ligne.
+            </p>
+
+            <div className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 mb-6 text-left flex items-start gap-3">
+              <ShieldCheck size={20} className="text-primary shrink-0 mt-0.5" />
+              <div className="text-xs text-gray-600">
+                <span className="font-bold text-gray-800">Délai estimé :</span> Validation rapide (habituellement sous 1h à 24h). Vous recevrez une notification instantanée.
+              </div>
+            </div>
+
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => {
+                  setSubmittedModal(false);
+                  setTitle(""); setPrice(""); setOldPrice(""); setUploadedImage(null); setImageFile(null);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 text-sm transition-all"
+              >
+                Ajouter un autre
+              </button>
+              <Link
+                href="/products"
+                className="flex-1 py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-indigo-600 text-sm transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-primary/20"
+              >
+                Voir mes produits <ArrowRight size={16} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

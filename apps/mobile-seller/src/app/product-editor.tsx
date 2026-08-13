@@ -35,6 +35,7 @@ import {
   CheckCircle2,
   Wand2,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react-native';
 
 const STUDIO_BACKGROUNDS = [
@@ -318,7 +319,7 @@ export default function ProductEditorScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.saveBtnText}>Publier</Text>
+            <Text style={styles.saveBtnText}>Soumettre</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -331,6 +332,17 @@ export default function ProductEditorScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Moderation Notice Banner */}
+          <View style={styles.moderationNoticeBox}>
+            <ShieldCheck size={20} color="#D97706" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.moderationNoticeTitle}>Processus de Modération Kalagban</Text>
+              <Text style={styles.moderationNoticeDesc}>
+                Votre produit sera vérifié par notre équipe de modération avant d&apos;apparaître en ligne pour les acheteurs.
+              </Text>
+            </View>
+          </View>
+
           {/* Image Studio Container */}
           <Text style={styles.label}>Photo & Studio de l'article</Text>
           <View style={[styles.studioBox, { backgroundColor: selectedBgColor }]}>
@@ -517,6 +529,25 @@ export default function ProductEditorScreen() {
                 onChangeText={setDescription}
               />
             </View>
+
+            {/* Big Submit Button */}
+            <TouchableOpacity
+              style={[styles.bigSubmitBtn, loading && { opacity: 0.7 }]}
+              onPress={handleSave}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Check size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.bigSubmitBtnText}>
+                    {productId ? 'Soumettre les Modifications' : 'Soumettre pour Validation'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </ScrollView>
       )}
@@ -755,5 +786,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 14,
+  },
+  moderationNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 20,
+    gap: 12,
+  },
+  moderationNoticeTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  moderationNoticeDesc: {
+    fontSize: 11,
+    color: '#B45309',
+    lineHeight: 16,
+  },
+  bigSubmitBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bigSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

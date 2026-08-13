@@ -134,11 +134,23 @@ export default function ProductsPage() {
     }
   };
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+
+  const pendingCount = products.filter(p => p.moderation_status === "pending_review").length;
+  const approvedCount = products.filter(p => p.moderation_status === "approved" || (!p.moderation_status && p.status === "active")).length;
+  const rejectedCount = products.filter(p => p.moderation_status === "rejected").length;
+
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = selectedCategory ? p.category?.toLowerCase() === selectedCategory.toLowerCase() : true;
-    return matchesSearch && matchesCategory;
+    
+    let matchesStatus = true;
+    if (statusFilter === "pending") matchesStatus = p.moderation_status === "pending_review";
+    else if (statusFilter === "approved") matchesStatus = p.moderation_status === "approved" || (!p.moderation_status && p.status === "active");
+    else if (statusFilter === "rejected") matchesStatus = p.moderation_status === "rejected";
+
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   return (
@@ -190,15 +202,74 @@ export default function ProductsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-text-main tracking-tight">Mes Produits</h1>
-          <p className="text-text-muted mt-1">Gérez votre inventaire et ajoutez de nouveaux articles.</p>
+          <p className="text-text-muted mt-1">Gérez vos articles et suivez l&apos;état de validation par l&apos;équipe de modération.</p>
         </div>
         <Link 
           href="/products/new"
           className="bg-primary text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-primary/30 hover:bg-indigo-600 hover:shadow-indigo-600/40 transform hover:-translate-y-0.5 transition-all flex items-center gap-2"
         >
           <Plus size={20} />
-          Nouveau Produit
+          Ajouter un Produit
         </Link>
+      </div>
+
+      {/* Moderation Status Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+        <button
+          onClick={() => setStatusFilter("all")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 flex items-center gap-2 ${
+            statusFilter === "all"
+              ? "bg-gray-900 text-white shadow-md"
+              : "bg-surface text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          Tous les articles
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${statusFilter === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"}`}>
+            {products.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("pending")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 flex items-center gap-2 ${
+            statusFilter === "pending"
+              ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+              : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+          }`}
+        >
+          ⏳ En attente de validation
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${statusFilter === "pending" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"}`}>
+            {pendingCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("approved")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 flex items-center gap-2 ${
+            statusFilter === "approved"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+              : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+          }`}
+        >
+          🟢 En ligne &amp; Validés
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${statusFilter === "approved" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}>
+            {approvedCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("rejected")}
+          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 flex items-center gap-2 ${
+            statusFilter === "rejected"
+              ? "bg-red-600 text-white shadow-md shadow-red-600/20"
+              : "bg-red-50 text-red-800 hover:bg-red-100 border border-red-200"
+          }`}
+        >
+          ❌ Refusés
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${statusFilter === "rejected" ? "bg-white/20 text-white" : "bg-red-100 text-red-800"}`}>
+            {rejectedCount}
+          </span>
+        </button>
       </div>
 
       {/* Filters and Search */}
