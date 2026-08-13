@@ -72,6 +72,17 @@ export default function RelayDashboardLayout({
     };
 
     fetchNotifications();
+
+    const channel = supabase
+      .channel("relay_notifications_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_notifications" }, () => {
+        fetchNotifications();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;

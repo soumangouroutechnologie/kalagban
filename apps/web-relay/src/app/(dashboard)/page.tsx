@@ -12,7 +12,10 @@ import {
   Truck,
   UserCheck,
   Sparkles,
-  Loader2
+  Loader2,
+  Printer,
+  QrCode,
+  X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -36,6 +39,20 @@ export default function RelayDashboardHome() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpSuccess, setOtpSuccess] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
+
+  // Thermal Receipt State
+  const [receiptModalData, setReceiptModalData] = useState<{
+    orderCode: string;
+    customerName: string;
+    customerPhone: string;
+    date: string;
+    relayName: string;
+    amount: string;
+  } | null>(null);
+
+  const handlePrintReceipt = () => {
+    window.print();
+  };
 
   // Stats
   const [capacity, setCapacity] = useState({ current: 0, max: 100 });
@@ -180,6 +197,14 @@ export default function RelayDashboardHome() {
       });
 
       setOtpSuccess(`Code OTP Valide ! Colis #${orderId} remis à ${customerName}. Commission de +300 FCFA créditée !`);
+      setReceiptModalData({
+        orderCode: orderId,
+        customerName: customerName,
+        customerPhone: dbOrder?.customer_phone || "+225 --",
+        date: new Date().toLocaleString("fr-FR"),
+        relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+        amount: "Retrait Confirmé"
+      });
       setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
       setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
       setTodayPickups(prev => prev + 1);
@@ -434,6 +459,62 @@ export default function RelayDashboardHome() {
           </table>
         </div>
       </div>
+
+      {/* THERMAL RECEIPT MODAL (58mm/80mm POS TICKET) */}
+      {receiptModalData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setReceiptModalData(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Ticket de Caisse Thermal Paper Preview */}
+            <div id="thermal-receipt-printable" className="bg-amber-50/50 border border-dashed border-gray-300 rounded-2xl p-5 text-center font-mono text-xs space-y-3 text-gray-800">
+              <div className="border-b border-dashed border-gray-300 pb-3 space-y-1">
+                <div className="w-10 h-10 bg-indigo-600 text-white font-black text-lg rounded-xl flex items-center justify-center mx-auto">
+                  K
+                </div>
+                <h3 className="font-black text-sm uppercase tracking-wider text-gray-900">KALAGBAN EXPRESS</h3>
+                <p className="text-[10px] text-gray-500 font-sans">Plateforme E-Commerce &amp; Points Relais</p>
+                <p className="text-[11px] font-bold text-indigo-700">{receiptModalData.relayName}</p>
+              </div>
+
+              <div className="text-left space-y-1 text-[11px] py-1 border-b border-dashed border-gray-300 pb-3">
+                <p><span className="text-gray-500 font-sans">Date :</span> <strong>{receiptModalData.date}</strong></p>
+                <p><span className="text-gray-500 font-sans">N° Colis :</span> <strong className="text-indigo-950 font-black">{receiptModalData.orderCode}</strong></p>
+                <p><span className="text-gray-500 font-sans">Client :</span> <strong>{receiptModalData.customerName}</strong></p>
+                <p><span className="text-gray-500 font-sans">Téléphone :</span> <strong>{receiptModalData.customerPhone}</strong></p>
+                <p><span className="text-gray-500 font-sans">Statut :</span> <strong className="text-emerald-700 font-black">COLIS RETIRÉ &amp; VÉRIFIÉ</strong></p>
+              </div>
+
+              <div className="pt-2 text-[10px] text-gray-500 space-y-1 font-sans">
+                <p className="font-bold text-gray-700">Code Retrait Validé avec Succès</p>
+                <p>Merci pour votre confiance sur Kalagban Marketplace !</p>
+                <p className="font-mono text-[9px] text-gray-400">www.kalagban.ci</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handlePrintReceipt}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3.5 px-4 rounded-2xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Printer size={16} /> Imprimer le Ticket
+              </button>
+              <button
+                onClick={() => setReceiptModalData(null)}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs py-3.5 px-4 rounded-2xl transition-all cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
