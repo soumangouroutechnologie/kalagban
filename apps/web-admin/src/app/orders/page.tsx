@@ -9,7 +9,11 @@ interface AdminOrder {
   total_amount: number;
   status: string;
   created_at: string;
-  shipping_address?: {
+  customer_name?: string;
+  customer_phone?: string;
+  delivery_type?: string;
+  relay_status?: string;
+  shipping_address?: string | {
     full_name?: string;
     phone?: string;
     city?: string;
@@ -107,36 +111,58 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {filteredOrders.map((order) => (
-              <div key={order.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50/50 transition-colors">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-black text-sm text-gray-900">
-                      Commande #{order.id.slice(0, 8)}
-                    </span>
-                    <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100 uppercase">
-                      {order.status}
-                    </span>
+            {filteredOrders.map((order) => {
+              const addressText = typeof order.shipping_address === "string"
+                ? order.shipping_address
+                : `${order.shipping_address?.full_name || ""} ${order.shipping_address?.phone || ""} ${order.shipping_address?.address_line || ""}`;
+
+              return (
+                <div key={order.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="font-mono font-black text-sm text-gray-900">
+                        Commande #{order.id.slice(0, 8).toUpperCase()}
+                      </span>
+                      <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100 uppercase">
+                        {order.status}
+                      </span>
+                      {order.delivery_type === "pickup_point" ? (
+                        <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 uppercase flex items-center gap-1">
+                          📦 Retrait Point Relais {order.relay_status ? `(${order.relay_status})` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 uppercase flex items-center gap-1">
+                          🚚 Livraison Domicile
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
+                      <span className="font-bold text-gray-900">{order.customer_name || "Client"}</span>
+                      {order.customer_phone && (
+                        <span className="text-gray-500 font-mono">({order.customer_phone})</span>
+                      )}
+                    </div>
+
+                    {addressText && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                        <MapPin size={14} className="text-indigo-600 shrink-0" />
+                        <span className="line-clamp-1">{addressText}</span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                    <MapPin size={14} className="text-indigo-600 shrink-0" />
-                    <span>
-                      {order.shipping_address?.full_name || "Client Kalagban"} — {order.shipping_address?.phone || "+225 07..."} — {order.shipping_address?.address_line || "Abidjan"}
+                  <div className="text-right shrink-0">
+                    <span className="text-lg font-black text-indigo-700">
+                      {Number(order.total_amount || 0).toLocaleString()} FCFA
                     </span>
+                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                      {new Date(order.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
                   </div>
                 </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-lg font-black text-gray-900">
-                    {Number(order.total_amount).toLocaleString()} FCFA
-                  </span>
-                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">
-                    {new Date(order.created_at).toLocaleDateString("fr-FR")}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
