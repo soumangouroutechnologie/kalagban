@@ -22,43 +22,38 @@ export default function RelayLoginPage() {
     const formattedCode = relayCode.trim().toUpperCase();
 
     // Check if pickup_point exists in Supabase
-    const { data: relayPoint } = await supabase
+    const { data: relayPoint, error: dbError } = await supabase
       .from("pickup_points")
       .select("*")
       .eq("code", formattedCode)
       .maybeSingle();
 
-    if (relayPoint) {
-      if (relayPoint.status === "suspended") {
-        setError("Ce point relais est actuellement suspendu par l'Administration.");
-        setIsLoading(false);
-        return;
-      }
-
-      const expectedPin =
-        relayPoint.pin_code ||
-        (relayPoint.email && relayPoint.email.startsWith("pin:")
-          ? relayPoint.email.replace("pin:", "")
-          : "123456");
-
-      if (expectedPin && (pinCode.trim() === expectedPin || pinCode.trim() === "123456")) {
-        localStorage.setItem("kalagban_relay_code", formattedCode);
-        router.push("/");
-        return;
-      } else {
-        setError("Code PIN d'accès incorrect pour ce Point Relais.");
-        setIsLoading(false);
-        return;
-      }
+    if (dbError || !relayPoint) {
+      setError("Code Point Relais introuvable ou supprimé par l'Administration.");
+      setIsLoading(false);
+      return;
     }
 
-    // Allow login if formatted code starts with REL
-    if (formattedCode.startsWith("REL-") && pinCode.trim()) {
+    if (relayPoint.status === "suspended") {
+      setError("Ce point relais est actuellement suspendu par l'Administration.");
+      setIsLoading(false);
+      return;
+    }
+
+    const expectedPin =
+      relayPoint.pin_code ||
+      (relayPoint.email && relayPoint.email.startsWith("pin:")
+        ? relayPoint.email.replace("pin:", "")
+        : "123456");
+
+    if (pinCode.trim() === expectedPin || pinCode.trim() === "123456") {
       localStorage.setItem("kalagban_relay_code", formattedCode);
       router.push("/");
+      return;
     } else {
-      setError("Code Point Relais introuvable. Veuillez d'abord le créer sur le Dashboard Admin.");
+      setError("Code PIN d'accès incorrect pour ce Point Relais.");
       setIsLoading(false);
+      return;
     }
   };
 

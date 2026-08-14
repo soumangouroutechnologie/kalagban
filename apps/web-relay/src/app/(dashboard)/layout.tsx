@@ -45,7 +45,34 @@ export default function RelayDashboardLayout({
 
   useEffect(() => {
     const saved = localStorage.getItem("kalagban_relay_code");
-    if (saved) setRelayCode(saved);
+    if (!saved) {
+      router.push("/login");
+      return;
+    }
+
+    const verifyRelaySession = async () => {
+      const { data: relayPoint, error } = await supabase
+        .from("pickup_points")
+        .select("*")
+        .eq("code", saved)
+        .maybeSingle();
+
+      if (error || !relayPoint) {
+        localStorage.removeItem("kalagban_relay_code");
+        router.push("/login");
+        return;
+      }
+
+      if (relayPoint.status === "suspended") {
+        localStorage.removeItem("kalagban_relay_code");
+        router.push("/login");
+        return;
+      }
+
+      setRelayCode(relayPoint.code);
+    };
+
+    verifyRelaySession();
 
     // Fetch notifications from Supabase
     const fetchNotifications = async () => {
@@ -78,12 +105,15 @@ export default function RelayDashboardLayout({
       .on("postgres_changes", { event: "*", schema: "public", table: "relay_notifications" }, () => {
         fetchNotifications();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => {
+        verifyRelaySession();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [router]);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
