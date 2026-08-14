@@ -1,21 +1,21 @@
 
-> web-relay@0.1.0 build
+> web-relay@0.1.1 build
 > next build
 
 ▲ Next.js 16.3.0 (Turbopack)
 - Environments: .env.local
-✓ Running next.config.ts took 25ms
+✓ Running next.config.ts took 65ms
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.6s
+✓ Compiled successfully in 1897ms
   Running TypeScript ...
-  Finished TypeScript in 1782ms ...
+  Finished TypeScript in 7.8s ...
   Collecting page data using 7 workers ...
   Generating static pages using 7 workers (0/7) ...
   Generating static pages using 7 workers (1/7) 
   Generating static pages using 7 workers (3/7) 
   Generating static pages using 7 workers (5/7) 
-✓ Generating static pages using 7 workers (7/7) in 189ms
+✓ Generating static pages using 7 workers (7/7) in 363ms
   Finalizing page optimization ...
 
 Route (app)

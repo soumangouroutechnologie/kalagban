@@ -19,41 +19,47 @@ export default function RelayLoginPage() {
     setIsLoading(true);
     setError("");
 
-    const formattedCode = relayCode.trim().toUpperCase();
+    try {
+      const formattedCode = relayCode.trim().toUpperCase();
 
-    // Check if pickup_point exists in Supabase
-    const { data: relayPoint, error: dbError } = await supabase
-      .from("pickup_points")
-      .select("*")
-      .eq("code", formattedCode)
-      .maybeSingle();
+      // Check if pickup_point exists in Supabase
+      const { data: relayPoint, error: dbError } = await supabase
+        .from("pickup_points")
+        .select("*")
+        .eq("code", formattedCode)
+        .maybeSingle();
 
-    if (dbError || !relayPoint) {
-      setError("Code Point Relais introuvable ou supprimé par l'Administration.");
+      if (dbError || !relayPoint) {
+        setError("Code Point Relais introuvable ou supprimé par l'Administration.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (relayPoint.status === "suspended") {
+        setError("Ce point relais est actuellement suspendu par l'Administration.");
+        setIsLoading(false);
+        return;
+      }
+
+      const expectedPin =
+        relayPoint.pin_code ||
+        (relayPoint.email && relayPoint.email.startsWith("pin:")
+          ? relayPoint.email.replace("pin:", "")
+          : null);
+
+      if (expectedPin && pinCode.trim() === expectedPin) {
+        localStorage.setItem("kalagban_relay_code", formattedCode);
+        router.push("/");
+        return;
+      } else {
+        setError("Code PIN d'accès incorrect pour ce Point Relais.");
+        setIsLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error("Login verification error:", err);
+      setError("Erreur de connexion au serveur de sécurité. Impossible de vérifier vos accès.");
       setIsLoading(false);
-      return;
-    }
-
-    if (relayPoint.status === "suspended") {
-      setError("Ce point relais est actuellement suspendu par l'Administration.");
-      setIsLoading(false);
-      return;
-    }
-
-    const expectedPin =
-      relayPoint.pin_code ||
-      (relayPoint.email && relayPoint.email.startsWith("pin:")
-        ? relayPoint.email.replace("pin:", "")
-        : null);
-
-    if (expectedPin && pinCode.trim() === expectedPin) {
-      localStorage.setItem("kalagban_relay_code", formattedCode);
-      router.push("/");
-      return;
-    } else {
-      setError("Code PIN d'accès incorrect pour ce Point Relais.");
-      setIsLoading(false);
-      return;
     }
   };
 
