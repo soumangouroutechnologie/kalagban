@@ -1,21 +1,21 @@
 
-> web-admin@0.1.0 build
+> web-admin@0.1.1 build
 > next build
 
 ▲ Next.js 16.3.0 (Turbopack)
 - Environments: .env.local
-✓ Running next.config.ts took 50ms
+✓ Running next.config.ts took 89ms
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.4s
+✓ Compiled successfully in 1270ms
   Running TypeScript ...
-  Finished TypeScript in 3.9s ...
+  Finished TypeScript in 3.0s ...
   Collecting page data using 7 workers ...
   Generating static pages using 7 workers (0/12) ...
   Generating static pages using 7 workers (3/12) 
   Generating static pages using 7 workers (6/12) 
   Generating static pages using 7 workers (9/12) 
-✓ Generating static pages using 7 workers (12/12) in 686ms
+✓ Generating static pages using 7 workers (12/12) in 876ms
   Finalizing page optimization ...
 
 Route (app)
