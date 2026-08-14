@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Search, User, UserCheck, Home, Heart } from "lucide-react";
+import { ShoppingBag, Search, User, UserCheck, Home, Heart, X } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { supabase } from "@/lib/supabase";
 
@@ -34,34 +34,44 @@ export default function Header({
 
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-11 h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 group shrink-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
             K
           </div>
-          <div className="flex flex-col">
-            <span className="text-2xl font-black tracking-tight text-gray-900 leading-none">
+          <div className="flex flex-col hidden xs:flex">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-gray-900 leading-none">
               Kalagban
             </span>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 mt-0.5">
+            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 mt-0.5">
               Marketplace
             </span>
           </div>
         </Link>
 
         {/* Search Bar */}
-        <div className="flex-1 max-w-lg mx-4 hidden md:block">
-          <div className="relative">
+        <div className="flex-1 max-w-lg mx-2 sm:mx-4 flex">
+          <div className="relative w-full">
             <input
               type="text"
               value={searchTerm || ""}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Rechercher un produit, une marque, une catégorie..."
-              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-full py-3 px-5 pl-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all text-sm font-medium"
+              placeholder="Rechercher un produit, une catégorie..."
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-full py-2.5 sm:py-3 px-4 sm:px-5 pl-10 sm:pl-12 pr-9 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all text-xs sm:text-sm font-medium"
             />
-            <Search className="absolute left-4.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-3.5 sm:left-4.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => onSearchChange?.("")}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                title="Effacer la recherche"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
           </div>
         </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Package, Truck, CheckCircle2, Clock, Loader2, MapPin } from "lucide-react";
+import { Package, Truck, CheckCircle2, Clock, Loader2, MapPin, Search, X } from "lucide-react";
 
 interface AdminOrder {
   id: string;
@@ -25,6 +25,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchOrders = async () => {
     try {
@@ -56,9 +57,22 @@ export default function AdminOrdersPage() {
     };
   }, []);
 
-  const filteredOrders = orders.filter(o => 
-    filterStatus === "all" ? true : o.status === filterStatus
-  );
+  const filteredOrders = orders.filter(o => {
+    const q = searchTerm.trim().toLowerCase();
+    const matchSearch = !q ||
+      o.id.toLowerCase().includes(q) ||
+      (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+      (o.customer_phone && o.customer_phone.toLowerCase().includes(q)) ||
+      (typeof o.shipping_address === "string" && o.shipping_address.toLowerCase().includes(q)) ||
+      (typeof o.shipping_address === "object" && (
+        o.shipping_address?.city?.toLowerCase().includes(q) ||
+        o.shipping_address?.full_name?.toLowerCase().includes(q) ||
+        o.shipping_address?.address_line?.toLowerCase().includes(q)
+      ));
+
+    if (!matchSearch) return false;
+    return filterStatus === "all" ? true : o.status === filterStatus;
+  });
 
   return (
     <main className="flex-1 p-6 sm:p-10 max-w-6xl w-full mx-auto space-y-8">
@@ -96,6 +110,27 @@ export default function AdminOrdersPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Search Input */}
+      <div className="relative max-w-md w-full">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Rechercher par n° de commande, client, ville..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-10 py-2.5 text-xs font-medium outline-none focus:border-indigo-600 shadow-2xs"
+        />
+        {searchTerm ? (
+          <button
+            type="button"
+            onClick={() => setSearchTerm("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        ) : null}
       </div>
 
       {/* Orders List */}

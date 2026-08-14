@@ -46,9 +46,12 @@ export default function RelayPackagesPage() {
   }, []);
 
   const filtered = packages.filter(p => {
-    const matchesSearch = p.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.phone.includes(searchTerm);
+    const q = searchTerm.trim().toLowerCase();
+    const matchesSearch = !q || 
+                          p.id.toLowerCase().includes(q) || 
+                          p.client.toLowerCase().includes(q) ||
+                          p.phone.toLowerCase().includes(q) ||
+                          p.shelf.toLowerCase().includes(q);
     const matchesStatus = statusFilter === "all" || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });

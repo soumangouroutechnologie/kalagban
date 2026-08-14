@@ -12,6 +12,7 @@ interface Order extends SellerOrder {
   total_amount: number;
   status: string;
   created_at: string;
+  shipping_address?: string;
 }
 
 export default function OrdersPage() {
@@ -89,8 +90,11 @@ export default function OrdersPage() {
   };
 
   const actualFilteredOrders = orders.filter(o => {
-    const matchSearch = o.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                        o.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.trim().toLowerCase();
+    const matchSearch = !q || 
+                        o.id.toLowerCase().includes(q) || 
+                        (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
+                        (o.shipping_address && o.shipping_address.toLowerCase().includes(q));
     if (!matchSearch) return false;
     
     if (activeTab === "Toutes") return true;

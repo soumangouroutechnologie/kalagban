@@ -322,10 +322,17 @@ export default function MarketplaceHomeScreen() {
   const activeParent = PARENT_CATEGORIES.find((c) => c.id === selectedParentCat);
 
   const filteredProducts = products.filter((item) => {
+    const q = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.shop_name && item.shop_name.toLowerCase().includes(searchQuery.toLowerCase()));
+      !q ||
+      item.title.toLowerCase().includes(q) ||
+      (item.description && item.description.toLowerCase().includes(q)) ||
+      (item.shop_name && item.shop_name.toLowerCase().includes(q)) ||
+      (item.category && item.category.toLowerCase().includes(q));
+
+    if (q) {
+      return matchesSearch;
+    }
 
     const itemCat = (item.category || '').toLowerCase();
 
@@ -434,8 +441,29 @@ export default function MarketplaceHomeScreen() {
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            returnKeyType="search"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {searchQuery.trim().length > 0 && (
+          <View style={styles.searchActiveBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.searchActiveTitle}>Résultats de recherche</Text>
+              <Text style={styles.searchActiveSub}>
+                {filteredProducts.length} article{filteredProducts.length > 1 ? 's' : ''} trouvé{filteredProducts.length > 1 ? 's' : ''} pour &quot;{searchQuery}&quot;
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.searchClearBtn}>
+              <Text style={styles.searchClearText}>Effacer</Text>
+              <X size={14} color="#DC2626" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* DYNAMIC VENTES FLASH SECTION WITH COUNTDOWN TIMER */}
         {flashSaleConfig.enabled !== false && (
@@ -884,6 +912,45 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#0F172A',
+  },
+  searchActiveBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  searchActiveTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E1B4B',
+  },
+  searchActiveSub: {
+    fontSize: 11,
+    color: '#4F46E5',
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  searchClearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  searchClearText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
   },
   sectionHeader: {
     flexDirection: 'row',

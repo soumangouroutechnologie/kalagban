@@ -141,8 +141,12 @@ export default function ProductsPage() {
   const rejectedCount = products.filter(p => p.moderation_status === "rejected").length;
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+    const q = searchTerm.trim().toLowerCase();
+    const matchesSearch = !q || 
+                          p.title.toLowerCase().includes(q) || 
+                          (p.description && p.description.toLowerCase().includes(q)) ||
+                          (p.category && p.category.toLowerCase().includes(q)) ||
+                          (p.sku && p.sku.toLowerCase().includes(q));
     const matchesCategory = selectedCategory ? p.category?.toLowerCase() === selectedCategory.toLowerCase() : true;
     
     let matchesStatus = true;

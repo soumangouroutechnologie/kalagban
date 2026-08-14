@@ -128,10 +128,13 @@ export default function AdminUsersPage() {
   };
 
   const filteredUsers = users.filter((u) => {
+    const q = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      (u.full_name && u.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (u.phone && u.phone.includes(searchTerm)) ||
-      (u.role && u.role.toLowerCase().includes(searchTerm.toLowerCase()));
+      !q ||
+      (u.full_name && u.full_name.toLowerCase().includes(q)) ||
+      (u.phone && u.phone.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q)) ||
+      (u.admin_role && u.admin_role.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
 

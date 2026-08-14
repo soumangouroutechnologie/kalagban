@@ -233,10 +233,19 @@ export default function ProductsModerationPage() {
 
   // Filtered Products inside selected shop
   const displayedProducts = selectedShopProducts.filter((p) => {
-    if (activeTab === "pending") return p.moderation_status === "pending_review" || !p.moderation_status;
-    if (activeTab === "approved") return p.moderation_status === "approved";
-    if (activeTab === "rejected") return p.moderation_status === "rejected";
-    return true;
+    const q = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      p.title?.toLowerCase().includes(q) ||
+      (p.description && p.description.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q));
+
+    let matchesTab = true;
+    if (activeTab === "pending") matchesTab = p.moderation_status === "pending_review" || !p.moderation_status;
+    if (activeTab === "approved") matchesTab = p.moderation_status === "approved";
+    if (activeTab === "rejected") matchesTab = p.moderation_status === "rejected";
+
+    return matchesSearch && matchesTab;
   });
 
   // Global Pending Count across all shops
@@ -245,7 +254,18 @@ export default function ProductsModerationPage() {
   ).length;
 
   const filteredShops = shops.filter((s) => {
-    return s.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    const shopMatches =
+      s.name.toLowerCase().includes(q) ||
+      (s.description && s.description.toLowerCase().includes(q));
+    const shopHasMatchingProduct = products.some(
+      (p) =>
+        p.shop_id === s.id &&
+        (p.title?.toLowerCase().includes(q) ||
+          (p.description && p.description.toLowerCase().includes(q)))
+    );
+    return shopMatches || shopHasMatchingProduct;
   });
 
   return (

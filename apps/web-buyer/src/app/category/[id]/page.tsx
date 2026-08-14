@@ -108,14 +108,21 @@ export default function DedicatedWebCategoryPage() {
   // Filter products for active parent category & subcategory
   const filteredProducts = products
     .filter((p) => {
+      const q = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        !q ||
+        p.title.toLowerCase().includes(q) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q));
+
+      if (q) {
+        return matchesSearch;
+      }
 
       const prodCat = (p.category || "").toLowerCase();
       const subIds = activeParentCategory.subCategories.map((s) => s.id.toLowerCase());
 
-      let matchesCat = false;
+      let matchesCat = true;
       if (selectedSubCategory !== "all") {
         matchesCat = prodCat === selectedSubCategory.toLowerCase();
       } else {
@@ -135,7 +142,7 @@ export default function DedicatedWebCategoryPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fafafa] font-sans relative">
-      <Header />
+      <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
       {/* Hero Category Banner Header */}
       <div className="bg-linear-to-r from-purple-900 via-indigo-900 to-purple-950 text-white py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden">

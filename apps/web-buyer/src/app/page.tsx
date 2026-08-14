@@ -354,9 +354,16 @@ export default function BuyerHomePage() {
   );
 
   const filteredProducts = products.filter((p) => {
+    const q = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      !q ||
+      p.title.toLowerCase().includes(q) ||
+      (p.description && p.description.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q));
+
+    if (q) {
+      return matchesSearch;
+    }
 
     let matchesCategory = true;
     if (selectedCategory !== "all") {

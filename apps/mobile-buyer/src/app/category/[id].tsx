@@ -25,6 +25,7 @@ import {
   Check,
   ChevronRight,
   Sparkles,
+  X,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
@@ -218,9 +219,17 @@ export default function CategoryJumiaStyleScreen() {
 
   // Filter products for active parent & selected subcategory
   const filteredProducts = products.filter((p) => {
+    const q = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      !q ||
+      p.title.toLowerCase().includes(q) ||
+      (p.description && p.description.toLowerCase().includes(q)) ||
+      (p.shop_name && p.shop_name.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q));
+
+    if (q) {
+      return matchesSearch;
+    }
 
     const prodCat = (p.category || '').toLowerCase();
     const subIds = activeParent.subCategories.map((s) => s.id.toLowerCase());
@@ -271,7 +280,13 @@ export default function CategoryJumiaStyleScreen() {
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            returnKeyType="search"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={16} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
 
         <TouchableOpacity
