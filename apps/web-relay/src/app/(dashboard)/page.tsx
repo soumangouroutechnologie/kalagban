@@ -29,6 +29,15 @@ interface PackageLog {
   amount: string;
 }
 
+interface ExpectedOrder {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  total_amount: number;
+  created_at: string;
+  pickup_code?: string;
+}
+
 export default function RelayDashboardHome() {
   const [relayCode, setRelayCode] = useState("");
   const [depositCode, setDepositCode] = useState("");
@@ -60,6 +69,7 @@ export default function RelayDashboardHome() {
   const [totalCommissions, setTotalCommissions] = useState(0);
 
   const [packageLogs, setPackageLogs] = useState<PackageLog[]>([]);
+  const [expectedOrders, setExpectedOrders] = useState<ExpectedOrder[]>([]);
 
   // Initial load from Supabase PostgreSQL
   useEffect(() => {
@@ -67,7 +77,19 @@ export default function RelayDashboardHome() {
     if (code) setRelayCode(code);
 
     const loadRealData = async () => {
-      // 1. Load Relay Logs
+      // 1. Load Expected Orders (Pending Deposit from Seller/Courier)
+      const { data: pendingOrders } = await supabase
+        .from("orders")
+        .select("id, customer_name, customer_phone, total_amount, created_at, pickup_code")
+        .eq("delivery_type", "pickup_point")
+        .eq("relay_status", "pending_deposit")
+        .order("created_at", { ascending: false });
+
+      if (pendingOrders) {
+        setExpectedOrders(pendingOrders as ExpectedOrder[]);
+      }
+
+      // 2. Load Relay Logs
       const { data: logsData } = await supabase
         .from("relay_logs")
         .select("*")
@@ -95,7 +117,59 @@ export default function RelayDashboardHome() {
     };
 
     loadRealData();
+
+    // Supabase Live Realtime
+    const channel = supabase
+      .channel("relay_dashboard_orders_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadRealData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => loadRealData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  // Quick 1-Click Reception of Expected Order
+  const handleQuickReceive = async (order: ExpectedOrder) => {
+    setIsDepositing(true);
+    const orderCode = order.id.slice(0, 8).toUpperCase();
+    const generatedOtp = order.pickup_code || Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Update order in Supabase
+    await supabase
+      .from("orders")
+      .update({
+        relay_status: "ready_for_pickup",
+        deposited_at: new Date().toISOString(),
+        pickup_code: generatedOtp,
+      })
+      .eq("id", order.id);
+
+    // Insert Relay Log
+    await supabase.from("relay_logs").insert({
+      order_id: order.id,
+      order_code: orderCode,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+      action_type: "deposit",
+      otp_code: generatedOtp,
+      commission_earned: 300
+    });
+
+    // Insert Notification
+    await supabase.from("relay_notifications").insert({
+      title: "Colis Réceptionné en Étagère",
+      message: `La commande #${orderCode} de ${order.customer_name} a été réceptionnée du coursier et placée en étagère.`,
+      type: "deposit"
+    });
+
+    setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
+    setDepositSuccess(`Colis #${orderCode} (${order.customer_name}) réceptionné avec succès et placé en étagère.`);
+    setCapacity(prev => ({ ...prev, current: prev.current + 1 }));
+    setIsDepositing(false);
+    setTimeout(() => setDepositSuccess(null), 6000);
+  };
 
   // Handle Courier Package Deposit
   const handleDepositSubmit = async (e: React.FormEvent) => {
@@ -295,6 +369,76 @@ export default function RelayDashboardHome() {
           <p className="text-xs text-gray-500 font-medium">Taux fixe : 300 FCFA par colis remis</p>
         </div>
 
+      </div>
+
+      {/* SECTION: COLIS ATTENDUS (ANNONCÉS PAR LES CLIENTS / EN COURS D'ACHEMINEMENT) */}
+      <div className="bg-white border border-indigo-100 rounded-3xl p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-base">
+                Colis Attendus (En cours d'acheminement par le vendeur / coursier)
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                Commandes passées par les clients pour votre point relais — Cliquez sur « Réceptionner » dès que le coursier moto arrive.
+              </p>
+            </div>
+          </div>
+          <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black px-3.5 py-1.5 rounded-full self-start sm:self-auto">
+            {expectedOrders.length} colis en route
+          </span>
+        </div>
+
+        {expectedOrders.length === 0 ? (
+          <div className="py-8 text-center text-gray-400 font-medium text-xs bg-slate-50/50 rounded-2xl border border-dashed border-gray-200">
+            <Truck className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+            Aucun nouveau colis en cours d'acheminement pour le moment.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-gray-600 font-black border-b border-gray-200">
+                  <th className="px-4 py-3.5 rounded-l-xl">N° Commande</th>
+                  <th className="px-4 py-3.5">Nom du Client</th>
+                  <th className="px-4 py-3.5">Téléphone Client</th>
+                  <th className="px-4 py-3.5">Montant Commande</th>
+                  <th className="px-4 py-3.5">Date Commande</th>
+                  <th className="px-4 py-3.5 rounded-r-xl text-right">Action Réception</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {expectedOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-indigo-50/40 transition-colors">
+                    <td className="px-4 py-4 font-mono font-black text-indigo-700">
+                      #{order.id.slice(0, 8).toUpperCase()}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-gray-900">{order.customer_name}</td>
+                    <td className="px-4 py-4 font-mono text-gray-600">{order.customer_phone}</td>
+                    <td className="px-4 py-4 font-bold text-gray-900">
+                      {Number(order.total_amount || 0).toLocaleString()} FCFA
+                    </td>
+                    <td className="px-4 py-4 text-gray-400 text-[11px]">
+                      {new Date(order.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={() => handleQuickReceive(order)}
+                        disabled={isDepositing}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Package className="w-4 h-4" /> Réceptionner &amp; Mettre en Étagère
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Main Operations Modules Grid */}

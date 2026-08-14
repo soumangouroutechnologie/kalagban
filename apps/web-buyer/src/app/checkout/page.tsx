@@ -150,6 +150,7 @@ export default function CheckoutPage() {
             total_amount: groupTotal,
             status: "pending",
             delivery_type: deliveryType,
+            pickup_point_id: deliveryType === "pickup_point" ? (selectedRelay?.id || null) : null,
             pickup_code: generatedOtp,
             relay_status: deliveryType === "pickup_point" ? "pending_deposit" : null
           })

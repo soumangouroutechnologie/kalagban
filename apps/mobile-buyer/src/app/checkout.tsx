@@ -141,12 +141,22 @@ export default function MobileCheckoutScreen() {
           total_amount: finalTotal,
           status: 'pending',
           delivery_type: deliveryType,
+          pickup_point_id: deliveryType === 'pickup_point' ? (selectedRelay?.id || null) : null,
           pickup_code: generatedOtp,
           relay_status: deliveryType === 'pickup_point' ? 'pending_deposit' : 'processing',
           shop_id: items.length > 0 && items[0].shop_id ? items[0].shop_id : '00000000-0000-0000-0000-000000000000',
         })
         .select('id')
         .single();
+
+      if (!orderError && orderData && deliveryType === 'pickup_point' && selectedRelay) {
+        await supabase.from('relay_notifications').insert({
+          pickup_point_id: selectedRelay.id,
+          title: 'Nouvelle Commande Client à Réceptionner',
+          message: `La commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
+          type: 'pickup'
+        });
+      }
 
       if (orderError || !orderData) {
         // Fallback ID if Supabase RLS prevents direct insert without session
