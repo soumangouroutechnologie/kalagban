@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Kalagban Relay Portal v0.1.1 */
+  reactStrictMode: true,
 };
 
 export default nextConfig;
