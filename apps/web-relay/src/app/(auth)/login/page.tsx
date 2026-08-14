@@ -44,9 +44,9 @@ export default function RelayLoginPage() {
       relayPoint.pin_code ||
       (relayPoint.email && relayPoint.email.startsWith("pin:")
         ? relayPoint.email.replace("pin:", "")
-        : "123456");
+        : null);
 
-    if (pinCode.trim() === expectedPin || pinCode.trim() === "123456") {
+    if (expectedPin && pinCode.trim() === expectedPin) {
       localStorage.setItem("kalagban_relay_code", formattedCode);
       router.push("/");
       return;
