@@ -41,7 +41,7 @@ export default function Header({
           <div className="w-10 h-10 sm:w-11 sm:h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
             K
           </div>
-          <div className="flex flex-col hidden xs:flex">
+          <div className="hidden sm:flex flex-col">
             <span className="text-xl sm:text-2xl font-black tracking-tight text-gray-900 leading-none">
               Kalagban
             </span>
