@@ -4,7 +4,7 @@
 
 ▲ Next.js 16.3.0 (Turbopack)
 - Environments: .env.local
-✓ Running next.config.ts took 32ms
+✓ Running next.config.ts took 47ms
 
 ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
 
@@ -13,15 +13,15 @@
 
   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
   Creating an optimized production build ...
-✓ Compiled successfully in 2.3s
+✓ Compiled successfully in 2.5s
   Running TypeScript ...
-  Finished TypeScript in 4.3s ...
+  Finished TypeScript in 5.1s ...
   Collecting page data using 7 workers ...
   Generating static pages using 7 workers (0/13) ...
   Generating static pages using 7 workers (3/13) 
   Generating static pages using 7 workers (6/13) 
   Generating static pages using 7 workers (9/13) 
-✓ Generating static pages using 7 workers (13/13) in 896ms
+✓ Generating static pages using 7 workers (13/13) in 364ms
   Finalizing page optimization ...
 
 Route (app)
