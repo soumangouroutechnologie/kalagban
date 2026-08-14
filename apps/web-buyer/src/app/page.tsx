@@ -616,7 +616,7 @@ export default function BuyerHomePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {(flashSaleProducts.length > 0 ? flashSaleProducts : products).slice(0, 4).map((prod) => (
                 <ProductCard key={prod.id} product={prod} />
               ))}
@@ -923,7 +923,7 @@ export default function BuyerHomePage() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {filteredProducts.map((prod) => (
                     <ProductCard key={prod.id} product={prod} />
                   ))}

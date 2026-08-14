@@ -112,7 +112,11 @@ export default function AdminRelaysPage() {
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setPoints(data);
+      const formatted: PickupPoint[] = data.map((p: any) => ({
+        ...p,
+        pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : "123456"),
+      }));
+      setPoints(formatted);
     } else {
       setPoints([]);
     }
@@ -143,7 +147,7 @@ export default function AdminRelaysPage() {
       commune: point.commune,
       max_capacity: point.max_capacity,
       commission_per_package: Number(point.commission_per_package) || 300,
-      pin_code: point.pin_code || "123456"
+      pin_code: point.pin_code || (point.email && point.email.startsWith("pin:") ? point.email.replace("pin:", "") : "123456")
     });
     setShowEditModal(true);
   };
@@ -160,7 +164,7 @@ export default function AdminRelaysPage() {
       confirmText: "Enregistrer les modifications",
       isDanger: false,
       onConfirm: async () => {
-        const updatedFields = {
+        const updatedFields: any = {
           name: editFormData.name,
           manager_name: editFormData.manager_name,
           phone: editFormData.phone,
@@ -170,7 +174,11 @@ export default function AdminRelaysPage() {
           commission_per_package: Number(editFormData.commission_per_package),
         };
 
-        setPoints(prev => prev.map(p => p.id === activePoint.id ? { ...p, ...updatedFields } : p));
+        if (editFormData.pin_code) {
+          updatedFields.email = `pin:${editFormData.pin_code.trim()}`;
+        }
+
+        setPoints(prev => prev.map(p => p.id === activePoint.id ? { ...p, ...updatedFields, pin_code: editFormData.pin_code || p.pin_code } : p));
         await supabase.from("pickup_points").update(updatedFields).eq("id", activePoint.id);
         
         setShowEditModal(false);
@@ -219,23 +227,42 @@ export default function AdminRelaysPage() {
   // Handle Create Relay Point
   const handleCreateRelay = async (e: React.FormEvent) => {
     e.preventDefault();
-    const autoCode = newRelay.code || `REL-ABJ-00${points.length + 1}`;
+    const autoCode = newRelay.code.trim().toUpperCase() || `REL-ABJ-00${points.length + 1}`;
     const generatedPin = newRelay.pin_code.trim() || Math.floor(100000 + Math.random() * 900000).toString();
 
     const payload = { 
-      ...newRelay, 
-      code: autoCode, 
-      pin_code: generatedPin,
+      name: newRelay.name,
+      code: autoCode,
+      manager_name: newRelay.manager_name,
+      phone: newRelay.phone,
+      email: `pin:${generatedPin}`,
+      address: newRelay.address,
+      city: newRelay.city || "Abidjan",
+      commune: newRelay.commune || "Cocody",
+      max_capacity: Number(newRelay.max_capacity) || 100,
+      commission_per_package: Number(newRelay.commission_per_package) || 300,
+      latitude: Number(newRelay.latitude) || 5.3484,
+      longitude: Number(newRelay.longitude) || -4.0197,
       status: "active", 
       current_packages_count: 0, 
       total_commissions_earned: 0 
     };
 
     const { data, error } = await supabase.from("pickup_points").insert([payload]).select();
-    if (!error && data) {
-      setPoints([data[0], ...points]);
+    if (!error && data && data.length > 0) {
+      const createdItem: PickupPoint = {
+        ...data[0],
+        pin_code: generatedPin,
+      };
+      setPoints([createdItem, ...points]);
     } else {
-      setPoints([{ ...payload, id: Math.random().toString() } as PickupPoint, ...points]);
+      console.error("Error creating pickup point:", error);
+      const fallbackItem: PickupPoint = {
+        ...payload,
+        id: Math.random().toString(),
+        pin_code: generatedPin,
+      } as PickupPoint;
+      setPoints([fallbackItem, ...points]);
     }
 
     setShowAddModal(false);

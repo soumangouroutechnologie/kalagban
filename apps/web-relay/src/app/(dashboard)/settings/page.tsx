@@ -21,21 +21,23 @@ export default function RelaySettingsPage() {
   useEffect(() => {
     const fetchRelayData = async () => {
       const code = localStorage.getItem("kalagban_relay_code");
-      if (code) setRelayCode(code);
+      if (code) {
+        setRelayCode(code);
 
-      const { data } = await supabase
-        .from("pickup_points")
-        .select("*")
-        .or(`code.eq.${code},id.eq.${code}`)
-        .maybeSingle();
+        const { data } = await supabase
+          .from("pickup_points")
+          .select("*")
+          .eq("code", code)
+          .maybeSingle();
 
-      if (data) {
-        if (data.name) setName(data.name);
-        if (data.manager_name) setManager(data.manager_name);
-        if (data.phone) setPhone(data.phone);
-        if (data.address) setAddress(`${data.address} (${data.commune})`);
-        if (data.max_capacity) setCapacity(data.max_capacity.toString());
-        if (data.status) setStatus(data.status);
+        if (data) {
+          if (data.name) setName(data.name);
+          if (data.manager_name) setManager(data.manager_name);
+          if (data.phone) setPhone(data.phone);
+          if (data.address) setAddress(`${data.address} (${data.commune})`);
+          if (data.max_capacity) setCapacity(data.max_capacity.toString());
+          if (data.status) setStatus(data.status);
+        }
       }
     };
 

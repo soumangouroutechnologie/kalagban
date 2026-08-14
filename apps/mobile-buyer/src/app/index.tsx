@@ -1093,14 +1093,14 @@ const styles = StyleSheet.create({
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
+    gap: 12,
   },
   productCard: {
-    width: (width - 40) / 2,
+    width: (width - 44) / 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    marginHorizontal: 6,
-    marginBottom: 14,
+    marginBottom: 4,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#F1F5F9',

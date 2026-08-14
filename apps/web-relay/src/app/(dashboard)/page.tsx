@@ -233,7 +233,7 @@ export default function RelayDashboardHome() {
     const { data: dbOrder } = await supabase
       .from("orders")
       .select("*")
-      .or(`pickup_code.eq.${targetCode},id.eq.${targetCode}`)
+      .eq("pickup_code", targetCode)
       .maybeSingle();
 
     if (foundLocal || dbOrder) {

@@ -35,68 +35,74 @@ export default function DedicatedWebCategoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "price-asc" | "price-desc">("recent");
 
-  const fetchCategoryProducts = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          id,
-          shop_id,
-          title,
-          description,
-          category,
-          price,
-          old_price,
-          stock_quantity,
-          status,
-          product_media (url)
-        `)
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        const formatted: ProductType[] = data.map((item: {
-          id: string;
-          shop_id: string;
-          title: string;
-          description?: string;
-          category?: string;
-          price: number | string;
-          old_price?: number | string | null;
-          stock_quantity: number;
-          status: string;
-          product_media?: { url: string }[];
-        }) => ({
-          id: item.id,
-          shop_id: item.shop_id,
-          title: item.title,
-          description: item.description,
-          category: item.category,
-          price: Number(item.price),
-          old_price: item.old_price ? Number(item.old_price) : null,
-          stock_quantity: item.stock_quantity,
-          status: item.status,
-          image_url:
-            item.product_media && item.product_media.length > 0
-              ? item.product_media[0].url
-              : null,
-        }));
-        setProducts(formatted);
-      } else {
-        setProducts([]);
-      }
-    } catch (err) {
-      console.error("Error fetching category products:", err);
-      setProducts([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchCategoryProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let isMounted = true;
+    const loadCategoryProducts = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select(`
+            id,
+            shop_id,
+            title,
+            description,
+            category,
+            price,
+            old_price,
+            stock_quantity,
+            status,
+            product_media (url)
+          `)
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
+
+        if (!isMounted) return;
+
+        if (!error && data) {
+          const formatted: ProductType[] = data.map((item: {
+            id: string;
+            shop_id: string;
+            title: string;
+            description?: string;
+            category?: string;
+            price: number | string;
+            old_price?: number | string | null;
+            stock_quantity: number;
+            status: string;
+            product_media?: { url: string }[];
+          }) => ({
+            id: item.id,
+            shop_id: item.shop_id,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: Number(item.price),
+            old_price: item.old_price ? Number(item.old_price) : null,
+            stock_quantity: item.stock_quantity,
+            status: item.status,
+            image_url:
+              item.product_media && item.product_media.length > 0
+                ? item.product_media[0].url
+                : null,
+          }));
+          setProducts(formatted);
+        } else {
+          setProducts([]);
+        }
+      } catch (err) {
+        console.error("Error fetching category products:", err);
+        if (isMounted) setProducts([]);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadCategoryProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, [categoryId]);
 
   // Filter products for active parent category & subcategory
@@ -317,7 +323,7 @@ export default function DedicatedWebCategoryPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 {filteredProducts.map((prod) => (
                   <ProductCard key={prod.id} product={prod} />
                 ))}
