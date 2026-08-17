@@ -11,7 +11,7 @@ ADD COLUMN IF NOT EXISTS kyc_status TEXT DEFAULT 'unsubmitted';
 -- 2. Création de la table seller_certifications
 CREATE TABLE IF NOT EXISTS public.seller_certifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    shop_id UUID NOT NULL UNIQUE REFERENCES public.shops(id) ON DELETE CASCADE,
     seller_name TEXT NOT NULL,
     id_type TEXT NOT NULL DEFAULT 'cni', -- 'cni', 'passport', 'attestation', 'permis'
     id_number TEXT NOT NULL,
@@ -39,6 +39,13 @@ CREATE INDEX IF NOT EXISTS idx_seller_certifications_status ON public.seller_cer
 
 -- 3. Sécurité RLS sur seller_certifications
 ALTER TABLE public.seller_certifications ENABLE ROW LEVEL SECURITY;
+
+-- Politiques idempotentes (supprime si existait déjà puis recrée)
+DROP POLICY IF EXISTS "Sellers can view own certification" ON public.seller_certifications;
+DROP POLICY IF EXISTS "Sellers can insert own certification" ON public.seller_certifications;
+DROP POLICY IF EXISTS "Sellers can update own certification" ON public.seller_certifications;
+DROP POLICY IF EXISTS "Admins can view all certifications" ON public.seller_certifications;
+DROP POLICY IF EXISTS "Admins can update all certifications" ON public.seller_certifications;
 
 -- Le vendeur peut voir son propre dossier
 CREATE POLICY "Sellers can view own certification" 
