@@ -23,6 +23,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { printKycCertificate } from "@/lib/kyc-pdf";
 
 export interface KycData {
   id?: string;
@@ -323,7 +324,11 @@ export default function SellerKycModal({
   };
 
   const handlePrint = () => {
-    window.print();
+    if (existingKyc) {
+      printKycCertificate(existingKyc, shopName);
+    } else {
+      window.print();
+    }
   };
 
   return (

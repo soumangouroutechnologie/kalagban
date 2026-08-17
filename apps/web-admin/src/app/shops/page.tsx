@@ -28,6 +28,7 @@ import {
   FileCheck2,
   Printer
 } from "lucide-react";
+import { printKycCertificate } from "@/lib/kyc-pdf";
 
 interface KycRecord {
   id: string;
@@ -278,7 +279,11 @@ export default function AdminShopsPage() {
 
   // Trigger Print to PDF for the official KYC Dossier
   const handlePrintPdf = () => {
-    window.print();
+    if (selectedShop && selectedShop.kyc) {
+      printKycCertificate(selectedShop.kyc, selectedShop.name);
+    } else {
+      window.print();
+    }
   };
 
   // Filter logic
