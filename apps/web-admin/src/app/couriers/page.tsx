@@ -460,7 +460,7 @@ export default function CouriersPage() {
 
       {/* Filter & Search Bar */}
       <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex-1 min-w-[280px] relative">
+        <div className="flex-1 min-w-70 relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -558,7 +558,7 @@ export default function CouriersPage() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] text-gray-400 font-medium">Couverture :</span>
-                      <span className="font-bold text-gray-800 text-[11px] text-right truncate max-w-[180px]">
+                      <span className="font-bold text-gray-800 text-[11px] text-right truncate max-w-45">
                         {courier.coverage_type === "all_abidjan" ? "Tout Abidjan" : courier.preferred_zone}
                       </span>
                     </div>
@@ -568,7 +568,7 @@ export default function CouriersPage() {
                         <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
                           <Building2 size={11} /> Partenaire :
                         </span>
-                        <span className="text-[10px] font-black text-purple-950 truncate max-w-[170px]">
+                        <span className="text-[10px] font-black text-purple-950 truncate max-w-42.5">
                           {courier.company_name}
                         </span>
                       </div>
