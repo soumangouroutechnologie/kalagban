@@ -130,7 +130,7 @@ export default function TermsPage() {
               Les présentes CGU sont expressément soumises au <strong>droit ivoirien</strong>. Tout différend relatif à leur validité ou interprétation fera l&apos;objet d&apos;une recherche de règlement amiable prioritaire.
             </p>
             <div className="text-xs text-gray-600 bg-gray-50 p-4 rounded-2xl border border-gray-100 mt-2">
-              <p>• Contact support officiel : <strong>contact@kalagban.ci</strong></p>
+              <p>• Contact support officiel : <strong>contact@kalagban.com</strong></p>
               <p>• Kalagban — La mode, autrement.</p>
             </div>
           </section>

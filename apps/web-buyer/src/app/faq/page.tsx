@@ -173,7 +173,7 @@ export default function FAQPage() {
         },
         {
           q: "Comment signaler un produit suspect ou une contrefaçon ?",
-          a: "Utilisez le bouton de signalement disponible sur chaque fiche produit ou contactez directement l'équipe de modération à contact@kalagban.ci."
+          a: "Utilisez le bouton de signalement disponible sur chaque fiche produit ou contactez directement l'équipe de modération à contact@kalagban.com."
         }
       ]
     }
@@ -283,10 +283,10 @@ export default function FAQPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2 text-xs font-bold text-gray-800">
             <a 
-              href="mailto:contact@kalagban.ci" 
+              href="mailto:contact@kalagban.com" 
               className="px-5 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors flex items-center gap-2"
             >
-              <Mail size={16} className="text-[#6d28d9]" /> contact@kalagban.ci
+              <Mail size={16} className="text-[#6d28d9]" /> contact@kalagban.com
             </a>
             <a 
               href="tel:+2250700000000" 

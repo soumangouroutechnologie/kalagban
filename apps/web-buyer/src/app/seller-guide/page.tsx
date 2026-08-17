@@ -255,7 +255,7 @@ export default function SellerGuidePage() {
             </p>
             <div className="flex flex-wrap justify-center gap-3 pt-2">
               <a
-                href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/register`}
+                href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://vendeur.kalagban.com"}/register`}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-white text-[#6d28d9] font-black text-xs sm:text-sm px-6 py-3 rounded-xl shadow-lg hover:bg-purple-50 transition-all inline-flex items-center gap-2"
@@ -263,7 +263,7 @@ export default function SellerGuidePage() {
                 Créer ma boutique vendeur <ArrowRight size={16} />
               </a>
               <a
-                href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/login`}
+                href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://vendeur.kalagban.com"}/login`}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-purple-900/40 text-white border border-purple-300/30 font-bold text-xs sm:text-sm px-6 py-3 rounded-xl hover:bg-purple-900/60 transition-all"

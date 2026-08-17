@@ -131,7 +131,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 text-xs text-gray-700 space-y-1 font-medium">
               <p>• Délégué à la Protection des Données : <strong>Service Confidentialité Kalagban</strong></p>
-              <p>• Email officiel : <strong>contact@kalagban.ci</strong></p>
+              <p>• Email officiel : <strong>contact@kalagban.com</strong></p>
               <p>• Adresse : <strong>Abidjan, Côte d&apos;Ivoire</strong></p>
             </div>
           </section>

@@ -101,7 +101,7 @@ export default function CMSPage() {
   const [footerContact, setFooterContact] = useState<FooterContactConfig>({
     address: "Abidjan, Côte d'Ivoire",
     phone: "+225 07 00 00 00 00",
-    email: "contact@kalagban.ci",
+    email: "contact@kalagban.com",
     about_text: "La plateforme e-commerce n°1 connectant les acheteurs aux meilleurs commerçants et vendeurs certifiés en Côte d'Ivoire.",
   });
 
@@ -433,7 +433,7 @@ export default function CMSPage() {
 
         <div className="flex items-center gap-3">
           <a
-            href={process.env.NEXT_PUBLIC_BUYER_URL || "https://kalagban.ci"}
+            href={process.env.NEXT_PUBLIC_BUYER_URL || "https://www.kalagban.com"}
             target="_blank"
             rel="noreferrer"
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-3 rounded-2xl flex items-center gap-2 transition-colors"

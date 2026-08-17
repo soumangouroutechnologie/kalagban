@@ -24,7 +24,7 @@ export default function Footer() {
   const [contact, setContact] = useState<FooterContactConfig>({
     address: "Abidjan, Côte d'Ivoire",
     phone: "+225 07 00 00 00 00",
-    email: "contact@kalagban.ci",
+    email: "contact@kalagban.com",
     about_text: "La plateforme e-commerce n°1 connectant les acheteurs aux meilleurs commerçants et vendeurs certifiés en Côte d'Ivoire.",
   });
 
@@ -198,23 +198,13 @@ export default function Footer() {
             <ul className="space-y-2.5 text-xs text-gray-500 font-medium">
               <li>
                 <a 
-                  href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/register`} 
+                  href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://vendeur.kalagban.com"}/register`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="hover:text-[#6d28d9] transition-colors flex items-center gap-1.5 font-bold text-[#6d28d9]"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   Devenir Vendeur Kalagban
-                </a>
-              </li>
-              <li>
-                <a 
-                  href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/login`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="hover:text-[#6d28d9] transition-colors"
-                >
-                  Portail Vendeur (Connexion)
                 </a>
               </li>
               <li>

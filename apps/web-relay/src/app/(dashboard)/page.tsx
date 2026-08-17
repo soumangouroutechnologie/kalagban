@@ -637,7 +637,7 @@ export default function RelayDashboardHome() {
               <div className="pt-2 text-[10px] text-gray-500 space-y-1 font-sans">
                 <p className="font-bold text-gray-700">Code Retrait Validé avec Succès</p>
                 <p>Merci pour votre confiance sur Kalagban Marketplace !</p>
-                <p className="font-mono text-[9px] text-gray-400">www.kalagban.ci</p>
+                <p className="font-mono text-[9px] text-gray-400">www.kalagban.com</p>
               </div>
             </div>
 

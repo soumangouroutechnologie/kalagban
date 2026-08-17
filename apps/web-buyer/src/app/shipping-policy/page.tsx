@@ -162,7 +162,7 @@ export default function ShippingPolicyPage() {
               Pour toute question relative à l&apos;acheminement d&apos;une commande, le client peut joindre le support Kalagban en précisant son numéro de commande :
             </p>
             <div className="text-xs text-gray-600 bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-1">
-              <p>• Email officiel : <strong>contact@kalagban.ci</strong></p>
+              <p>• Email officiel : <strong>contact@kalagban.com</strong></p>
               <p>• Suivi en direct disponible sur votre compte Kalagban</p>
             </div>
           </section>
