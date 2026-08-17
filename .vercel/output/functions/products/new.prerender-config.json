@@ -1,0 +1,43 @@
+{
+  "type": "Prerender",
+  "expiration": false,
+  "prerenderClassification": {
+    "routeType": "page",
+    "response": "complete",
+    "compute": "static",
+    "htmlSize": 37005
+  },
+  "group": 9,
+  "bypassToken": "6ab13a8eee212ed4176c53106dc62b8b",
+  "experimentalBypassFor": [
+    {
+      "type": "header",
+      "key": "next-action"
+    },
+    {
+      "type": "header",
+      "key": "content-type",
+      "value": "multipart/form-data;.*"
+    }
+  ],
+  "fallback": {
+    "type": "FileFsRef",
+    "mode": 33188,
+    "fsPath": "new.prerender-fallback.html"
+  },
+  "initialHeaders": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/products/layout,_N_T_/(dashboard)/products/new/layout,_N_T_/(dashboard)/products/new/page,_N_T_/products/new",
+    "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch"
+  },
+  "allowQuery": [],
+  "allowHeader": [
+    "host",
+    "x-matched-path",
+    "x-prerender-revalidate",
+    "x-prerender-revalidate-if-generated",
+    "x-next-revalidated-tags",
+    "x-next-revalidate-tag-token"
+  ]
+}

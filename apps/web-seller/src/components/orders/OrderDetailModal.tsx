@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Headphones,
   CheckCircle2,
-  AlertTriangle,
   Lock,
   ArrowRight
 } from "lucide-react";
