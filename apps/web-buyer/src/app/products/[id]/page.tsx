@@ -41,6 +41,8 @@ interface ShopDetails {
   name: string;
   description?: string;
   logo_url?: string;
+  is_verified?: boolean;
+  kyc_status?: string;
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -358,8 +360,17 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Vendu par</span>
-              <h4 className="font-extrabold text-gray-900 text-lg leading-tight">{shop?.name || "Boutique Partenaire"}</h4>
-              <p className="text-xs text-gray-500 font-medium mt-0.5">Vendeur Vérifié Kalagban</p>
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-extrabold text-gray-900 text-lg leading-tight">{shop?.name || "Boutique Partenaire"}</h4>
+                {shop?.is_verified && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                    <ShieldCheck size={12} className="text-emerald-600" /> Certifié 🛡️
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                {shop?.is_verified ? "Boutique Officiellement Certifiée Kalagban" : "Vendeur Partenaire Kalagban"}
+              </p>
             </div>
           </div>
 

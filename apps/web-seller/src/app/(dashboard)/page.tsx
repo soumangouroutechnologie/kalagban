@@ -11,11 +11,18 @@ import {
   AlertTriangle,
   ArrowRight,
   Loader2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ShieldCheck,
+  ShieldAlert,
+  Clock,
+  Sparkles,
+  AlertCircle,
+  FileCheck2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 import ProductDetailModal, { SellerProduct } from "@/components/products/ProductDetailModal";
+import SellerKycModal, { KycData } from "@/components/verification/SellerKycModal";
 
 interface Product {
   id: string;
@@ -30,6 +37,16 @@ interface Product {
   image_url?: string | null;
   images?: string[];
   shop_name?: string;
+}
+
+interface ShopInfo {
+  id: string;
+  name?: string;
+  created_at?: string;
+  is_verified?: boolean;
+  verified_at?: string;
+  kyc_deadline?: string;
+  kyc_status?: string;
 }
 
 export default function SellerDashboard() {
@@ -50,10 +67,22 @@ export default function SellerDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<SellerProduct | null>(null);
   
+  // KYC & Shop Verification state
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [kycInfo, setKycInfo] = useState<KycData | null>(null);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number; isExpired: boolean }>({
+    days: 5,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isExpired: false
+  });
+
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOrders: 0,
-    productViews: 0, // Placeholder until view tracking is implemented
+    productViews: 0, // Placeholder
     outOfStock: 0
   });
   
@@ -80,6 +109,29 @@ export default function SellerDashboard() {
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+
+      // Fetch Shop & KYC details
+      const { data: shop } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (shop) {
+        setShopInfo(shop as ShopInfo);
+      }
+
+      const { data: kyc } = await supabase
+        .from('seller_certifications')
+        .select('*')
+        .eq('shop_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (kyc) {
+        setKycInfo(kyc as KycData);
+      }
 
       // 1. Fetch Orders for stats
       const { data: orders } = await supabase
@@ -141,7 +193,7 @@ export default function SellerDashboard() {
       setStats({
         totalSales: sales,
         totalOrders: orderCount,
-        productViews: 0, // Placeholder
+        productViews: 0,
         outOfStock: outStock
       });
 
@@ -166,12 +218,43 @@ export default function SellerDashboard() {
     }, 0);
   }, []);
 
+  // 5-Day Countdown Timer calculation
+  useEffect(() => {
+    if (!shopInfo) return;
+
+    const calculateTimeLeft = () => {
+      const createdAtTime = new Date(shopInfo.created_at || Date.now()).getTime();
+      const deadline = shopInfo.kyc_deadline 
+        ? new Date(shopInfo.kyc_deadline).getTime() 
+        : createdAtTime + (5 * 24 * 60 * 60 * 1000); // 5 days in ms
+
+      const diff = deadline - Date.now();
+
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isExpired: true });
+      } else {
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft({ days, hours, minutes, seconds, isExpired: false });
+      }
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [shopInfo]);
+
   const statCards = [
     { label: "Ventes générées", value: `${stats.totalSales.toLocaleString('fr-FR')} FCFA`, icon: <TrendingUp className="text-primary" size={24} />, bg: "bg-primary/10" },
     { label: "Commandes", value: stats.totalOrders.toString(), icon: <PackageSearch className="text-secondary" size={24} />, bg: "bg-secondary/10" },
     { label: "Vues produits (30j)", value: stats.productViews.toString(), icon: <Eye className="text-blue-500" size={24} />, bg: "bg-blue-500/10" },
     { label: "En rupture", value: stats.outOfStock.toString(), icon: <AlertTriangle className="text-danger" size={24} />, bg: "bg-danger/10" }
   ];
+
+  const isVerified = shopInfo?.is_verified || kycInfo?.status === "approved";
+  const kycStatus = kycInfo?.status || shopInfo?.kyc_status || "unsubmitted";
 
   if (isLoading) {
     return (
@@ -183,9 +266,174 @@ export default function SellerDashboard() {
   }
 
   return (
-    <main className="pb-10 pt-4">
-      {/* BANNER PROMO */}
-      <div className="w-full min-h-95 rounded-card mb-10 p-8 sm:p-10 flex items-center shadow-lg relative overflow-hidden group bg-gray-900">
+    <main className="pb-10 pt-4 space-y-6">
+      
+      {/* ================= KYC CERTIFICATION BANNER ================= */}
+      {isVerified ? (
+        <div className="bg-linear-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/5 border border-emerald-500/30 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black shadow-lg shadow-emerald-500/30 shrink-0">
+              <ShieldCheck size={30} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                  Vérifié & Certifié
+                </span>
+                <span className="text-xs font-semibold text-emerald-800">Badge Officiel Activé</span>
+              </div>
+              <h3 className="text-lg font-black text-gray-900 mt-0.5">Boutique Officiellement Certifiée Kalagban 🛡️</h3>
+              <p className="text-xs text-gray-600 font-medium">Vos documents ont été validés par le service Conformité. Vos clients achètent en toute confiance.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsKycModalOpen(true)}
+            className="px-5 py-2.5 rounded-xl bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs font-bold transition-all shrink-0 shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <FileCheck2 size={16} /> Voir mon dossier KYC
+          </button>
+        </div>
+      ) : kycStatus === "pending" ? (
+        <div className="bg-linear-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border border-amber-500/30 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-lg shadow-amber-500/30 shrink-0">
+              <Clock size={28} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                  En cours d&apos;examen
+                </span>
+                <span className="text-xs font-semibold text-amber-800">Service Conformité Kalagban</span>
+              </div>
+              <h3 className="text-lg font-black text-gray-900 mt-0.5">Dossier de Certification en Examen ⏳</h3>
+              <p className="text-xs text-gray-600 font-medium">Vos pièces justificatives et votre signature ont bien été transmises. Validation sous 24 à 48 heures.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsKycModalOpen(true)}
+            className="px-5 py-2.5 rounded-xl bg-white border border-amber-200 text-amber-900 hover:bg-amber-50 text-xs font-bold transition-all shrink-0 shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <FileCheck2 size={16} /> Revoir mon dossier
+          </button>
+        </div>
+      ) : kycStatus === "rejected" ? (
+        <div className="bg-linear-to-r from-rose-500/15 via-red-500/10 to-rose-500/5 border border-rose-500/30 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black shadow-lg shadow-rose-600/30 shrink-0">
+              <ShieldAlert size={28} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                  Action Requise
+                </span>
+                <span className="text-xs font-bold text-rose-700">Dossier non validé</span>
+              </div>
+              <h3 className="text-lg font-black text-gray-900 mt-0.5">Pièces à corriger pour votre certification</h3>
+              <p className="text-xs text-rose-800 font-semibold mt-0.5">
+                {kycInfo?.admin_notes ? `Motif : "${kycInfo.admin_notes}"` : "Certaines pièces fournies ne sont pas conformes. Veuillez mettre à jour votre dossier."}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsKycModalOpen(true)}
+            className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all shrink-0 shadow-md shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Corriger & Re-soumettre</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      ) : timeLeft.isExpired ? (
+        /* Délai Dépassé (Non soumis après 5 jours) */
+        <div className="bg-linear-to-r from-rose-600/20 via-red-500/15 to-rose-600/10 border-2 border-rose-500 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-rose-600/10 animate-pulse">
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black shadow-lg shadow-rose-600/40 shrink-0">
+              <AlertCircle size={30} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white px-2.5 py-0.5 rounded-full">
+                  ⚠️ Délai de 5 Jours Dépassé
+                </span>
+                <span className="text-xs font-black text-rose-700">Compte en sursis de vérification</span>
+              </div>
+              <h3 className="text-lg font-black text-gray-900 mt-0.5">Soumettez votre dossier KYC en urgence</h3>
+              <p className="text-xs text-gray-700 font-medium">
+                Vous n&apos;avez pas transmis vos pièces dans le délai imparti. L&apos;administration se réserve le droit de <strong>suspendre ou supprimer définitivement</strong> votre compte vendeur.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsKycModalOpen(true)}
+            className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all shrink-0 shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <ShieldCheck size={18} />
+            <span>Régulariser Maintenant</span>
+          </button>
+        </div>
+      ) : (
+        /* Timer Actif (< 5 jours) */
+        <div className="bg-linear-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5 shadow-xl relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-13 h-13 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center font-black shrink-0">
+              <ShieldCheck size={30} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-300 bg-amber-400/20 px-2.5 py-0.5 rounded-full border border-amber-300/30 flex items-center gap-1">
+                  <Sparkles size={11} /> Certification Vendeur
+                </span>
+                <span className="text-xs font-semibold text-gray-300">Obligatoire sous 5 jours</span>
+              </div>
+              <h3 className="text-lg font-black text-white mt-0.5">Obtenez votre Badge &apos;Vendeur Certifié Kalagban&apos; 🛡️</h3>
+              <p className="text-xs text-gray-300 font-medium">Déposez votre CNI (Recto/Verso), photo gérant, signature et photos de votre boutique physique.</p>
+            </div>
+          </div>
+
+          {/* Countdown Timer Display */}
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15">
+              <div className="text-center min-w-9">
+                <span className="text-lg font-black text-white">{timeLeft.days}</span>
+                <p className="text-[9px] uppercase font-bold text-indigo-200">Jours</p>
+              </div>
+              <span className="text-white font-black">:</span>
+              <div className="text-center min-w-9">
+                <span className="text-lg font-black text-white">{String(timeLeft.hours).padStart(2, '0')}</span>
+                <p className="text-[9px] uppercase font-bold text-indigo-200">Heures</p>
+              </div>
+              <span className="text-white font-black">:</span>
+              <div className="text-center min-w-9">
+                <span className="text-lg font-black text-white">{String(timeLeft.minutes).padStart(2, '0')}</span>
+                <p className="text-[9px] uppercase font-bold text-indigo-200">Min</p>
+              </div>
+              <span className="text-white font-black">:</span>
+              <div className="text-center min-w-9">
+                <span className="text-lg font-black text-amber-400">{String(timeLeft.seconds).padStart(2, '0')}</span>
+                <p className="text-[9px] uppercase font-bold text-amber-300">Sec</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsKycModalOpen(true)}
+              className="px-6 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs transition-all shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 cursor-pointer hover:scale-102"
+            >
+              <span>Déposer mon dossier</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* BANNER PROMO SLIDER */}
+      <div className="w-full min-h-95 rounded-card p-8 sm:p-10 flex items-center shadow-lg relative overflow-hidden group bg-gray-900">
         <img 
           src={sellerSlides[currentSlide]} 
           alt="Bannière promo"
@@ -198,117 +446,129 @@ export default function SellerDashboard() {
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
             {sellerBannerConfig.badge_text}
           </span>
-          <h2 className="text-4xl sm:text-5xl font-black mb-4 leading-tight drop-shadow-md">{sellerBannerConfig.title}</h2>
-          <p className="opacity-90 mb-8 text-lg font-medium drop-shadow-sm leading-relaxed">{sellerBannerConfig.description}</p>
-          <Link href="/products/new" className="bg-white text-primary px-8 py-3.5 rounded-xl font-black shadow-xl shadow-black/20 hover:scale-105 hover:bg-gray-50 transition-all flex items-center gap-2 w-fit">
+          <h2 className="text-3xl sm:text-4xl font-extrabold mb-4 leading-tight tracking-tight drop-shadow-md">
+            {sellerBannerConfig.title}
+          </h2>
+          <p className="text-gray-200 text-sm mb-8 line-clamp-2 drop-shadow-sm font-medium">
+            {sellerBannerConfig.description}
+          </p>
+          <Link
+            href="/products/new"
+            className="bg-white text-gray-950 font-bold px-6 py-3 rounded-full hover:bg-gray-100 transition-all inline-flex items-center gap-2 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95"
+          >
             {sellerBannerConfig.button_text} <ArrowRight size={18} />
           </Link>
         </div>
-        
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3 group-hover:scale-110 transition-transform duration-700"></div>
       </div>
 
-      {/* QUICK STATS */}
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold text-text-main tracking-tight">Aperçu de la boutique</h3>
-        <Link href="/orders" className="text-primary text-sm font-bold cursor-pointer hover:underline">Voir les détails</Link>
-      </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      {/* STATS OVERVIEW */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, i) => (
-          <div key={i} className="card p-6 flex flex-col gap-3 group cursor-pointer border border-transparent hover:border-primary/10">
-            <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center transition-transform group-hover:scale-110`}>
+          <div key={i} className="bg-surface p-6 rounded-card border border-gray-100 shadow-soft flex items-center gap-4 hover:border-gray-200 transition-colors">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${stat.bg}`}>
               {stat.icon}
             </div>
-            <div className="mt-2 flex flex-col">
-              <span className="text-text-muted text-sm font-semibold mb-1">{stat.label}</span>
-              <span className="text-3xl font-extrabold text-text-main tracking-tight">{stat.value}</span>
+            <div>
+              <p className="text-text-muted text-xs font-bold">{stat.label}</p>
+              <h3 className="text-2xl font-black text-text-main tracking-tight mt-1">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      {/* PRODUCTS GRID */}
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-2xl font-bold text-text-main tracking-tight">Produits récemment ajoutés</h3>
-        <Link href="/products" className="text-primary text-sm font-bold cursor-pointer hover:underline">Voir tout le catalogue</Link>
-      </div>
-
-      {recentProducts.length === 0 ? (
-        <div className="card p-10 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mb-4">
-            <PackageSearch size={32} />
-          </div>
-          <h4 className="text-lg font-bold text-text-main mb-2">Aucun produit</h4>
-          <p className="text-text-muted max-w-sm mb-6">Vous n&apos;avez pas encore de produits dans votre boutique. Lancez-vous !</p>
-          <Link href="/products/new" className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-600 transition-colors">
-            Ajouter un produit
+      {/* RECENT PRODUCTS PREVIEW */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-text-main">Produits récemment ajoutés</h2>
+          <Link href="/products" className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
+            Voir tout le catalogue <ArrowRight size={14} />
           </Link>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {recentProducts.map((item) => (
-            <div key={item.id} className="card p-4 flex flex-col group cursor-pointer border border-transparent hover:border-gray-100 relative">
-              <div className="w-full h-56 bg-gray-100 rounded-[20px] mb-5 relative overflow-hidden flex items-center justify-center">
-                {item.image_url ? (
-                  <img src={item.image_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <ImageIcon size={40} className="text-gray-300 absolute" />
-                )}
-                
-                <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors z-10"></div>
-                
-                {item.old_price && item.old_price > item.price && (
-                  <div className="absolute top-4 left-4 bg-danger text-white text-xs px-2.5 py-1.5 rounded-lg font-bold shadow-sm z-20">
-                    -{Math.round(((item.old_price - item.price) / item.old_price) * 100)}%
-                  </div>
-                )}
-                
-                {/* Action Buttons overlay */}
-                <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedProduct(item);
-                    }}
-                    title="Voir la fiche produit vendeur"
-                    className="w-9 h-9 bg-white/90 backdrop-blur-md text-gray-800 rounded-full flex items-center justify-center shadow-lg hover:bg-primary hover:text-white transition-all transform hover:scale-110"
-                  >
-                    <Eye size={16} />
-                  </button>
-                </div>
-              </div>
 
-              <div className="flex flex-col px-1">
-                <h4 className="font-bold text-text-main text-lg leading-tight mb-1 group-hover:text-primary transition-colors line-clamp-1">{item.title}</h4>
-                <span className="text-text-muted text-sm font-medium mb-4">{item.category || "Sans catégorie"}</span>
-                
-                <div className="flex justify-between items-end mt-auto pt-4 border-t border-gray-100">
-                  <div className="flex flex-col">
-                    {item.old_price && (
-                      <span className="text-text-muted text-xs line-through mb-0.5">{item.old_price.toLocaleString("fr-FR")} FCFA</span>
+        {recentProducts.length === 0 ? (
+          <div className="bg-surface border border-gray-100 rounded-card p-10 text-center flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-text-muted">
+              <PackageSearch size={24} />
+            </div>
+            <h3 className="font-bold text-text-main">Aucun produit pour l&apos;instant</h3>
+            <p className="text-text-muted text-xs max-w-sm">Commencez à ajouter vos premiers articles pour les vendre sur Kalagban.</p>
+            <Link href="/products/new" className="mt-2 text-xs font-bold text-primary bg-primary/10 px-4 py-2 rounded-xl hover:bg-primary/20 transition-colors">
+              Ajouter un produit
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {recentProducts.map((p) => (
+              <div key={p.id} className="bg-surface border border-gray-100 rounded-card p-4 shadow-soft flex flex-col justify-between group hover:border-gray-200 transition-colors">
+                <div>
+                  <div className="w-full aspect-square rounded-xl bg-gray-50 mb-3 overflow-hidden relative border border-gray-100/50 flex items-center justify-center">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <ImageIcon className="text-gray-300" size={32} />
                     )}
-                    <span className="font-extrabold text-xl text-text-main leading-none">{item.price.toLocaleString("fr-FR")} FCFA</span>
+                    {p.old_price && p.old_price > p.price && (
+                      <span className="absolute top-2 left-2 bg-danger text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs">
+                        -{Math.round(((p.old_price - p.price) / p.old_price) * 100)}%
+                      </span>
+                    )}
+                    <button 
+                      onClick={() => setSelectedProduct(p as unknown as SellerProduct)}
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-xs text-text-main flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs hover:bg-white cursor-pointer"
+                      title="Aperçu rapide"
+                    >
+                      <Eye size={14} />
+                    </button>
                   </div>
-                  <Link href="/products" className="bg-primary/10 text-primary px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary hover:text-white transition-all shadow-xs flex items-center gap-1">
-                    Gérer
-                    <ArrowRight size={14} />
+                  <h4 className="font-bold text-text-main text-sm line-clamp-1 mb-1">{p.title}</h4>
+                  <p className="text-text-muted text-xs mb-3">{p.category || "Général"}</p>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-auto">
+                  <div>
+                    {p.old_price && (
+                      <p className="text-[10px] text-text-muted line-through">
+                        {p.old_price.toLocaleString('fr-FR')} FCFA
+                      </p>
+                    )}
+                    <p className="font-black text-text-main text-sm">
+                      {p.price.toLocaleString('fr-FR')} FCFA
+                    </p>
+                  </div>
+
+                  <Link 
+                    href={`/products/${p.id}/edit`}
+                    className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
+                  >
+                    Gérer <ArrowRight size={12} />
                   </Link>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* SELLER PRODUCT DETAIL MODAL */}
-      {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
+      {/* QUICK PREVIEW MODAL */}
+      <ProductDetailModal 
+        product={selectedProduct} 
+        onClose={() => setSelectedProduct(null)} 
+      />
+
+      {/* KYC VERIFICATION MODAL */}
+      {shopInfo && (
+        <SellerKycModal
+          isOpen={isKycModalOpen}
+          onClose={() => setIsKycModalOpen(false)}
+          shopId={shopInfo.id}
+          shopName={shopInfo.name || "Ma Boutique"}
+          existingKyc={kycInfo}
+          onSuccess={() => {
+            loadDashboardData();
+          }}
         />
       )}
+
     </main>
   );
 }
