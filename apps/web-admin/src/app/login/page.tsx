@@ -4,6 +4,7 @@ import React, { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { ShieldCheck, Lock, Mail, Eye, EyeOff, Loader2, Sparkles, KeyRound } from "lucide-react";
+import { AdminRole } from "@/lib/rbac";
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -27,8 +28,47 @@ function AdminLoginForm() {
       if (error) throw error;
 
       if (data.user) {
-        // Redirect to admin dashboard
-        router.push("/");
+        // Fetch profile to redirect to appropriate space
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("admin_role")
+          .eq("id", data.user.id)
+          .single();
+
+        const role = (profile?.admin_role || "super_admin") as AdminRole;
+
+        switch (role) {
+          case "logistician":
+            router.push("/relays");
+            break;
+          case "accountant":
+            router.push("/finance");
+            break;
+          case "moderator":
+            router.push("/products-moderation");
+            break;
+          case "developer":
+            router.push("/cms");
+            break;
+          case "marketing_manager":
+            router.push("/marketing");
+            break;
+          case "support_agent":
+            router.push("/support");
+            break;
+          case "risk_manager":
+            router.push("/risk");
+            break;
+          case "seller_manager":
+            router.push("/shops");
+            break;
+          case "analyst":
+            router.push("/analytics");
+            break;
+          default:
+            router.push("/");
+            break;
+        }
       }
     } catch (err: unknown) {
       console.error("Admin login error:", err);
@@ -63,7 +103,7 @@ function AdminLoginForm() {
             <KeyRound size={14} className="text-[#6d28d9]" /> Compte Super Admin par Défaut :
           </span>
           <div className="text-gray-700 font-mono text-[11px] pt-1 space-y-0.5">
-            <p><span className="text-gray-500 font-sans font-medium">Email :</span> <strong className="text-indigo-950 font-bold">admin@kalagban.ci</strong></p>
+            <p><span className="text-gray-500 font-sans font-medium">Email :</span> <strong className="text-indigo-950 font-bold">admin@kalagban.com</strong></p>
             <p><span className="text-gray-500 font-sans font-medium">Mot de passe :</span> <strong className="text-indigo-950 font-bold">password123</strong></p>
           </div>
         </div>
@@ -82,10 +122,10 @@ function AdminLoginForm() {
               <input
                 type="email"
                 required
-                placeholder="admin@kalagban.ci"
+                placeholder="admin@kalagban.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold outline-none focus:border-indigo-600 focus:bg-white text-gray-900 transition-all"
+                className="w-full bg-slate-50 border border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-xs font-semibold outline-hidden focus:border-indigo-600 focus:bg-white text-gray-900 transition-all"
               />
             </div>
           </div>
@@ -100,7 +140,7 @@ function AdminLoginForm() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-50 border border-gray-200 rounded-2xl pl-10 pr-12 py-3 text-xs font-semibold outline-none focus:border-indigo-600 focus:bg-white text-gray-900 transition-all"
+                className="w-full bg-slate-50 border border-gray-200 rounded-2xl pl-10 pr-12 py-3 text-xs font-semibold outline-hidden focus:border-indigo-600 focus:bg-white text-gray-900 transition-all"
               />
               <button
                 type="button"

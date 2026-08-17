@@ -5,63 +5,85 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
-  Palette, 
-  Users, 
+  MapPin, 
+  Truck, 
+  AlertTriangle, 
+  ShieldAlert, 
   Store, 
   Package, 
   DollarSign, 
+  Sliders, 
+  Megaphone, 
+  Headphones, 
+  ShieldCheck, 
+  BarChart3, 
+  Bell, 
+  FileText, 
+  Palette, 
+  Users, 
   UserCheck, 
   LogOut, 
-  ShieldAlert,
-  Sparkles,
-  Menu,
+  Menu, 
   X,
-  MapPin
+  Sparkles,
+  ChevronDown
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAdminAuth, ROLE_LABELS, AdminPermissions } from "@/lib/rbac";
+
+interface NavGroup {
+  groupTitle: string;
+  items: {
+    label: string;
+    href: string;
+    icon: React.ElementType;
+    permissionKey: keyof AdminPermissions;
+    badge?: number;
+  }[];
+}
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [adminUser, setAdminUser] = useState<{ email?: string; role?: string; full_name?: string } | null>(null);
+  const { user, role, hasPermission, loading, isSuperAdmin } = useAdminAuth();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [openIncidentsCount, setOpenIncidentsCount] = useState(0);
+  const [openTicketsCount, setOpenTicketsCount] = useState(0);
 
   useEffect(() => {
-    const fetchAdminProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, role, admin_role")
-          .eq("id", session.user.id)
-          .single();
-
-        setAdminUser({
-          email: session.user.email,
-          full_name: profile?.full_name || "Admin Kalagban",
-          role: profile?.admin_role || "super_admin",
-        });
-      }
-    };
-
-    const fetchPendingProducts = async () => {
-      const { count } = await supabase
+    const fetchCounters = async () => {
+      // Pending products
+      const { count: prodCount } = await supabase
         .from("products")
         .select("*", { count: "exact", head: true })
         .eq("moderation_status", "pending_review");
-      setPendingCount(count || 0);
+      setPendingCount(prodCount || 0);
+
+      // Open logistics incidents
+      const { count: incCount } = await supabase
+        .from("logistics_incidents")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "open");
+      setOpenIncidentsCount(incCount || 0);
+
+      // Open support tickets
+      const { count: tickCount } = await supabase
+        .from("support_tickets")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "open");
+      setOpenTicketsCount(tickCount || 0);
     };
 
-    fetchAdminProfile();
-    fetchPendingProducts();
+    fetchCounters();
 
     const channel = supabase
-      .channel("sidebar_moderation_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
-        fetchPendingProducts();
-      })
+      .channel("sidebar_counters_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetchCounters())
+      .on("postgres_changes", { event: "*", schema: "public", table: "logistics_incidents" }, () => fetchCounters())
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchCounters())
       .subscribe();
 
     return () => {
@@ -74,26 +96,63 @@ export default function AdminSidebar() {
     router.push("/login");
   };
 
-  const navItems = [
-    { label: "Tableau de Bord", href: "/", icon: LayoutDashboard, role: "all" },
-    { label: "Modération Produits", href: "/products-moderation", icon: ShieldAlert, role: "all", badge: pendingCount },
-    { label: "Points Relais & Carte", href: "/relays", icon: MapPin, role: "all" },
-    { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, role: "cms" },
-    { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, role: "super_admin" },
-    { label: "Boutiques & Vendeurs", href: "/shops", icon: Store, role: "all" },
-    { label: "Supervision Commandes", href: "/orders", icon: Package, role: "all" },
-    { label: "Comptabilité & Finances", href: "/finance", icon: DollarSign, role: "finance" },
-    { label: "Utilisateurs & Profils", href: "/users", icon: UserCheck, role: "all" },
+  const navGroups: NavGroup[] = [
+    {
+      groupTitle: "Vue Globale",
+      items: [
+        { label: "Tableau de Bord", href: "/", icon: LayoutDashboard, permissionKey: "can_view_analytics" },
+      ],
+    },
+    {
+      groupTitle: "🚚 Logistique & Flotte",
+      items: [
+        { label: "Points Relais & Carte", href: "/relays", icon: MapPin, permissionKey: "can_view_relays" },
+        { label: "Gestion des Livreurs", href: "/couriers", icon: Truck, permissionKey: "can_view_couriers" },
+        { label: "Incidents Logistiques", href: "/logistics/incidents", icon: AlertTriangle, permissionKey: "can_view_logistics_incidents", badge: openIncidentsCount },
+      ],
+    },
+    {
+      groupTitle: "🛍️ Commerce & Catalogue",
+      items: [
+        { label: "Modération Produits", href: "/products-moderation", icon: ShieldAlert, permissionKey: "can_moderate_products", badge: pendingCount },
+        { label: "Boutiques & Vendeurs", href: "/shops", icon: Store, permissionKey: "can_moderate_shops" },
+        { label: "Supervision Commandes", href: "/orders", icon: Package, permissionKey: "can_view_orders" },
+      ],
+    },
+    {
+      groupTitle: "💰 Finances & Tarification",
+      items: [
+        { label: "Comptabilité & Finances", href: "/finance", icon: DollarSign, permissionKey: "can_view_finance" },
+        { label: "Tarification & Commissions", href: "/finance/pricing", icon: Sliders, permissionKey: "can_manage_commissions" },
+      ],
+    },
+    {
+      groupTitle: "📣 Marketing & Support",
+      items: [
+        { label: "Marketing & Promotions", href: "/marketing", icon: Megaphone, permissionKey: "can_manage_marketing" },
+        { label: "Support & Litiges", href: "/support", icon: Headphones, permissionKey: "can_view_support", badge: openTicketsCount },
+      ],
+    },
+    {
+      groupTitle: "🛡️ Risques & Analytics",
+      items: [
+        { label: "Risques & Sécurité", href: "/risk", icon: ShieldCheck, permissionKey: "can_view_risk" },
+        { label: "Analytics & Rapports", href: "/analytics", icon: BarChart3, permissionKey: "can_view_analytics" },
+        { label: "Notifications", href: "/notifications", icon: Bell, permissionKey: "can_send_notifications" },
+      ],
+    },
+    {
+      groupTitle: "⚙️ Pilotage & Système",
+      items: [
+        { label: "Journal d'Audit", href: "/audit", icon: FileText, permissionKey: "can_manage_team" },
+        { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, permissionKey: "can_edit_cms" },
+        { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, permissionKey: "can_manage_team" },
+        { label: "Utilisateurs & Profils", href: "/users", icon: UserCheck, permissionKey: "can_view_users" },
+      ],
+    },
   ];
 
-  const getRoleLabel = (role?: string) => {
-    switch (role) {
-      case "super_admin": return "Super Administrateur 👑";
-      case "developer": return "Ingénieur / Développeur 💻";
-      case "accountant": return "Comptable / Financier 💰";
-      default: return "Modérateur Admin 🛡️";
-    }
-  };
+  const roleMeta = ROLE_LABELS[role] || ROLE_LABELS.moderator;
 
   return (
     <>
@@ -114,114 +173,141 @@ export default function AdminSidebar() {
         </button>
       </div>
 
-      {/* Mobile Backdrop Overlay */}
-      {mobileMenuOpen && (
-        <div 
-          onClick={() => setMobileMenuOpen(false)}
-          className="lg:hidden fixed inset-0 z-45 bg-black/60 backdrop-blur-xs transition-opacity"
-        />
-      )}
-
       {/* Sidebar Desktop & Overlay Mobile */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col justify-between transition-transform duration-300 transform lg:translate-x-0 ${
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <div>
-          {/* Header */}
-          <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg shadow-lg shadow-indigo-600/30">
+      <aside 
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-md shadow-indigo-500/20">
               K
             </div>
             <div>
-              <h1 className="font-black text-base tracking-tight text-white">Kalagban Admin</h1>
-              <p className="text-[11px] font-bold text-indigo-400 flex items-center gap-1">
-                <Sparkles size={10} /> Back-Office V1.0
-              </p>
+              <div className="font-black text-base tracking-tight leading-none text-white">
+                Kalagban
+              </div>
+              <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider mt-1 flex items-center gap-1">
+                <Sparkles size={10} /> Back-Office RBAC
+              </div>
             </div>
-          </div>
+          </Link>
 
-          {/* User Profile Badge */}
-          <div className="p-4 mx-4 my-4 rounded-2xl bg-slate-800/80 border border-slate-700/80">
-            <p className="text-xs font-black text-white line-clamp-1">
-              {adminUser?.full_name || "Administrateur"}
-            </p>
-            <span className="text-[10px] font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full inline-block mt-1">
-              {getRoleLabel(adminUser?.role)}
-            </span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="px-3 space-y-1.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
-                    isActive
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-[1.02]"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon size={18} className={isActive ? "text-white" : "text-slate-400"} />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-xs">
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
+          <button 
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden text-gray-400 hover:text-white"
+          >
+            <X size={20} />
+          </button>
         </div>
 
+        {/* User Card */}
+        <div className="p-4 mx-3 my-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-black text-xs flex items-center justify-center shrink-0">
+              {user?.full_name?.charAt(0) || "A"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white truncate">{user?.full_name || "Admin Kalagban"}</p>
+              <span className="inline-block mt-0.5 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-900 text-indigo-300 border border-slate-700 truncate max-w-full">
+                {roleMeta.label}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Groups */}
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
+          {navGroups.map((group, gIdx) => {
+            const visibleItems = group.items.filter(item => isSuperAdmin || hasPermission(item.permissionKey));
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={gIdx} className="space-y-1">
+                <p className="px-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  {group.groupTitle}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all group ${
+                          isActive
+                            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon size={16} className={isActive ? "text-white" : "text-slate-400 group-hover:text-white"} />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+
+                        {item.badge !== undefined && item.badge > 0 && (
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                            isActive ? "bg-white text-indigo-600" : "bg-red-500 text-white animate-pulse"
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
         {/* Footer Logout */}
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-3 border-t border-slate-800">
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="w-full flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white font-extrabold text-xs py-3 px-4 rounded-2xl transition-all border border-red-500/20 cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer"
           >
             <LogOut size={16} />
-            Se Déconnecter
+            <span>Déconnexion</span>
           </button>
         </div>
       </aside>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-4 border border-gray-100">
-            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
-              <ShieldAlert size={28} />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-gray-900">Confirmation de Déconnexion</h3>
-              <p className="text-xs text-gray-500 mt-1">
-                Êtes-vous sûr de vouloir quitter le Panneau Administrateur Kalagban ?
-              </p>
-            </div>
-            <div className="flex items-center gap-3 pt-2">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-gray-100 text-slate-900">
+            <h3 className="font-black text-lg">Confirmer la déconnexion ?</h3>
+            <p className="text-xs text-gray-500">Vous allez être redirigé vers l&apos;écran d&apos;authentification de Kalagban Admin.</p>
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 transition-colors cursor-pointer text-gray-700"
               >
                 Annuler
               </button>
               <button
                 onClick={handleLogout}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs hover:bg-red-700 transition-colors cursor-pointer shadow-sm"
               >
-                Déconnexion
+                Se Déconnecter
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Backdrop for mobile */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-xs"
+        />
       )}
     </>
   );

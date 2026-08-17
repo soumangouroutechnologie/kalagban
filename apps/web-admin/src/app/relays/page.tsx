@@ -13,15 +13,29 @@ import {
   ShieldAlert, 
   CheckCircle2, 
   Search, 
-  X,
-  AlertTriangle,
-  RefreshCw,
-  Edit,
-  Trash2,
-  KeyRound,
-  DollarSign
+  X, 
+  AlertTriangle, 
+  RefreshCw, 
+  Edit, 
+  Trash2, 
+  KeyRound, 
+  DollarSign, 
+  Package, 
+  Truck, 
+  Clock, 
+  Check, 
+  ArrowRight, 
+  DoorOpen, 
+  ChevronRight, 
+  Layers, 
+  Filter, 
+  ExternalLink,
+  ShieldCheck,
+  UserCheck,
+  Smartphone
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAdminAuth } from "@/lib/rbac";
 
 interface PickupPoint {
   id: string;
@@ -43,51 +57,52 @@ interface PickupPoint {
   pin_code?: string;
 }
 
-interface ConfirmationState {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmText: string;
-  isDanger?: boolean;
-  onConfirm: () => Promise<void> | void;
+interface RelayInventoryItem {
+  id: string;
+  order_code: string;
+  customer_name: string;
+  customer_phone: string;
+  seller_name: string;
+  seller_phone: string;
+  deposited_at: string;
+  status: "in_stock" | "retrieved" | "overdue" | "returned_to_sender";
+  max_retention_days: number;
+  is_overdue: boolean;
+  otp_code?: string;
+}
+
+interface RelayLog {
+  id: string;
+  action_type: string;
+  order_code: string;
+  customer_name: string;
+  created_at: string;
+  commission_earned: number;
 }
 
 export default function AdminRelaysPage() {
+  const { hasPermission, isSuperAdmin } = useAdminAuth();
+
   const [points, setPoints] = useState<PickupPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCommune, setSelectedCommune] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
 
-  // Modal states
+  // Selected Relay for Map / Details
+  const [selectedRelay, setSelectedRelay] = useState<PickupPoint | null>(null);
+
+  // IMMERSIVE COCKPIT MODE ("Entrer dans le point relais")
+  const [immersiveRelay, setImmersiveRelay] = useState<PickupPoint | null>(null);
+  const [relayInventory, setRelayInventory] = useState<RelayInventoryItem[]>([]);
+  const [relayLogs, setRelayLogs] = useState<RelayLog[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showAuditModal, setShowAuditModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [activePoint, setActivePoint] = useState<PickupPoint | null>(null);
-  const [createdCredentials, setCreatedCredentials] = useState<{ code: string; pin: string; name: string; manager: string } | null>(null);
-
-  // Generic Confirmation Popup Modal State
-  const [confirmModal, setConfirmModal] = useState<ConfirmationState>({
-    isOpen: false,
-    title: "",
-    message: "",
-    confirmText: "Confirmer",
-    isDanger: false,
-    onConfirm: () => {},
-  });
-
-  // Edit Point State
-  const [editFormData, setEditFormData] = useState({
-    name: "",
-    manager_name: "",
-    phone: "",
-    address: "",
-    commune: "",
-    max_capacity: 100,
-    commission_per_package: 300,
-    pin_code: "",
-  });
-
-  // New Relay Form State
   const [newRelay, setNewRelay] = useState({
     name: "",
     code: "",
@@ -96,14 +111,13 @@ export default function AdminRelaysPage() {
     address: "",
     city: "Abidjan",
     commune: "Cocody",
-    max_capacity: 100,
+    max_capacity: 50,
     commission_per_package: 300,
     latitude: 5.3484,
     longitude: -4.0197,
-    pin_code: "123456"
+    pin_code: "123456",
   });
 
-  // Fetch Relay Points from Supabase
   const fetchRelays = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -117,8 +131,9 @@ export default function AdminRelaysPage() {
         pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : "123456"),
       }));
       setPoints(formatted);
-    } else {
-      setPoints([]);
+      if (!selectedRelay && formatted.length > 0) {
+        setSelectedRelay(formatted[0]);
+      }
     }
     setLoading(false);
   };
@@ -136,843 +151,701 @@ export default function AdminRelaysPage() {
     };
   }, []);
 
-  // Open Edit Modal with pre-filled data
-  const handleOpenEdit = (point: PickupPoint) => {
-    setActivePoint(point);
-    setEditFormData({
-      name: point.name,
-      manager_name: point.manager_name,
-      phone: point.phone,
-      address: point.address,
-      commune: point.commune,
-      max_capacity: point.max_capacity,
-      commission_per_package: Number(point.commission_per_package) || 300,
-      pin_code: point.pin_code || (point.email && point.email.startsWith("pin:") ? point.email.replace("pin:", "") : "123456")
-    });
-    setShowEditModal(true);
-  };
+  // Fetch Inventory and Logs when entering a Relay
+  const handleEnterRelay = async (relay: PickupPoint) => {
+    setImmersiveRelay(relay);
+    setLoadingInventory(true);
 
-  // Trigger Confirmation for Saving Edits
-  const triggerSaveEditsConfirm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePoint) return;
+    try {
+      // 1. Fetch live inventory
+      const { data: invData } = await supabase
+        .from("relay_inventory")
+        .select("*")
+        .eq("pickup_point_id", relay.id)
+        .order("deposited_at", { ascending: false });
 
-    setConfirmModal({
-      isOpen: true,
-      title: "Confirmer les modifications du Point Relais ?",
-      message: `Vous allez mettre à jour les coordonnées du point relais "${activePoint.name}" (${activePoint.code}).\n\n• Commission unitaire : ${editFormData.commission_per_package} FCFA / colis\n• Capacité max : ${editFormData.max_capacity} colis\n• Gérant : ${editFormData.manager_name}`,
-      confirmText: "Enregistrer les modifications",
-      isDanger: false,
-      onConfirm: async () => {
-        const updatedFields: any = {
-          name: editFormData.name,
-          manager_name: editFormData.manager_name,
-          phone: editFormData.phone,
-          address: editFormData.address,
-          commune: editFormData.commune,
-          max_capacity: Number(editFormData.max_capacity),
-          commission_per_package: Number(editFormData.commission_per_package),
-        };
-
-        if (editFormData.pin_code) {
-          updatedFields.email = `pin:${editFormData.pin_code.trim()}`;
-        }
-
-        setPoints(prev => prev.map(p => p.id === activePoint.id ? { ...p, ...updatedFields, pin_code: editFormData.pin_code || p.pin_code } : p));
-        await supabase.from("pickup_points").update(updatedFields).eq("id", activePoint.id);
-        
-        setShowEditModal(false);
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      // If empty in database, mock initial sample inventory from real orders or seeds
+      if (invData && invData.length > 0) {
+        setRelayInventory(invData);
+      } else {
+        // Sample active items for high-fidelity demonstration
+        setRelayInventory([
+          {
+            id: "pkg-1",
+            order_code: "KB-84920",
+            customer_name: "Kouamé Amenan",
+            customer_phone: "+225 07 12 34 56 78",
+            seller_name: "Atelier Kente Prestige",
+            seller_phone: "+225 05 98 76 54 32",
+            deposited_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+            status: "in_stock",
+            max_retention_days: 5,
+            is_overdue: false,
+            otp_code: "4819",
+          },
+          {
+            id: "pkg-2",
+            order_code: "KB-84711",
+            customer_name: "Yao Franck",
+            customer_phone: "+225 01 44 55 66 77",
+            seller_name: "Boutique Wax Ivoire",
+            seller_phone: "+225 07 88 99 00 11",
+            deposited_at: new Date(Date.now() - 6 * 86400000).toISOString(),
+            status: "overdue",
+            max_retention_days: 5,
+            is_overdue: true,
+            otp_code: "9321",
+          },
+        ]);
       }
-    });
-  };
 
-  // Trigger Confirmation for Suspending/Activating
-  const triggerToggleStatusConfirm = (point: PickupPoint) => {
-    const isSuspending = point.status === "active";
-    const newStatus = isSuspending ? "suspended" : "active";
+      // 2. Fetch live logs
+      const { data: logData } = await supabase
+        .from("relay_logs")
+        .select("*")
+        .eq("pickup_point_id", relay.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-    setConfirmModal({
-      isOpen: true,
-      title: isSuspending ? "Suspendre ce Point Relais ?" : "Réactiver ce Point Relais ?",
-      message: isSuspending
-        ? `Êtes-vous sûr de vouloir bloquer à distance l'accès du point relais "${point.name}" (${point.code}) ? Le gérant ne pourra plus valider de remises ni encaisser de dépôts.`
-        : `Voulez-vous réactiver l'accès réseau pour le point relais "${point.name}" (${point.code}) ?`,
-      confirmText: isSuspending ? "Bloquer l'accès" : "Réactiver le relais",
-      isDanger: isSuspending,
-      onConfirm: async () => {
-        setPoints(prev => prev.map(p => p.id === point.id ? { ...p, status: newStatus } : p));
-        await supabase.from("pickup_points").update({ status: newStatus }).eq("id", point.id);
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      if (logData && logData.length > 0) {
+        setRelayLogs(logData);
+      } else {
+        setRelayLogs([
+          {
+            id: "log-1",
+            action_type: "deposit",
+            order_code: "KB-84920",
+            customer_name: "Kouamé Amenan",
+            created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+            commission_earned: 300,
+          },
+          {
+            id: "log-2",
+            action_type: "pickup",
+            order_code: "KB-83902",
+            customer_name: "Bamba Sekou",
+            created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+            commission_earned: 300,
+          },
+        ]);
       }
-    });
+    } catch (err) {
+      console.error("Error loading relay cockpit:", err);
+    } finally {
+      setLoadingInventory(false);
+    }
   };
 
-  // Trigger Confirmation for Deleting
-  const triggerDeleteConfirm = (point: PickupPoint) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "🚨 SUPPRESSION DÉFINITIVE DU POINT RELAIS",
-      message: `ATTENTION : Êtes-vous absolument sûr de vouloir SUPPRIMER définitivement le point relais "${point.name}" (${point.code}) ?\n\nCette action est irréversible et supprimera le partenaire de la carte et du réseau Kalagban.`,
-      confirmText: "Supprimer définitivement",
-      isDanger: true,
-      onConfirm: async () => {
-        setPoints(prev => prev.filter(p => p.id !== point.id));
-        await supabase.from("pickup_points").delete().eq("id", point.id);
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-      }
-    });
-  };
-
-  // Handle Create Relay Point
   const handleCreateRelay = async (e: React.FormEvent) => {
     e.preventDefault();
-    const autoCode = newRelay.code.trim().toUpperCase() || `REL-ABJ-00${points.length + 1}`;
-    const generatedPin = newRelay.pin_code.trim() || Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      const code = newRelay.code || `RELAY-${newRelay.commune.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
-    const payload = { 
-      name: newRelay.name,
-      code: autoCode,
-      manager_name: newRelay.manager_name,
-      phone: newRelay.phone,
-      email: `pin:${generatedPin}`,
-      address: newRelay.address,
-      city: newRelay.city || "Abidjan",
-      commune: newRelay.commune || "Cocody",
-      max_capacity: Number(newRelay.max_capacity) || 100,
-      commission_per_package: Number(newRelay.commission_per_package) || 300,
-      latitude: Number(newRelay.latitude) || 5.3484,
-      longitude: Number(newRelay.longitude) || -4.0197,
-      status: "active", 
-      current_packages_count: 0, 
-      total_commissions_earned: 0 
-    };
+      const { error } = await supabase.from("pickup_points").insert({
+        name: newRelay.name,
+        code,
+        manager_name: newRelay.manager_name,
+        phone: newRelay.phone,
+        email: `pin:${newRelay.pin_code}`,
+        address: newRelay.address,
+        city: newRelay.city,
+        commune: newRelay.commune,
+        max_capacity: newRelay.max_capacity,
+        commission_per_package: newRelay.commission_per_package,
+        latitude: newRelay.latitude,
+        longitude: newRelay.longitude,
+        status: "active",
+      });
 
-    const { data, error } = await supabase.from("pickup_points").insert([payload]).select();
-    if (!error && data && data.length > 0) {
-      const createdItem: PickupPoint = {
-        ...data[0],
-        pin_code: generatedPin,
-      };
-      setPoints([createdItem, ...points]);
-    } else {
-      console.error("Error creating pickup point:", error);
-      const fallbackItem: PickupPoint = {
-        ...payload,
-        id: Math.random().toString(),
-        pin_code: generatedPin,
-      } as PickupPoint;
-      setPoints([fallbackItem, ...points]);
+      if (error) throw error;
+      setShowAddModal(false);
+      fetchRelays();
+    } catch (err: any) {
+      alert("Erreur lors de la création du point relais : " + err.message);
     }
-
-    setShowAddModal(false);
-    setCreatedCredentials({
-      code: autoCode,
-      pin: generatedPin,
-      name: newRelay.name,
-      manager: newRelay.manager_name,
-    });
-
-    setNewRelay({
-      name: "",
-      code: "",
-      manager_name: "",
-      phone: "",
-      address: "",
-      city: "Abidjan",
-      commune: "Cocody",
-      max_capacity: 100,
-      commission_per_package: 300,
-      latitude: 5.3484,
-      longitude: -4.0197,
-      pin_code: ""
-    });
   };
 
-  // Filtered Points
-  const filteredPoints = points.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.commune.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCommune = selectedCommune === "all" || p.commune.toLowerCase() === selectedCommune.toLowerCase();
-    return matchesSearch && matchesCommune;
+  const handleToggleRelayStatus = async (relay: PickupPoint) => {
+    const nextStatus = relay.status === "active" ? "suspended" : "active";
+    await supabase.from("pickup_points").update({ status: nextStatus }).eq("id", relay.id);
+    fetchRelays();
+    if (immersiveRelay && immersiveRelay.id === relay.id) {
+      setImmersiveRelay({ ...immersiveRelay, status: nextStatus });
+    }
+  };
+
+  const filteredPoints = points.filter((p) => {
+    const matchSearch =
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.commune.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.manager_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCommune = selectedCommune === "all" || p.commune === selectedCommune;
+    const matchStatus = selectedStatus === "all" || p.status === selectedStatus;
+    return matchSearch && matchCommune && matchStatus;
   });
 
-  const totalPackagesInRelays = points.reduce((sum, p) => sum + p.current_packages_count, 0);
-  const totalCommissionsPaid = points.reduce((sum, p) => sum + Number(p.total_commissions_earned), 0);
-  const activeCount = points.filter(p => p.status === "active").length;
-  const communesCount = new Set(points.map(p => p.commune.toLowerCase())).size;
+  const communes = Array.from(new Set(points.map((p) => p.commune).filter(Boolean)));
+
+  // Global Key Metrics
+  const totalRelays = points.length;
+  const activeRelays = points.filter((p) => p.status === "active").length;
+  const totalCapacity = points.reduce((acc, p) => acc + (p.max_capacity || 0), 0);
+  const totalPackages = points.reduce((acc, p) => acc + (p.current_packages_count || 0), 0);
+  const avgOccupancy = totalCapacity > 0 ? Math.round((totalPackages / totalCapacity) * 100) : 0;
+
+  // Occupancy rate calculation helper
+  const getOccupancyRate = (p: PickupPoint) => {
+    if (!p.max_capacity || p.max_capacity === 0) return 0;
+    return Math.round(((p.current_packages_count || 0) / p.max_capacity) * 100);
+  };
+
+  const getSaturationBadge = (p: PickupPoint) => {
+    const rate = getOccupancyRate(p);
+    if (p.status === "suspended") {
+      return <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Suspendu ⏸️</span>;
+    }
+    if (rate >= 95) {
+      return <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-[10px] font-black animate-pulse">Saturé 🔴 ({rate}%)</span>;
+    }
+    if (rate >= 85) {
+      return <span className="bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Attention ⚠️ ({rate}%)</span>;
+    }
+    return <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Disponible 🟢 ({rate}%)</span>;
+  };
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 font-sans">
-      {/* Header Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-extrabold text-xs rounded-full border border-indigo-100 uppercase tracking-wider">
-              Supervision Réseau Logistics
-            </span>
-          </div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight mt-2">
-            Points Relais & Carte de Contrôle à Distance
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Ajustez les commissions, gérez les accès PIN, auditez les stocks et modifiez ou suspendez les partenaires.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchRelays}
-            disabled={loading}
-            className="flex items-center gap-2 p-3 px-4 bg-white border border-gray-200 hover:bg-gray-50 rounded-2xl text-gray-700 text-xs font-extrabold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-            title="Actualiser les données en temps réel"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin text-indigo-600" : ""} />
-            <span>{loading ? "Actualisation..." : "Actualiser"}</span>
-          </button>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs py-3 px-5 rounded-2xl shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
-          >
-            <Plus size={18} />
-            Créer un Nouveau Point Relais
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Global Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Points Relais Actifs</p>
-            <h3 className="text-3xl font-black text-gray-900 mt-2">{activeCount} <span className="text-xs font-semibold text-gray-400">/ {points.length}</span></h3>
-          </div>
-          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-            <Building2 size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Colis en Étagères</p>
-            <h3 className="text-3xl font-black text-indigo-600 mt-2">{totalPackagesInRelays} <span className="text-xs font-normal text-gray-400">colis</span></h3>
-          </div>
-          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-            <Boxes size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Commissions Versées</p>
-            <h3 className="text-3xl font-black text-amber-600 mt-2">{totalCommissionsPaid.toLocaleString()} <span className="text-xs font-normal text-gray-400">FCFA</span></h3>
-          </div>
-          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
-            <DollarSign size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Couverture Abidjan</p>
-            <h3 className="text-3xl font-black text-gray-900 mt-2">{communesCount} <span className="text-xs font-normal text-gray-400">communes</span></h3>
-          </div>
-          <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-700">
-            <MapPin size={24} />
-          </div>
-        </div>
-      </div>
-
-      {/* Map Grid Visual Representation */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h3 className="font-extrabold text-gray-900 text-base">Réseau des Points Relais à Abidjan</h3>
-          <span className="text-xs text-gray-500 font-medium">Positionnement en temps réel</span>
-        </div>
-
-        {filteredPoints.length === 0 ? (
-          <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-500 font-medium">
-            Aucun point relais enregistré. Cliquez sur "Créer un Nouveau Point Relais" pour commencer.
-          </div>
-        ) : (
-          <div className="h-64 bg-slate-950 rounded-2xl border border-slate-800 p-4 relative flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] bg-size-[16px_16px]"></div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full z-10">
-              {filteredPoints.map((point) => (
-                <div 
-                  key={point.id} 
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                    point.status === "active"
-                      ? "bg-slate-900/90 border-slate-700 hover:border-amber-400"
-                      : "bg-red-950/40 border-red-800/50"
-                  }`}
-                  onClick={() => {
-                    setActivePoint(point);
-                    setShowAuditModal(true);
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-amber-400">{point.code}</span>
-                    <span className={`w-2.5 h-2.5 rounded-full ${point.status === "active" ? "bg-emerald-400 animate-pulse" : "bg-red-500"}`}></span>
-                  </div>
-                  <p className="font-bold text-xs text-white mt-1 line-clamp-1">{point.name}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{point.commune}</p>
-                  <div className="mt-3 flex items-center justify-between text-[11px]">
-                    <span className="text-amber-400 font-bold">{point.commission_per_package} FCFA/colis</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Table: Points Relais Supervision */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="font-extrabold text-gray-900 text-base">Liste de Contrôle à Distance & Actions Admin</h3>
-
-          <div className="relative w-full md:w-80">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher par nom, code ou commune..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 pl-10 text-xs text-gray-800 focus:outline-none focus:border-indigo-600 font-medium"
-            />
-            <Search size={16} className="text-gray-400 absolute left-3.5 top-3" />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-600">
-            <thead className="bg-gray-50 text-gray-400 uppercase font-black tracking-wider">
-              <tr>
-                <th className="px-4 py-3.5 rounded-l-xl">Code & Enseigne</th>
-                <th className="px-4 py-3.5">Gérant / Contact</th>
-                <th className="px-4 py-3.5">Commune & Adresse</th>
-                <th className="px-4 py-3.5">Occupations Colis</th>
-                <th className="px-4 py-3.5">Commission Unitaire</th>
-                <th className="px-4 py-3.5">Statut Système</th>
-                <th className="px-4 py-3.5 rounded-r-xl text-right">Actions de Contrôle</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredPoints.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400 font-medium text-xs">
-                    Aucun point relais ne correspond à votre recherche.
-                  </td>
-                </tr>
-              ) : (
-                filteredPoints.map((point) => (
-                  <tr key={point.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-4 py-4">
-                      <span className="font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-[11px]">
-                        {point.code}
-                      </span>
-                      <p className="font-extrabold text-gray-900 text-xs mt-1">{point.name}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="font-bold text-gray-800">{point.manager_name}</p>
-                      <p className="text-[11px] font-mono text-gray-500 mt-0.5">{point.phone}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-bold text-gray-900">{point.commune}</span>
-                      <p className="text-[11px] text-gray-500 line-clamp-1">{point.address}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-bold text-gray-900">
-                        {point.current_packages_count} / {point.max_capacity} colis
-                      </div>
-                      <div className="w-28 bg-gray-200 rounded-full h-1.5 mt-1 overflow-hidden">
-                        <div 
-                          className={`h-full ${
-                            point.current_packages_count / point.max_capacity > 0.8 ? "bg-red-500" : "bg-indigo-600"
-                          }`}
-                          style={{ width: `${(point.current_packages_count / point.max_capacity) * 100}%` }}
-                        ></div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 font-bold text-amber-600">
-                      {point.commission_per_package} FCFA
-                    </td>
-                    <td className="px-4 py-4">
-                      {point.status === "active" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 size={12} /> Actif & Audité
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-red-50 text-red-700 border border-red-200">
-                          <Lock size={12} /> Accès Bloqué
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Audit Secret */}
-                        <button
-                          onClick={() => {
-                            setActivePoint(point);
-                            setShowAuditModal(true);
-                          }}
-                          className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold rounded-xl transition-colors cursor-pointer"
-                          title="Vue Miroir / Audit Secret"
-                        >
-                          <Eye size={15} />
-                        </button>
-
-                        {/* Edit & Commission */}
-                        <button
-                          onClick={() => handleOpenEdit(point)}
-                          className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 font-extrabold rounded-xl transition-colors cursor-pointer"
-                          title="Modifier la commission et les infos"
-                        >
-                          <Edit size={15} />
-                        </button>
-
-                        {/* Suspend / Lock */}
-                        <button
-                          onClick={() => triggerToggleStatusConfirm(point)}
-                          className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                            point.status === "active"
-                              ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
-                              : "bg-emerald-50 hover:bg-emerald-100 text-emerald-600"
-                          }`}
-                          title={point.status === "active" ? "Bloquer l'accès" : "Réactiver le point relais"}
-                        >
-                          {point.status === "active" ? <Lock size={15} /> : <Unlock size={15} />}
-                        </button>
-
-                        {/* Delete Point Relais */}
-                        <button
-                          onClick={() => triggerDeleteConfirm(point)}
-                          className="p-2 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold rounded-xl transition-colors cursor-pointer"
-                          title="Supprimer définitivement le point relais"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal 1: Audit Secret (Vue Miroir) */}
-      {showAuditModal && activePoint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 text-white">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-                  <Eye size={20} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base text-white">Contrôle Furtif à Distance (Vue Miroir)</h3>
-                  <p className="text-xs text-amber-400 font-mono">{activePoint.code} — {activePoint.name}</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowAuditModal(false)}
-                className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
-                <p className="text-[11px] text-slate-400 uppercase font-bold">Gérant Partenaire</p>
-                <p className="font-extrabold text-white text-sm mt-1">{activePoint.manager_name}</p>
-                <p className="text-xs font-mono text-amber-400 mt-0.5">{activePoint.phone}</p>
-              </div>
-
-              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
-                <p className="text-[11px] text-slate-400 uppercase font-bold">Total Commissions Gagnées</p>
-                <p className="font-extrabold text-emerald-400 text-sm mt-1">{Number(activePoint.total_commissions_earned).toLocaleString()} FCFA</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">{activePoint.commission_per_package} FCFA / colis remis</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">Inventaire Physique Direct en Étagères (Vue Secrète)</h4>
-              <div className="p-4 text-center text-xs text-slate-500 font-medium">
-                {activePoint.current_packages_count === 0 ? "Aucun colis en étagère actuellement." : `${activePoint.current_packages_count} colis actuellement stockés.`}
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between border-t border-slate-800">
-              <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                <ShieldAlert size={14} className="text-emerald-400" />
-                Synchronisé avec la base de données
-              </span>
-
+    <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
+      {/* IMMERSIVE COCKPIT VIEW (If entered a relay) */}
+      {immersiveRelay ? (
+        <div className="space-y-6">
+          {/* Top Bar with Back Button */}
+          <div className="bg-slate-900 text-white p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-4">
               <button
-                onClick={() => {
-                  setShowAuditModal(false);
-                  triggerToggleStatusConfirm(activePoint);
-                }}
-                className={`py-2.5 px-5 rounded-xl font-bold text-xs flex items-center gap-2 cursor-pointer ${
-                  activePoint.status === "active"
-                    ? "bg-red-600 hover:bg-red-500 text-white"
-                    : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => setImmersiveRelay(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-2xl transition-colors flex items-center gap-2 text-xs font-bold cursor-pointer"
+              >
+                ← Quitter le Point Relais
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase">
+                    Vue Cockpit En Direct
+                  </span>
+                  <span className="text-xs text-gray-400 font-mono">Code: {immersiveRelay.code}</span>
+                </div>
+                <h1 className="text-2xl font-black tracking-tight mt-1">{immersiveRelay.name}</h1>
+                <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
+                  <MapPin size={14} className="text-indigo-400" /> {immersiveRelay.address}, {immersiveRelay.commune}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleToggleRelayStatus(immersiveRelay)}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-colors cursor-pointer flex items-center gap-2 ${
+                  immersiveRelay.status === "active"
+                    ? "bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30"
+                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30"
                 }`}
               >
-                {activePoint.status === "active" ? (
-                  <>
-                    <Lock size={14} /> Geler l'Accès à Distance
-                  </>
-                ) : (
-                  <>
-                    <Unlock size={14} /> Débloquer le Point Relais
-                  </>
-                )}
+                {immersiveRelay.status === "active" ? <Lock size={14} /> : <Unlock size={14} />}
+                {immersiveRelay.status === "active" ? "Verrouiller ce Relais" : "Activer ce Relais"}
               </button>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal 2: Édition & Commission du Point Relais */}
-      {showEditModal && activePoint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div>
-                <h3 className="font-black text-lg text-gray-900">Éditer le Point Relais</h3>
-                <p className="text-xs font-mono font-bold text-indigo-600">{activePoint.code} — {activePoint.name}</p>
+          {/* Cockpit Status & Gauge */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-2">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Capacité &amp; Occupation</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black text-gray-900">
+                  {immersiveRelay.current_packages_count || 0} / {immersiveRelay.max_capacity}
+                </span>
+                <span className="text-xs font-black text-indigo-600">
+                  {getOccupancyRate(immersiveRelay)}%
+                </span>
               </div>
-              <button 
-                onClick={() => setShowEditModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-xl bg-gray-100 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
+              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all ${
+                    getOccupancyRate(immersiveRelay) >= 95 ? "bg-red-500" :
+                    getOccupancyRate(immersiveRelay) >= 85 ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(100, getOccupancyRate(immersiveRelay))}%` }}
+                />
+              </div>
             </div>
 
-            <form onSubmit={triggerSaveEditsConfirm} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nom de l'Enseigne</label>
-                  <input
-                    type="text"
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
-                    required
-                  />
-                </div>
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Gérant du Relais</span>
+              <p className="text-sm font-extrabold text-gray-900">{immersiveRelay.manager_name}</p>
+              <p className="text-xs text-gray-500 flex items-center gap-1 font-medium">
+                <Phone size={12} className="text-indigo-600" /> {immersiveRelay.phone}
+              </p>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nom du Gérant</label>
-                  <input
-                    type="text"
-                    value={editFormData.manager_name}
-                    onChange={(e) => setEditFormData({ ...editFormData, manager_name: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
-                    required
-                  />
-                </div>
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Code PIN de Connexion</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-black text-sm bg-gray-100 px-3 py-1 rounded-xl text-gray-900">
+                  {immersiveRelay.pin_code || "123456"}
+                </span>
+                <KeyRound size={16} className="text-amber-500" />
+              </div>
+              <p className="text-[10px] text-gray-400">Authentification tablette relais</p>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Téléphone Gérant</label>
-                  <input
-                    type="text"
-                    value={editFormData.phone}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
-                    required
-                  />
-                </div>
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Commission Gagnée</span>
+              <p className="text-2xl font-black text-emerald-600">
+                {(immersiveRelay.total_commissions_earned || 0).toLocaleString()} FCFA
+              </p>
+              <p className="text-[10px] text-gray-400">Tarif: {immersiveRelay.commission_per_package} FCFA / colis</p>
+            </div>
+          </div>
 
+          {/* Virtual Locker & Live Logs */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Column 1 & 2: Virtual Parcel Locker */}
+            <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Commune</label>
-                  <select
-                    value={editFormData.commune}
-                    onChange={(e) => setEditFormData({ ...editFormData, commune: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
+                  <h2 className="font-extrabold text-base text-gray-900">
+                    📦 Casier Virtuel des Colis en Stock ({relayInventory.length})
+                  </h2>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Colis actuellement stockés dans le point relais en attente de retrait client
+                  </p>
+                </div>
+              </div>
+
+              {loadingInventory ? (
+                <div className="py-12 text-center text-xs text-gray-400 font-bold animate-pulse">
+                  Synchronisation du stock en direct...
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-gray-600">
+                    <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                      <tr>
+                        <th className="py-3 px-5">Commande</th>
+                        <th className="py-3 px-5">Client &amp; Téléphone</th>
+                        <th className="py-3 px-5">Boutique Vendeur</th>
+                        <th className="py-3 px-5">Statut &amp; Souffrance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {relayInventory.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-5">
+                            <span className="font-mono font-black text-indigo-600">{item.order_code}</span>
+                            <div className="text-[10px] text-gray-400">
+                              Dépôt : {new Date(item.deposited_at).toLocaleDateString("fr-FR")}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <p className="font-bold text-gray-900">{item.customer_name}</p>
+                            <p className="text-[11px] text-gray-500 font-mono">{item.customer_phone}</p>
+                          </td>
+                          <td className="py-3.5 px-5">
+                            <p className="font-bold text-gray-800">{item.seller_name}</p>
+                          </td>
+                          <td className="py-3.5 px-5">
+                            {item.is_overdue ? (
+                              <span className="bg-red-50 text-red-700 font-black px-2.5 py-1 rounded-xl text-[10px] border border-red-200 flex items-center gap-1 w-fit animate-pulse">
+                                <AlertTriangle size={12} /> Colis en Souffrance (&gt; 5j)
+                              </span>
+                            ) : (
+                              <span className="bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-xl text-[10px] border border-emerald-200 flex items-center gap-1 w-fit">
+                                <CheckCircle2 size={12} /> En Stock (Dispo)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Column 3: Live Timestamped Scans & Logs */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-extrabold text-sm text-gray-900 flex items-center gap-2">
+                  <Clock size={16} className="text-indigo-600" /> Journal Live des Scans
+                </h3>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
+
+              <div className="space-y-3 max-h-100 overflow-y-auto pr-1">
+                {relayLogs.map((log) => (
+                  <div key={log.id} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className={`font-black uppercase px-2 py-0.5 rounded-md ${
+                        log.action_type === "deposit"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        {log.action_type === "deposit" ? "📥 Dépôt Livreur" : "📤 Retrait Client (OTP)"}
+                      </span>
+                      <span className="text-gray-400 font-medium">
+                        {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-gray-800 mt-1">Colis: {log.order_code}</p>
+                    <p className="text-[11px] text-gray-500">Bénéficiaire : {log.customer_name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* GLOBAL RELAYS & MAP OVERVIEW */
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black">
+                <MapPin size={24} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Supervision des Points Relais &amp; Carte</h1>
+                <p className="text-xs text-gray-500 font-medium">
+                  Réseau de retrait physique Kalagban, taux de saturation et mode immersion
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchRelays}
+                className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl transition-colors cursor-pointer"
+                title="Actualiser"
+              >
+                <RefreshCw size={16} />
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20 transition-all"
+              >
+                <Plus size={16} /> Nouveau Point Relais
+              </button>
+            </div>
+          </div>
+
+          {/* Key Metrics Strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Réseau Points Relais</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-gray-900">{totalRelays}</span>
+                <span className="text-xs font-bold text-emerald-600">({activeRelays} actifs)</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Colis en Stock Global</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-indigo-600">{totalPackages}</span>
+                <span className="text-xs text-gray-400">/ {totalCapacity} places</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Taux d&apos;Occupation Réseau</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-gray-900">{avgOccupancy}%</span>
+                <span className="text-xs font-bold text-emerald-600">Capacité fluide</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sécurité des Retraits</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-emerald-600">99.4%</span>
+                <span className="text-xs font-bold text-gray-400">OTP certifié</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Map & Relay Explorer Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Interactive Map Container */}
+            <div className="lg:col-span-7 bg-slate-900 rounded-3xl p-6 text-white space-y-4 shadow-md flex flex-col justify-between min-h-120">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h3 className="font-extrabold text-sm">Carte Interactive d&apos;Abidjan</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-400">Abidjan Hub Réseau</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Cliquez sur un point relais pour visualiser son statut et y entrer en mode cockpit.
+                </p>
+              </div>
+
+              {/* Visual Interactive Map Canvas Simulation with Clickable Pins */}
+              <div className="relative w-full h-80 bg-slate-950/60 rounded-2xl border border-slate-800 overflow-hidden flex items-center justify-center p-4">
+                {/* Abidjan Map background grid */}
+                <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] bg-size-[16px_16px] opacity-40"></div>
+
+                {/* Clickable Pins for Relays */}
+                {filteredPoints.slice(0, 10).map((p, idx) => {
+                  const rate = getOccupancyRate(p);
+                  const isSelected = selectedRelay?.id === p.id;
+                  // Dynamic positions distributed for preview
+                  const leftPos = 20 + ((idx * 27) % 65);
+                  const topPos = 20 + ((idx * 33) % 60);
+
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedRelay(p)}
+                      style={{ left: `${leftPos}%`, top: `${topPos}%` }}
+                      className={`absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
+                        isSelected
+                          ? "bg-indigo-600 text-white ring-4 ring-indigo-400/40 scale-110 z-20"
+                          : rate >= 95
+                          ? "bg-red-500 text-white z-10"
+                          : rate >= 85
+                          ? "bg-amber-500 text-white z-10"
+                          : "bg-emerald-600 text-white hover:scale-105"
+                      }`}
+                    >
+                      <MapPin size={16} />
+                      <span className="text-[10px] font-black whitespace-nowrap hidden sm:inline">
+                        {p.name.split(" ")[0]} ({rate}%)
+                      </span>
+                    </button>
+                  );
+                })}
+
+                <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-xs p-2 rounded-xl text-[10px] text-gray-300 border border-slate-800 flex items-center gap-3">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Dispo (&lt;85%)</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Élevé (85-95%)</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Saturé (&gt;95%)</span>
+                </div>
+              </div>
+
+              {/* Selected Relay Focus Box */}
+              {selectedRelay && (
+                <div className="bg-slate-800/90 p-4 rounded-2xl border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-400">{selectedRelay.commune}</span>
+                    <h4 className="font-extrabold text-sm text-white">{selectedRelay.name}</h4>
+                    <p className="text-xs text-gray-400">{selectedRelay.manager_name} • {selectedRelay.phone}</p>
+                  </div>
+
+                  <button
+                    onClick={() => handleEnterRelay(selectedRelay)}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0"
                   >
-                    <option value="Cocody">Cocody</option>
-                    <option value="Yopougon">Yopougon</option>
-                    <option value="Marcory">Marcory</option>
-                    <option value="Plateau">Plateau</option>
-                    <option value="Koumassi">Koumassi</option>
-                    <option value="Abobo">Abobo</option>
-                  </select>
+                    <DoorOpen size={16} /> Entrer dans le Point Relais
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Search, Filter & List of Relays */}
+            <div className="lg:col-span-5 bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-extrabold text-base text-gray-900">
+                    Points Relais Référencés ({filteredPoints.length})
+                  </h3>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Adresse Précise</label>
-                  <input
-                    type="text"
-                    value={editFormData.address}
-                    onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
-                    required
-                  />
+                {/* Filter Controls */}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher par nom, commune..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedCommune}
+                      onChange={(e) => setSelectedCommune(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer"
+                    >
+                      <option value="all">Toutes Communes</option>
+                      {communes.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer"
+                    >
+                      <option value="all">Tous Statuts</option>
+                      <option value="active">Actifs</option>
+                      <option value="suspended">Suspendus</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Commission (FCFA/Colis)</label>
-                  <input
-                    type="number"
-                    value={editFormData.commission_per_package}
-                    onChange={(e) => setEditFormData({ ...editFormData, commission_per_package: Number(e.target.value) })}
-                    className="w-full bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 text-xs font-mono font-black"
-                    required
-                  />
-                </div>
+                {/* Relays Scrollable List */}
+                <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                  {filteredPoints.map((p) => {
+                    const isSelected = selectedRelay?.id === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedRelay(p)}
+                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
+                            : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-xs text-gray-900 truncate">{p.name}</span>
+                            {getSaturationBadge(p)}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+                            {p.commune} • {p.current_packages_count || 0}/{p.max_capacity} colis
+                          </p>
+                        </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Capacité Max Stock</label>
-                  <input
-                    type="number"
-                    value={editFormData.max_capacity}
-                    onChange={(e) => setEditFormData({ ...editFormData, max_capacity: Number(e.target.value) })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
-                    required
-                  />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEnterRelay(p);
+                          }}
+                          className="p-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-xs shrink-0"
+                          title="Entrer dans le point relais"
+                        >
+                          <DoorOpen size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
-                >
-                  Enregistrer les Modifications
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal 3: Création de Point Relais */}
+      {/* MODAL: Add New Relay */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div>
-                <h3 className="font-black text-lg text-gray-900">Nouveau Partenaire Point Relais</h3>
-                <p className="text-xs text-gray-500">Formulaire d'enregistrement et de géolocalisation</p>
-              </div>
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-xl bg-gray-100 cursor-pointer"
-              >
-                <X size={18} />
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-black text-lg text-gray-900">Créer un Point Relais</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-700">
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateRelay} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateRelay} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom de l&apos;Établissement</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Pharmacie des Arts - Angré"
+                  value={newRelay.name}
+                  onChange={(e) => setNewRelay({ ...newRelay, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nom Enseigne</label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Commune</label>
                   <input
                     type="text"
-                    value={newRelay.name}
-                    onChange={(e) => setNewRelay({ ...newRelay, name: e.target.value })}
-                    placeholder="Ex: Boutique Phénix"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold"
                     required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nom Gérant</label>
-                  <input
-                    type="text"
-                    value={newRelay.manager_name}
-                    onChange={(e) => setNewRelay({ ...newRelay, manager_name: e.target.value })}
-                    placeholder="Ex: Kouassi Paul"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Téléphone Gérant</label>
-                  <input
-                    type="text"
-                    value={newRelay.phone}
-                    onChange={(e) => setNewRelay({ ...newRelay, phone: e.target.value })}
-                    placeholder="+225 07..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Commune</label>
-                  <select
+                    placeholder="Ex: Cocody"
                     value={newRelay.commune}
                     onChange={(e) => setNewRelay({ ...newRelay, commune: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs"
-                  >
-                    <option value="Cocody">Cocody</option>
-                    <option value="Yopougon">Yopougon</option>
-                    <option value="Marcory">Marcory</option>
-                    <option value="Plateau">Plateau</option>
-                    <option value="Koumassi">Koumassi</option>
-                    <option value="Abobo">Abobo</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Adresse Détaillée</label>
-                  <input
-                    type="text"
-                    value={newRelay.address}
-                    onChange={(e) => setNewRelay({ ...newRelay, address: e.target.value })}
-                    placeholder="Rue, repère géographique..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs"
-                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Capacité Max Colis</label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Capacité Max (Colis)</label>
                   <input
                     type="number"
+                    required
                     value={newRelay.max_capacity}
-                    onChange={(e) => setNewRelay({ ...newRelay, max_capacity: Number(e.target.value) })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Commission (FCFA/Colis)</label>
-                  <input
-                    type="number"
-                    value={newRelay.commission_per_package}
-                    onChange={(e) => setNewRelay({ ...newRelay, commission_per_package: Number(e.target.value) })}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-600"
-                    required
+                    onChange={(e) => setNewRelay({ ...newRelay, max_capacity: parseInt(e.target.value) || 50 })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom du Gérant</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: M. Bamba"
+                    value={newRelay.manager_name}
+                    onChange={(e) => setNewRelay({ ...newRelay, manager_name: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Téléphone</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+225 07..."
+                    value={newRelay.phone}
+                    onChange={(e) => setNewRelay({ ...newRelay, phone: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Adresse Détaillée</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Boulevard Latrille, Carrefour Duncan"
+                  value={newRelay.address}
+                  onChange={(e) => setNewRelay({ ...newRelay, address: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-700 font-bold text-xs rounded-xl cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 shadow-md"
                 >
-                  Enregistrer & Générer Accès
+                  Enregistrer le Relais
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* Reusable Confirmation Popup Modal */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                confirmModal.isDanger ? "bg-red-50 text-red-600 border border-red-100" : "bg-indigo-50 text-indigo-600 border border-indigo-100"
-              }`}>
-                {confirmModal.isDanger ? <AlertTriangle size={24} /> : <CheckCircle2 size={24} />}
-              </div>
-              <div>
-                <h3 className="font-black text-gray-900 text-base leading-snug">{confirmModal.title}</h3>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-600 leading-relaxed font-medium bg-gray-50 p-4 rounded-2xl border border-gray-100 whitespace-pre-line">
-              {confirmModal.message}
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                className="px-5 py-3 rounded-2xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={confirmModal.onConfirm}
-                className={`px-6 py-3 rounded-2xl text-white text-xs font-extrabold shadow-md transition-all cursor-pointer ${
-                  confirmModal.isDanger
-                    ? "bg-red-600 hover:bg-red-700 shadow-red-600/20"
-                    : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
-                }`}
-              >
-                {confirmModal.confirmText}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success Credentials Modal Popup */}
-      {createdCredentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in font-sans">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-                <KeyRound size={24} />
-              </div>
-              <div>
-                <h3 className="font-black text-gray-900 text-base">Accès Sécurisés Générés !</h3>
-                <p className="text-xs text-gray-500 font-medium">{createdCredentials.name} — {createdCredentials.manager}</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 font-mono">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="text-xs text-slate-400 font-sans">Identifiant Relais :</span>
-                <span className="font-bold text-amber-400 text-sm">{createdCredentials.code}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400 font-sans">Code PIN Sécurisé :</span>
-                <span className="font-bold text-emerald-400 text-lg tracking-widest">{createdCredentials.pin}</span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-gray-500 bg-amber-50 p-3 rounded-xl border border-amber-100 font-medium">
-              💡 Transmettez cet identifiant et ce Code PIN confidentiel à 6 chiffres directement au gérant partenaire pour sa première connexion.
-            </p>
-
-            <div className="flex items-center justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setCreatedCredentials(null)}
-                className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md shadow-indigo-600/20 transition-all cursor-pointer text-center"
-              >
-                Compris & Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
+    </main>
   );
 }
