@@ -493,11 +493,39 @@ export default function AdminShopsPage() {
 
       {/* ================= MODAL D'AUDIT KYC & EXPORT PDF ================= */}
       {selectedShop && selectedShop.kyc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 relative flex flex-col custom-scrollbar print:p-0 print:border-none print:shadow-none print:max-w-none print:max-h-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
+          
+          {/* Strict Print CSS Isolation to print ONLY the official document */}
+          <style jsx global>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              #printable-admin-kyc-dossier, #printable-admin-kyc-dossier * {
+                visibility: visible !important;
+              }
+              #printable-admin-kyc-dossier {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 24px !important;
+                background: white !important;
+                color: #0f172a !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-gray-100 relative flex flex-col custom-scrollbar">
             
             {/* Top Modal Header */}
-            <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-6 sm:px-8 py-5 border-b border-gray-100 flex items-center justify-between print:hidden">
+            <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-6 sm:px-8 py-5 border-b border-gray-100 flex items-center justify-between no-print">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shadow-inner">
                   <ShieldCheck size={24} />
@@ -534,24 +562,30 @@ export default function AdminShopsPage() {
             </div>
 
             {/* PRINTABLE DOSSIER CONTENT */}
-            <div className="p-6 sm:p-8 space-y-6 print:p-8">
+            <div id="printable-admin-kyc-dossier" className="p-6 sm:p-8 space-y-6">
               
               {/* Official Kalagban Header for PDF Print */}
-              <div className="hidden print:flex items-center justify-between border-b-2 border-indigo-600 pb-4 mb-6">
+              <div className="border-b-2 border-indigo-600 pb-4 mb-4 flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-black text-indigo-900">KALAGBAN MARKETPLACE</h1>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Service Conformité &amp; Certification des Marchands</p>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-black text-indigo-950 tracking-tight">KALAGBAN MARKETPLACE</h1>
+                    <span className="bg-indigo-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                      DOSSIER OFFICIEL KYC
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mt-0.5">
+                    Service Conformité &amp; Certification des Marchands
+                  </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs font-black bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
-                    DOSSIER D&apos;ENREGISTREMENT OFFICIEL
-                  </span>
-                  <p className="text-[10px] text-gray-400 mt-1">Date : {new Date(selectedShop.kyc.submitted_at).toLocaleDateString('fr-FR')}</p>
+                  <p className="text-xs font-black text-gray-900">CERTIFICAT D&apos;AUDIT VENDEUR</p>
+                  <p className="text-[10px] text-gray-400 font-mono">Date : {new Date(selectedShop.kyc.submitted_at).toLocaleDateString('fr-FR')}</p>
+                  <p className="text-[10px] text-indigo-700 font-bold">Boutique : {selectedShop.name}</p>
                 </div>
               </div>
 
               {/* Status Banner */}
-              <div className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
+              <div className={`p-4.5 rounded-2xl border flex items-center justify-between gap-4 ${
                 selectedShop.kyc.status === "approved"
                   ? "bg-emerald-50 border-emerald-200 text-emerald-950"
                   : selectedShop.kyc.status === "rejected"
@@ -597,13 +631,13 @@ export default function AdminShopsPage() {
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Type &amp; N° de Pièce</span>
                     <p className="text-sm font-extrabold text-gray-900 uppercase">
-                      {selectedShop.kyc.id_type} : <span className="font-mono">{selectedShop.kyc.id_number}</span>
+                      {selectedShop.kyc.id_type} : <span className="font-mono text-indigo-700">{selectedShop.kyc.id_number}</span>
                     </p>
                   </div>
 
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase">WhatsApp Principal</span>
-                    <p className="text-sm font-black text-indigo-700">{selectedShop.kyc.primary_phone}</p>
+                    <p className="text-sm font-black text-emerald-700">{selectedShop.kyc.primary_phone}</p>
                   </div>
 
                   {selectedShop.kyc.secondary_phone && (
@@ -647,7 +681,7 @@ export default function AdminShopsPage() {
                       href={selectedShop.kyc.seller_photo_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                      className="no-print mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
                     >
                       <ExternalLink size={11} /> Ouvrir en grand
                     </a>
@@ -672,7 +706,7 @@ export default function AdminShopsPage() {
                       href={selectedShop.kyc.id_card_front_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                      className="no-print mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
                     >
                       <ExternalLink size={11} /> Ouvrir / Télécharger
                     </a>
@@ -698,7 +732,7 @@ export default function AdminShopsPage() {
                         href={selectedShop.kyc.id_card_back_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                        className="no-print mt-2 text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
                       >
                         <ExternalLink size={11} /> Ouvrir / Télécharger
                       </a>
@@ -719,7 +753,7 @@ export default function AdminShopsPage() {
                     {selectedShop.kyc.store_photos.map((url: string, idx: number) => (
                       <div key={idx} className="bg-white rounded-xl border border-gray-200 p-2 overflow-hidden shadow-2xs flex flex-col items-center">
                         <img src={url} alt={`Local ${idx + 1}`} className="w-full h-24 object-cover rounded-lg" />
-                        <a href={url} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-indigo-600 mt-1 hover:underline">
+                        <a href={url} target="_blank" rel="noreferrer" className="no-print text-[9px] font-bold text-indigo-600 mt-1 hover:underline">
                           Voir photo {idx + 1}
                         </a>
                       </div>
@@ -754,7 +788,7 @@ export default function AdminShopsPage() {
 
               {/* Rejection Motif Input Form */}
               {isRejecting && (
-                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-3 animate-in fade-in">
+                <div className="no-print bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-3 animate-in fade-in">
                   <h4 className="text-xs font-black text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
                     <AlertCircle size={15} className="text-rose-600" />
                     Préciser le motif de non-conformité
@@ -789,7 +823,7 @@ export default function AdminShopsPage() {
             </div>
 
             {/* Bottom Modal Actions (Hidden in Print) */}
-            <div className="sticky bottom-0 bg-white/95 backdrop-blur-md px-6 sm:px-8 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div className="sticky bottom-0 bg-white/95 backdrop-blur-md px-6 sm:px-8 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
               <button
                 type="button"
                 onClick={() => setSelectedShop(null)}
