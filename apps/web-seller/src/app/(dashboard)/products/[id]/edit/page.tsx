@@ -11,7 +11,10 @@ import {
   CheckCircle, 
   Wand2, 
   Loader2, 
-  AlertTriangle 
+  ShieldCheck,
+  Package,
+  Layers,
+  Sparkles
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
@@ -35,6 +38,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const [stock, setStock] = useState("0");
   const [sku, setSku] = useState("");
   const [status, setStatus] = useState("active");
+  const [moderationStatus, setModerationStatus] = useState("approved");
 
   // Image states
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -52,6 +56,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     { name: "Bleu Ciel", value: "#e0e7ff", border: "border-blue-200" },
     { name: "Jaune Pâle", value: "#fef3c7", border: "border-yellow-200" },
   ];
+
+  const isAlreadyApproved = (status === "active" || moderationStatus === "approved");
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -82,6 +88,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         setStock(prod.stock_quantity !== undefined ? prod.stock_quantity.toString() : "0");
         setSku(prod.sku || "");
         setStatus(prod.status || "active");
+        setModerationStatus(prod.moderation_status || (prod.status === "active" ? "approved" : "pending_review"));
 
         // Catégorie
         const foundCategory = PRODUCT_CATEGORIES.find(c => c.label.toLowerCase() === (prod.category || "").toLowerCase());
@@ -140,7 +147,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // 1. Mettre à jour la table products et repasser en modération
+      // Déterminer le statut selon si le produit est déjà actif ou non
+      const targetStatus = isAlreadyApproved ? "active" : "active";
+      const targetModerationStatus = isAlreadyApproved ? "approved" : "pending_review";
+
+      // 1. Mettre à jour la table products
       const { error: updateError } = await supabase
         .from('products')
         .update({
@@ -151,9 +162,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           category: category === "autre" ? (customCategory.trim() || "Autre") : category,
           stock_quantity: parseInt(stock) || 0,
           sku,
-          status: 'pending_review',
-          moderation_status: 'pending_review',
-          rejection_reason: null, // Reset previous rejection
+          status: targetStatus,
+          moderation_status: targetModerationStatus,
+          rejection_reason: isAlreadyApproved ? null : undefined,
         })
         .eq('id', productId)
         .eq('shop_id', session.user.id);
@@ -185,7 +196,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       }
 
       setIsSaved(true);
-      alert("Produit mis à jour et re-soumis avec succès à l'équipe de modération ! 🎉");
+      alert(
+        isAlreadyApproved 
+          ? "Modifications enregistrées avec succès ! Votre article et vos stocks sont à jour en direct sur Kalagban. 🎉" 
+          : "Produit soumis avec succès à l'équipe de modération ! 🎉"
+      );
       router.push("/products");
 
     } catch (error) {
@@ -208,15 +223,26 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto pb-16">
       
-      {/* Moderation Warning Banner */}
-      <div className="bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
-          <AlertTriangle size={22} />
+      {/* Information Banner */}
+      {isAlreadyApproved ? (
+        <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+            <ShieldCheck size={22} />
+          </div>
+          <div className="flex-1 text-sm text-emerald-900">
+            <span className="font-bold">Article Approuvé & Actif :</span> Toutes vos modifications (quantité en stock, prix, photos, description) sont <strong>enregistrées et actives immédiatement</strong> sur la marketplace, sans nécessiter de re-validation.
+          </div>
         </div>
-        <div className="flex-1 text-sm text-amber-900">
-          <span className="font-bold">Information de modération :</span> La modification des informations (titre, prix, photo) re-soumet automatiquement cet article à l&apos;équipe de modération pour validation.
+      ) : (
+        <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+            <Sparkles size={22} />
+          </div>
+          <div className="flex-1 text-sm text-amber-900">
+            <span className="font-bold">Article en attente :</span> Les modifications seront soumises à l&apos;équipe de modération pour validation avant publication.
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Header Bar */}
       <div className="flex items-center justify-between">
@@ -226,7 +252,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           </Link>
           <div>
             <h1 className="text-3xl font-black text-text-main tracking-tight">Modifier le Produit</h1>
-            <p className="text-text-muted text-sm mt-0.5">Mettez à jour les informations et re-soumettez pour validation.</p>
+            <p className="text-text-muted text-sm mt-0.5">
+              {isAlreadyApproved 
+                ? "Mettez à jour vos stocks, vos prix et la fiche produit en direct." 
+                : "Mettez à jour les informations et soumettez pour validation."}
+            </p>
           </div>
         </div>
 
@@ -236,7 +266,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           className="bg-primary text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-all flex items-center gap-2 disabled:opacity-70"
         >
           {isSaving ? <Loader2 className="animate-spin" size={18} /> : isSaved ? <CheckCircle size={18} /> : <Save size={18} />}
-          {isSaving ? "Soumission..." : isSaved ? "Re-soumis !" : "Soumettre les modifications"}
+          {isSaving ? "Enregistrement..." : isSaved ? "Enregistré !" : (isAlreadyApproved ? "Enregistrer les modifications" : "Soumettre les modifications")}
         </button>
       </div>
 
@@ -267,7 +297,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 type="text" 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)} 
-                placeholder="ex: Réfrigérateur Smart Inverter 350L" 
+                placeholder="ex: Robe de soirée en pagne" 
                 required 
                 className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
               />
@@ -278,13 +308,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <textarea 
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)} 
-                placeholder="Décrivez les fonctionnalités clés, caractéristiques et garanties de votre produit..." 
                 rows={5} 
-                className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
+                placeholder="Décrivez votre produit en détail..." 
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all resize-none"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Catégories */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-text-main">Catégorie</label>
                 <select 
@@ -292,158 +323,103 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
                 >
-                  <option value="">Sélectionner une catégorie</option>
-                  {PRODUCT_CATEGORIES.map((cat, idx) => (
-                    <option key={idx} value={cat.label}>{cat.label}</option>
+                  <option value="">Sélectionnez une catégorie</option>
+                  {PRODUCT_CATEGORIES.map((cat) => (
+                    <option key={cat.label} value={cat.label}>{cat.label}</option>
                   ))}
                   <option value="autre">Autre (personnalisé)</option>
                 </select>
               </div>
 
               {category === "autre" && (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 animate-in fade-in">
                   <label className="text-sm font-bold text-text-main">Catégorie personnalisée</label>
                   <input 
                     type="text" 
                     value={customCategory} 
                     onChange={(e) => setCustomCategory(e.target.value)} 
-                    placeholder="Nom de votre catégorie" 
+                    placeholder="ex: Accessoires artisanaux" 
                     className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
                   />
                 </div>
               )}
+            </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-text-main">Code SKU (Optionnel)</label>
-                <input 
-                  type="text" 
-                  value={sku} 
-                  onChange={(e) => setSku(e.target.value)} 
-                  placeholder="ex: REF-FRIGO-001" 
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
-                />
-              </div>
+            {/* Code SKU Optionnel */}
+            <div className="flex flex-col gap-2 pt-2">
+              <label className="text-sm font-bold text-text-main">Code SKU (Optionnel)</label>
+              <input 
+                type="text" 
+                value={sku} 
+                onChange={(e) => setSku(e.target.value)} 
+                placeholder="ex: REF-ROBE-001" 
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
+              />
             </div>
           </div>
 
-          {/* Card: Tarification et Inventaire / Stock */}
+          {/* Card: Tarification & Stock */}
           <div className="bg-surface p-6 rounded-card border border-gray-100 shadow-soft flex flex-col gap-5">
-            <h3 className="text-lg font-bold text-text-main border-b border-gray-100 pb-3">Prix & Gestion du Stock</h3>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <h3 className="text-lg font-bold text-text-main border-b border-gray-100 pb-3 flex items-center gap-2">
+              <Package size={18} className="text-primary" />
+              <span>Tarification & Gestion des Stocks</span>
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-text-main">Prix de vente (FCFA) *</label>
                 <input 
                   type="number" 
                   value={price} 
                   onChange={(e) => setPrice(e.target.value)} 
-                  placeholder="100000" 
+                  placeholder="ex: 15000" 
                   required 
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-extrabold text-base transition-all"
+                  min="0"
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-bold text-sm transition-all"
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-text-main">Ancien prix / Barré (FCFA)</label>
+                <label className="text-sm font-bold text-text-main">Ancien prix barré (FCFA)</label>
                 <input 
                   type="number" 
                   value={oldPrice} 
                   onChange={(e) => setOldPrice(e.target.value)} 
-                  placeholder="135000" 
+                  placeholder="ex: 20000" 
+                  min="0"
                   className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary font-medium text-sm transition-all"
                 />
               </div>
-            </div>
 
-            {/* Stock Control */}
-            <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-bold text-text-main">Quantité disponible en stock</label>
-                <span className={`text-xs font-extrabold px-2.5 py-1 rounded-lg ${
-                  parseInt(stock) > 5 ? 'bg-emerald-50 text-emerald-700' :
-                  parseInt(stock) > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'
-                }`}>
-                  {parseInt(stock) > 5 ? 'Stock Suffisant' : parseInt(stock) > 0 ? 'Stock Limité 🔥' : 'Rupture de Stock 🚫'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-text-main">Quantité en Stock *</label>
                 <input 
                   type="number" 
-                  min="0"
                   value={stock} 
                   onChange={(e) => setStock(e.target.value)} 
-                  className="w-full sm:w-48 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 font-black text-lg focus:ring-2 focus:ring-primary/50 transition-all"
+                  placeholder="ex: 10" 
+                  required 
+                  min="0"
+                  className="w-full bg-indigo-50/50 border border-indigo-200 text-indigo-950 font-black rounded-xl p-3.5 focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm transition-all"
                 />
-
-                <div className="flex items-center gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => setStock("0")} 
-                    className="text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 py-2.5 px-3.5 rounded-xl border border-red-200 transition-colors"
-                  >
-                    Marquer en Rupture (0)
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setStock((prev) => (parseInt(prev || "0") + 10).toString())} 
-                    className="text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 py-2.5 px-3.5 rounded-xl border border-emerald-200 transition-colors"
-                  >
-                    +10 en stock
-                  </button>
-                </div>
               </div>
-
-              {parseInt(stock) <= 0 && (
-                <p className="text-xs text-red-600 font-bold flex items-center gap-1.5 mt-1">
-                  <AlertTriangle size={14} />
-                  Ce produit apparaîtra comme &quot;Rupture de stock&quot; côté client et les achats seront temporairement désactivés.
-                </p>
-              )}
             </div>
           </div>
+
         </div>
 
-        {/* RIGHT COLUMN: Photo Upload & AI BG Removal */}
+        {/* RIGHT COLUMN: Media & Image AI Studio */}
         <div className="flex flex-col gap-6">
           
-          {/* Card: Statut de publication */}
-          <div className="bg-surface p-6 rounded-card border border-gray-100 shadow-soft flex flex-col gap-4">
-            <h3 className="text-sm font-bold text-text-main uppercase tracking-wider">Statut de la fiche</h3>
-            
-            <div className="flex flex-col gap-2">
-              <label 
-                onClick={() => setStatus("active")}
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  status === "active" ? "border-primary bg-primary/5 text-primary" : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-sm font-extrabold">En ligne (Publié)</span>
-                </div>
-                <input type="radio" name="status" checked={status === "active"} onChange={() => setStatus("active")} className="hidden" />
-              </label>
+          <div className="bg-surface p-6 rounded-card border border-gray-100 shadow-soft flex flex-col gap-5 sticky top-24">
+            <h3 className="text-lg font-bold text-text-main border-b border-gray-100 pb-3 flex items-center justify-between">
+              <span>Photo du Produit</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                <Sparkles size={12} /> Studio IA
+              </span>
+            </h3>
 
-              <label 
-                onClick={() => setStatus("draft")}
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  status === "draft" ? "border-gray-800 bg-gray-100 text-gray-900" : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                  <span className="text-sm font-bold text-gray-700">Brouillon (Masqué)</span>
-                </div>
-                <input type="radio" name="status" checked={status === "draft"} onChange={() => setStatus("draft")} className="hidden" />
-              </label>
-            </div>
-          </div>
-
-          {/* Card: Photo du produit */}
-          <div className="bg-surface p-6 rounded-card border border-gray-100 shadow-soft flex flex-col gap-4">
-            <h3 className="text-sm font-bold text-text-main uppercase tracking-wider">Photo du produit</h3>
-
+            {/* Hidden input file */}
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -452,72 +428,68 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               className="hidden" 
             />
 
-            {!uploadedImage ? (
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-200 hover:border-primary rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors text-center bg-gray-50/50"
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
-                  <UploadCloud size={24} />
-                </div>
-                <span className="text-sm font-bold text-text-main mb-1">Changer la photo</span>
-                <span className="text-xs text-text-muted">PNG, JPG jusqu&apos;à 5MB</span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div 
-                  className="w-full h-64 rounded-2xl border border-gray-200 relative overflow-hidden flex items-center justify-center shadow-inner"
-                  style={{ backgroundColor: selectedBgColor }}
-                >
+            {/* Preview Box */}
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              style={{ backgroundColor: selectedBgColor === "transparent" ? "#f9fafb" : selectedBgColor }}
+              className={`w-full aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer transition-all ${
+                uploadedImage ? "border-gray-200" : "border-gray-300 hover:border-primary bg-gray-50"
+              }`}
+            >
+              {uploadedImage ? (
+                <>
                   <img 
                     src={uploadedImage} 
-                    alt="Aperçu du produit" 
-                    className="w-full h-full object-contain p-2" 
+                    alt="Preview" 
+                    className={`w-full h-full object-contain p-4 transition-all duration-300 ${
+                      hasBgRemoved ? "filter drop-shadow-xl" : ""
+                    }`}
                   />
-
-                  {isRemovingBg && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white p-4">
-                      <Wand2 className="animate-spin mb-2" size={32} />
-                      <span className="text-sm font-bold">Détourage IA en cours...</span>
-                    </div>
-                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-2 backdrop-blur-xs">
+                    <UploadCloud size={16} /> Changer l&apos;image
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-3 text-center p-6">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <UploadCloud size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-text-main">Cliquez pour ajouter une photo</p>
+                  <p className="text-[10px] text-text-muted">PNG, JPG, WEBP jusqu&apos;à 5MB</p>
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center gap-2">
-                  <button 
-                    type="button" 
-                    onClick={handleRemoveBg}
-                    disabled={isRemovingBg || hasBgRemoved}
-                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs py-3 px-3 rounded-xl shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Wand2 size={14} />
-                    {hasBgRemoved ? "Arrière-plan détouré ✨" : "Détourer la photo (IA)"}
-                  </button>
+            {/* IA Détourage rapide */}
+            {uploadedImage && (
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleRemoveBg}
+                  disabled={isRemovingBg}
+                  className="w-full bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200/80 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all"
+                >
+                  {isRemovingBg ? <Loader2 className="animate-spin" size={14} /> : <Wand2 size={14} />}
+                  {isRemovingBg ? "Détourage IA en cours..." : hasBgRemoved ? "Arrière-plan supprimé ✨" : "Détourer l'arrière-plan (IA)"}
+                </button>
 
-                  <button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 text-gray-500 hover:text-primary bg-gray-100 rounded-xl transition-colors"
-                    title="Remplacer l'image"
-                  >
-                    <UploadCloud size={16} />
-                  </button>
-                </div>
-
+                {/* Sélecteur de couleur de fond */}
                 {hasBgRemoved && (
-                  <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
-                    <span className="text-xs font-bold text-gray-700">Couleur d&apos;arrière-plan</span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {bgColors.map((color, i) => (
+                  <div className="flex flex-col gap-2 pt-2 animate-in fade-in">
+                    <label className="text-xs font-bold text-text-muted flex items-center gap-1.5">
+                      <Layers size={14} /> Fond de Studio Produit
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {bgColors.map((bg) => (
                         <button
-                          key={i}
+                          key={bg.value}
                           type="button"
-                          onClick={() => setSelectedBgColor(color.value)}
-                          className={`w-7 h-7 rounded-full border ${color.border} flex items-center justify-center transition-transform ${
-                            selectedBgColor === color.value ? "scale-125 ring-2 ring-primary" : ""
+                          onClick={() => setSelectedBgColor(bg.value)}
+                          className={`w-7 h-7 rounded-full border ${bg.border} shadow-xs transition-transform ${
+                            selectedBgColor === bg.value ? "scale-125 ring-2 ring-primary ring-offset-2" : "hover:scale-110"
                           }`}
-                          style={{ backgroundColor: color.value === "transparent" ? "#ffffff" : color.value }}
-                          title={color.name}
+                          style={{ backgroundColor: bg.value === "transparent" ? "#ffffff" : bg.value }}
+                          title={bg.name}
                         />
                       ))}
                     </div>
@@ -525,10 +497,22 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
             )}
+
+            <button 
+              type="submit"
+              disabled={isSaving}
+              className="w-full bg-primary hover:bg-indigo-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-primary/30 text-sm flex items-center justify-center gap-2 transition-all mt-2"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+              {isSaving ? "Enregistrement..." : (isAlreadyApproved ? "Enregistrer les modifications" : "Soumettre les modifications")}
+            </button>
+
           </div>
+
         </div>
 
       </form>
+
     </div>
   );
 }

@@ -67,7 +67,7 @@ export default function NewProductPage() {
           category: category === "autre" ? (customCategory.trim() || "Autre") : category,
           stock_quantity: parseInt(stock) || 0,
           sku,
-          status: 'pending_review',
+          status: 'active',
           moderation_status: 'pending_review',
         })
         .select('id')
