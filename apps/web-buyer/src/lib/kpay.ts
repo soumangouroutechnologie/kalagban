@@ -62,8 +62,6 @@ export async function initKPayPayment(options: KPayInitOptions): Promise<KPayIni
     description: options.description || `Commande Kalagban #${options.externalId}`,
   };
 
-  if (options.customerName) payload.customerName = options.customerName;
-  if (options.customerEmail) payload.customerEmail = options.customerEmail;
   if (options.metadata) payload.metadata = options.metadata;
 
   const res = await fetch(`${KPAY_BASE_URL}/api/v1/payments/init`, {

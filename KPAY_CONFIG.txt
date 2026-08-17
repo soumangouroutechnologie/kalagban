@@ -1,0 +1,44 @@
+================================================================================
+           KALAGBAN MARKETPLACE - CONFIGURATION DU PAIEMENT K-PAY
+================================================================================
+
+📌 DANS QUELLE APPLICATION COLLER CES VARIABLES ?
+--------------------------------------------------------------------------------
+👉 1. APPLICATION PRINCIPALE : "web-buyer" (sur Vercel / local)
+   C'est l'application Acheteur qui encaisse les paiements sur https://www.kalagban.com
+
+👉 2. APPLICATION SECONDAIRE : "web-admin" (sur Vercel / local)
+   C'est l'administration qui supervise les finances sur https://admin.kalagban.com
+
+
+📋 BLOC DE VARIABLES D'ENVIRONNEMENT À COPIER-COLLER :
+--------------------------------------------------------------------------------
+KPAY_API_KEY=kpay_test_84fce610c127bfe041adf9ac1b634ea9bd925e25158f6ff2
+KPAY_SECRET_KEY=0d61e7e74355c245d110ceb8fdaca6ee5bd03c3b3f9b70271d4eb918766647ec
+KPAY_WEBHOOK_SECRET=cf16cac80e311396df832215867389885b825e128358f6b36102b75274dfc9cb
+KPAY_BASE_URL=https://admin.kpay.site
+
+
+🌐 URLs DE CALLBACK CONFIGURÉES DANS LE TABLEAU DE BORD K-PAY :
+--------------------------------------------------------------------------------
+• URL de callback générique :
+  https://www.kalagban.com/api/webhooks/kpay
+
+• URL de callback dépôts (Paiements clients) :
+  https://www.kalagban.com/api/webhooks/kpay
+
+• URL de callback retraits (Versements marchands) :
+  https://www.kalagban.com/api/webhooks/kpay
+
+• URL de callback remboursements :
+  https://www.kalagban.com/api/webhooks/kpay
+
+
+🧪 DONNÉES DE TEST EN SANDBOX (À UTILISER SUR LA PAGE K-PAY) :
+--------------------------------------------------------------------------------
+• Carte Visa (Succès)      : 4242 4242 4242 4242 (Expiration future, CVC: 123)
+• Carte Mastercard (Succès): 5555 5555 5555 4444 (Expiration future, CVC: 123)
+• Mobile Money (Succès)    : 653456789
+• PayPal (Succès)          : success@paypal.test (Mot de passe: sandbox123)
+
+================================================================================
