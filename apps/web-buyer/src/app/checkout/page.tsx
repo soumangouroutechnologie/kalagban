@@ -12,13 +12,14 @@ import { supabase } from "@/lib/supabase";
 import { 
   ArrowLeft, 
   ShoppingBag, 
-  CheckCircle2, 
   User, 
   MapPin, 
   Loader2, 
   Lock,
   UserCheck,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  ShieldCheck
 } from "lucide-react";
 
 export default function CheckoutPage() {
@@ -31,7 +32,7 @@ export default function CheckoutPage() {
   const [city, setCity] = useState("Abidjan");
   const [district, setDistrict] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cod"); // 'cod' | 'wave' | 'orange' | 'mtn'
+  const [paymentMethod, setPaymentMethod] = useState("kpay"); // 'kpay' | 'cod'
   const [deliveryType, setDeliveryType] = useState<"home_delivery" | "pickup_point">("home_delivery");
   const [selectedCommune, setSelectedCommune] = useState("Cocody");
   const [selectedRelayId, setSelectedRelayId] = useState("");
@@ -130,10 +131,12 @@ export default function CheckoutPage() {
       });
 
       let lastOrderId = "";
+      let grandTotal = 0;
 
       for (const [shopId, items] of Object.entries(shopGroups)) {
         const groupSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
         const feeCalc = calculateApplicationFee(groupSubtotal, 0);
+        grandTotal += feeCalc.total;
 
         const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
         const selectedRelay = availableRelays.find(r => (r.code || r.id) === selectedRelayId || r.id === selectedRelayId);
@@ -200,13 +203,41 @@ export default function CheckoutPage() {
         }
       }
 
-      // Success
+      // Online Payment via K-PAY
+      if (paymentMethod === "kpay") {
+        const payRes = await fetch("/api/payments/kpay/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: lastOrderId,
+            amount: grandTotal,
+            customerName,
+            customerPhone,
+            customerEmail: session.user.email,
+            redirectBaseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+          }),
+        });
+
+        const payData = await payRes.json();
+
+        if (!payRes.ok || !payData.gatewayUrl) {
+          throw new Error(payData.error || "Impossible d'initialiser la passerelle de paiement K-PAY.");
+        }
+
+        // Clear cart and redirect to K-PAY hosted page
+        clearCart();
+        window.location.href = payData.gatewayUrl;
+        return;
+      }
+
+      // Cash on Delivery
       clearCart();
       router.push(`/orders/${lastOrderId}`);
 
     } catch (err: unknown) {
       console.error("Checkout Exception:", err);
-      setErrorMsg("Une erreur inattendue est survenue.");
+      const msg = err instanceof Error ? err.message : "Une erreur inattendue est survenue.";
+      setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -481,39 +512,77 @@ export default function CheckoutPage() {
 
               {/* Section 3: Payment Method */}
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-5">
-                <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                    <CheckCircle2 size={20} />
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                      <CreditCard size={20} />
+                    </div>
+                    <h3 className="text-lg font-black text-gray-900">Mode de paiement</h3>
                   </div>
-                  <h3 className="text-lg font-black text-gray-900">Mode de paiement</h3>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <ShieldCheck size={12} /> 100% Sécurisé
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3.5">
+                  {/* Option 1: K-PAY Online Instant Payment (Recommended) */}
                   <label 
-                    onClick={() => setPaymentMethod("cod")}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 cursor-pointer transition-all ${
-                      paymentMethod === "cod" ? "border-indigo-600 bg-indigo-50/50 text-indigo-900" : "border-gray-200 hover:bg-gray-50"
+                    onClick={() => setPaymentMethod("kpay")}
+                    className={`p-5 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer transition-all ${
+                      paymentMethod === "kpay" 
+                        ? "border-indigo-600 bg-indigo-50/40 text-indigo-950 shadow-sm ring-2 ring-indigo-600/10" 
+                        : "border-gray-200 hover:bg-gray-50/70 text-gray-800"
                     }`}
                   >
-                    <input type="radio" name="payment" checked={paymentMethod === "cod"} onChange={() => setPaymentMethod("cod")} className="hidden" />
-                    <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">💵</div>
-                    <div>
-                      <h4 className="font-extrabold text-sm">Paiement à la livraison</h4>
-                      <p className="text-xs text-gray-500 font-medium">Espèces ou Mobile Money à la réception</p>
+                    <input type="radio" name="payment" checked={paymentMethod === "kpay"} onChange={() => setPaymentMethod("kpay")} className="hidden" />
+                    
+                    <div className="flex items-start sm:items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-md shadow-indigo-600/20">
+                        ⚡
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-black text-sm text-gray-900">Paiement en ligne sécurisé (K-PAY)</h4>
+                          <span className="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Recommandé
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium">
+                          Wave, Orange Money, MTN MoMo, Moov, Carte Visa / Mastercard, PayPal
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Payment Provider Badges */}
+                    <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-200 text-[10px] font-extrabold">🌊 Wave</span>
+                      <span className="px-2 py-0.5 rounded-md bg-orange-50 text-orange-800 border border-orange-200 text-[10px] font-extrabold">🟠 Orange</span>
+                      <span className="px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-800 border border-yellow-200 text-[10px] font-extrabold">🟡 MTN</span>
+                      <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-extrabold">💳 CB / Visa</span>
                     </div>
                   </label>
 
+                  {/* Option 2: Cash / Mobile Money on Delivery */}
                   <label 
-                    onClick={() => setPaymentMethod("wave")}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 cursor-pointer transition-all ${
-                      paymentMethod === "wave" ? "border-indigo-600 bg-indigo-50/50 text-indigo-900" : "border-gray-200 hover:bg-gray-50"
+                    onClick={() => setPaymentMethod("cod")}
+                    className={`p-5 rounded-2xl border-2 flex items-center justify-between gap-4 cursor-pointer transition-all ${
+                      paymentMethod === "cod" 
+                        ? "border-indigo-600 bg-indigo-50/40 text-indigo-950 shadow-sm ring-2 ring-indigo-600/10" 
+                        : "border-gray-200 hover:bg-gray-50/70 text-gray-800"
                     }`}
                   >
-                    <input type="radio" name="payment" checked={paymentMethod === "wave"} onChange={() => setPaymentMethod("wave")} className="hidden" />
-                    <div className="w-8 h-8 rounded-full bg-cyan-500 text-white flex items-center justify-center font-bold text-xs">🌊</div>
-                    <div>
-                      <h4 className="font-extrabold text-sm">Wave / Mobile Money</h4>
-                      <p className="text-xs text-gray-500 font-medium">Paiement direct à la livraison</p>
+                    <input type="radio" name="payment" checked={paymentMethod === "cod"} onChange={() => setPaymentMethod("cod")} className="hidden" />
+                    
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        💵
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="font-black text-sm text-gray-900">Paiement à la livraison</h4>
+                        <p className="text-xs text-gray-500 font-medium">
+                          Espèces ou Mobile Money lors de la réception du colis par le livreur
+                        </p>
+                      </div>
                     </div>
                   </label>
                 </div>
@@ -523,14 +592,26 @@ export default function CheckoutPage() {
               <button
                 type="submit"
                 disabled={isSubmitting || !user}
-                className="w-full bg-gray-900 text-white font-extrabold py-5 px-8 rounded-2xl hover:bg-indigo-600 transition-all shadow-xl shadow-gray-900/10 flex items-center justify-center gap-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`w-full font-black py-5 px-8 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-3 text-base disabled:opacity-50 disabled:cursor-not-allowed ${
+                  paymentMethod === "kpay" 
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/25" 
+                    : "bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/15"
+                }`}
               >
                 {isSubmitting ? (
                   <Loader2 className="animate-spin" size={20} />
+                ) : paymentMethod === "kpay" ? (
+                  <Lock size={20} />
                 ) : (
                   <UserCheck size={20} />
                 )}
-                {isSubmitting ? "Traitement de la commande..." : !user ? "Connectez-vous pour valider" : "Valider et payer ma commande"}
+                {isSubmitting 
+                  ? "Initialisation du paiement sécurisé..." 
+                  : !user 
+                    ? "Connectez-vous pour valider" 
+                    : paymentMethod === "kpay"
+                      ? "Payer en ligne avec K-PAY"
+                      : "Valider ma commande (Paiement à réception)"}
               </button>
 
             </form>
