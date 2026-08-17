@@ -141,8 +141,9 @@ export default function AdminRelaysPage() {
   useEffect(() => {
     fetchRelays();
 
+    const channelId = `admin_relays_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel("admin_relays_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
       .subscribe();
 

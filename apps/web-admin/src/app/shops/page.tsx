@@ -118,8 +118,9 @@ export default function AdminShopsPage() {
   useEffect(() => {
     fetchShops();
 
+    const channelId = `admin_shops_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel("admin_shops_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => fetchShops())
       .on("postgres_changes", { event: "*", schema: "public", table: "seller_certifications" }, () => fetchShops())
       .subscribe();

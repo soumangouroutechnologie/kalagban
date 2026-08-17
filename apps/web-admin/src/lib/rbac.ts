@@ -439,8 +439,9 @@ export function useAdminAuth() {
   useEffect(() => {
     fetchAuth();
 
+    const channelId = `admin_auth_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel("admin_auth_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_permissions" }, () => fetchAuth())
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => fetchAuth())
       .subscribe();

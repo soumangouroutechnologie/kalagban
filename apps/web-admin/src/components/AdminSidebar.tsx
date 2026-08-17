@@ -79,8 +79,9 @@ export default function AdminSidebar() {
 
     fetchCounters();
 
+    const channelId = `sidebar_counters_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel("sidebar_counters_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "logistics_incidents" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchCounters())
