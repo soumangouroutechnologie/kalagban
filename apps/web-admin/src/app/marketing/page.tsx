@@ -75,36 +75,7 @@ export default function MarketingPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (coupData && coupData.length > 0) {
-        setCoupons(coupData);
-      } else {
-        setCoupons([
-          {
-            id: "coup-1",
-            code: "BIENVENUE10",
-            discount_type: "percentage",
-            discount_value: 10,
-            min_order_amount: 15000,
-            usage_limit: 500,
-            used_count: 84,
-            starts_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 60 * 86400000).toISOString(),
-            is_active: true,
-          },
-          {
-            id: "coup-2",
-            code: "MODE2026",
-            discount_type: "fixed_amount",
-            discount_value: 2000,
-            min_order_amount: 25000,
-            usage_limit: 200,
-            used_count: 112,
-            starts_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 15 * 86400000).toISOString(),
-            is_active: true,
-          },
-        ]);
-      }
+      setCoupons(coupData || []);
 
       // 2. Fetch Campaigns
       const { data: campData } = await supabase
@@ -112,24 +83,7 @@ export default function MarketingPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (campData && campData.length > 0) {
-        setCampaigns(campData);
-      } else {
-        setCampaigns([
-          {
-            id: "camp-1",
-            title: "Semaine des Créateurs d'Abidjan",
-            description: "Campagne multi-canal mettant en avant les artisans et couturiers ivoiriens certifiés.",
-            target_audience: "Tous les acheteurs",
-            channel: "Bannière + Push Mobile",
-            status: "active",
-            impressions_count: 14200,
-            clicks_count: 1840,
-            conversions_count: 248,
-            starts_at: new Date().toISOString(),
-          },
-        ]);
-      }
+      setCampaigns(campData || []);
     } catch (err) {
       console.error("Error fetching marketing data:", err);
     } finally {
@@ -230,96 +184,122 @@ export default function MarketingPage() {
 
       {/* TAB 1: Coupons */}
       {activeTab === "coupons" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {coupons.map((coupon) => (
-            <div key={coupon.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4 flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-base px-3 py-1 bg-pink-50 text-pink-700 rounded-xl border border-pink-200">
-                      {coupon.code}
+        coupons.length === 0 ? (
+          <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
+            <Ticket className="mx-auto text-gray-300 w-12 h-12" />
+            <p className="text-sm font-extrabold text-gray-700">Aucun code promo créé pour l&apos;instant</p>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              Créez des codes promotionnels pour stimuler les ventes et fidéliser vos acheteurs.
+            </p>
+            <button
+              onClick={() => setShowAddCouponModal(true)}
+              className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              + Créer un premier code promo
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {coupons.map((coupon) => (
+              <div key={coupon.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-base px-3 py-1 bg-pink-50 text-pink-700 rounded-xl border border-pink-200">
+                        {coupon.code}
+                      </span>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      coupon.is_active ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {coupon.is_active ? "Actif 🟢" : "Désactivé ⚪"}
                     </span>
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    coupon.is_active ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-500"
-                  }`}>
-                    {coupon.is_active ? "Actif 🟢" : "Désactivé ⚪"}
-                  </span>
+
+                  <div className="space-y-1">
+                    <div className="text-2xl font-black text-gray-900">
+                      {coupon.discount_type === "percentage" ? `-${coupon.discount_value}%` : `-${coupon.discount_value.toLocaleString()} FCFA`}
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Dès {coupon.min_order_amount.toLocaleString()} FCFA d&apos;achat
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded-2xl space-y-1 text-xs">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Utilisations :</span>
+                      <span className="font-bold text-gray-900">{coupon.used_count} / {coupon.usage_limit}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Expiration :</span>
+                      <span className="font-bold text-gray-700">
+                        {new Date(coupon.expires_at).toLocaleDateString("fr-FR")}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="text-2xl font-black text-gray-900">
-                    {coupon.discount_type === "percentage" ? `-${coupon.discount_value}%` : `-${coupon.discount_value.toLocaleString()} FCFA`}
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium">
-                    Dès {coupon.min_order_amount.toLocaleString()} FCFA d&apos;achat
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 p-3 rounded-2xl space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Utilisations :</span>
-                    <span className="font-bold text-gray-900">{coupon.used_count} / {coupon.usage_limit}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Expiration :</span>
-                    <span className="font-bold text-gray-700">
-                      {new Date(coupon.expires_at).toLocaleDateString("fr-FR")}
-                    </span>
-                  </div>
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <button
+                    onClick={() => handleToggleCoupon(coupon)}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
+                      coupon.is_active ? "bg-red-50 text-red-700 hover:bg-red-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    }`}
+                  >
+                    {coupon.is_active ? "Désactiver" : "Activer"}
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                <button
-                  onClick={() => handleToggleCoupon(coupon)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
-                    coupon.is_active ? "bg-red-50 text-red-700 hover:bg-red-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  }`}
-                >
-                  {coupon.is_active ? "Désactiver" : "Activer"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* TAB 2: Campaigns */}
       {activeTab === "campaigns" && (
-        <div className="space-y-4">
-          {campaigns.map((camp) => (
-            <div key={camp.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-                    {camp.channel}
+        campaigns.length === 0 ? (
+          <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
+            <Megaphone className="mx-auto text-gray-300 w-12 h-12" />
+            <p className="text-sm font-extrabold text-gray-700">Aucune campagne en cours</p>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              Planifiez vos campagnes marketing pour booster la notoriété et les ventes.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {campaigns.map((camp) => (
+              <div key={camp.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                      {camp.channel}
+                    </span>
+                    <h3 className="font-extrabold text-base text-gray-900 mt-1">{camp.title}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{camp.description}</p>
+                  </div>
+                  <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-black border border-emerald-200">
+                    En Cours 🟢
                   </span>
-                  <h3 className="font-extrabold text-base text-gray-900 mt-1">{camp.title}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{camp.description}</p>
                 </div>
-                <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-black border border-emerald-200">
-                  En Cours 🟢
-                </span>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="bg-gray-50 p-4 rounded-2xl">
-                  <span className="text-[10px] font-black text-gray-400 uppercase">Impressions Vues</span>
-                  <p className="text-xl font-black text-gray-900 mt-1">{camp.impressions_count.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-2xl">
-                  <span className="text-[10px] font-black text-gray-400 uppercase">Clics Générés</span>
-                  <p className="text-xl font-black text-indigo-600 mt-1">{camp.clicks_count.toLocaleString()}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-2xl">
-                  <span className="text-[10px] font-black text-gray-400 uppercase">Commandes Finalisées</span>
-                  <p className="text-xl font-black text-emerald-600 mt-1">{camp.conversions_count.toLocaleString()}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <span className="text-[10px] font-black text-gray-400 uppercase">Impressions Vues</span>
+                    <p className="text-xl font-black text-gray-900 mt-1">{camp.impressions_count.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <span className="text-[10px] font-black text-gray-400 uppercase">Clics Générés</span>
+                    <p className="text-xl font-black text-indigo-600 mt-1">{camp.clicks_count.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-2xl">
+                    <span className="text-[10px] font-black text-gray-400 uppercase">Commandes Finalisées</span>
+                    <p className="text-xl font-black text-emerald-600 mt-1">{camp.conversions_count.toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* MODAL: Add Coupon */}

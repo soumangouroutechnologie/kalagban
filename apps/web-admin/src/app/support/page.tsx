@@ -69,52 +69,10 @@ export default function SupportPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setTickets(data);
       } else {
-        // High quality seed data
-        setTickets([
-          {
-            id: "t-1",
-            ticket_code: "TCK-9281",
-            subject: "Question sur le délai de livraison Point Relais Cocody",
-            user_type: "buyer",
-            user_name: "Adjoua Marie",
-            user_phone: "+225 07 88 99 11 22",
-            user_email: "marie.adjoua@gmail.com",
-            order_code: "KB-84920",
-            category: "delivery",
-            priority: "medium",
-            status: "open",
-            created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-          },
-          {
-            id: "t-2",
-            ticket_code: "TCK-9280",
-            subject: "Demande de remboursement - Article non conforme",
-            user_type: "buyer",
-            user_name: "Koffi Serge",
-            user_phone: "+225 01 44 33 22 11",
-            order_code: "KB-83710",
-            category: "refund",
-            priority: "urgent",
-            status: "in_progress",
-            assigned_admin: "Support Kalagban",
-            created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
-          },
-          {
-            id: "t-3",
-            ticket_code: "TCK-9275",
-            subject: "Validation de compte marchand certifié",
-            user_type: "seller",
-            user_name: "Boutique Tissages d'Or",
-            user_phone: "+225 05 12 34 56 78",
-            category: "account",
-            priority: "low",
-            status: "resolved",
-            created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
-          },
-        ]);
+        setTickets([]);
       }
     } catch (err) {
       console.error("Error fetching tickets:", err);
@@ -318,38 +276,47 @@ export default function SupportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTickets.map((ticket) => (
-                <tr key={ticket.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="py-4 px-5">
-                    <span className="font-mono font-black text-indigo-600">{ticket.ticket_code}</span>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{ticket.category}</p>
-                  </td>
-                  <td className="py-4 px-5 max-w-sm">
-                    <p className="font-extrabold text-gray-900 text-xs">{ticket.subject}</p>
-                    {ticket.order_code && (
-                      <p className="text-[10px] font-mono text-gray-400 mt-0.5">Commande: {ticket.order_code}</p>
-                    )}
-                  </td>
-                  <td className="py-4 px-5">
-                    <p className="font-bold text-gray-900">{ticket.user_name}</p>
-                    <p className="text-[11px] text-gray-500">{ticket.user_phone || ticket.user_email || "N/A"}</p>
-                  </td>
-                  <td className="py-4 px-5">
-                    <div className="flex items-center gap-2">
-                      {getPriorityBadge(ticket.priority)}
-                      {getStatusBadge(ticket.status)}
-                    </div>
-                  </td>
-                  <td className="py-4 px-5 text-center">
-                    <button
-                      onClick={() => handleOpenConversation(ticket)}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 mx-auto cursor-pointer"
-                    >
-                      <MessageSquare size={14} /> Répondre
-                    </button>
+              {filteredTickets.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-xs text-gray-400 font-medium">
+                    <p className="font-bold text-gray-700 text-sm mb-1">Aucune réclamation ou ticket d&apos;assistance</p>
+                    <p>Les demandes d&apos;aide des acheteurs et vendeurs apparaîtront ici en temps réel.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredTickets.map((ticket) => (
+                  <tr key={ticket.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-4 px-5">
+                      <span className="font-mono font-black text-indigo-600">{ticket.ticket_code}</span>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{ticket.category}</p>
+                    </td>
+                    <td className="py-4 px-5 max-w-sm">
+                      <p className="font-extrabold text-gray-900 text-xs">{ticket.subject}</p>
+                      {ticket.order_code && (
+                        <p className="text-[10px] font-mono text-gray-400 mt-0.5">Commande: {ticket.order_code}</p>
+                      )}
+                    </td>
+                    <td className="py-4 px-5">
+                      <p className="font-bold text-gray-900">{ticket.user_name}</p>
+                      <p className="text-[11px] text-gray-500">{ticket.user_phone || ticket.user_email || "N/A"}</p>
+                    </td>
+                    <td className="py-4 px-5">
+                      <div className="flex items-center gap-2">
+                        {getPriorityBadge(ticket.priority)}
+                        {getStatusBadge(ticket.status)}
+                      </div>
+                    </td>
+                    <td className="py-4 px-5 text-center">
+                      <button
+                        onClick={() => handleOpenConversation(ticket)}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 mx-auto cursor-pointer"
+                      >
+                        <MessageSquare size={14} /> Répondre
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

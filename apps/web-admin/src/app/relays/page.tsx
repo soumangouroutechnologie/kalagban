@@ -164,40 +164,7 @@ export default function AdminRelaysPage() {
         .eq("pickup_point_id", relay.id)
         .order("deposited_at", { ascending: false });
 
-      // If empty in database, mock initial sample inventory from real orders or seeds
-      if (invData && invData.length > 0) {
-        setRelayInventory(invData);
-      } else {
-        // Sample active items for high-fidelity demonstration
-        setRelayInventory([
-          {
-            id: "pkg-1",
-            order_code: "KB-84920",
-            customer_name: "Kouamé Amenan",
-            customer_phone: "+225 07 12 34 56 78",
-            seller_name: "Atelier Kente Prestige",
-            seller_phone: "+225 05 98 76 54 32",
-            deposited_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-            status: "in_stock",
-            max_retention_days: 5,
-            is_overdue: false,
-            otp_code: "4819",
-          },
-          {
-            id: "pkg-2",
-            order_code: "KB-84711",
-            customer_name: "Yao Franck",
-            customer_phone: "+225 01 44 55 66 77",
-            seller_name: "Boutique Wax Ivoire",
-            seller_phone: "+225 07 88 99 00 11",
-            deposited_at: new Date(Date.now() - 6 * 86400000).toISOString(),
-            status: "overdue",
-            max_retention_days: 5,
-            is_overdue: true,
-            otp_code: "9321",
-          },
-        ]);
-      }
+      setRelayInventory(invData || []);
 
       // 2. Fetch live logs
       const { data: logData } = await supabase
@@ -205,30 +172,9 @@ export default function AdminRelaysPage() {
         .select("*")
         .eq("pickup_point_id", relay.id)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(20);
 
-      if (logData && logData.length > 0) {
-        setRelayLogs(logData);
-      } else {
-        setRelayLogs([
-          {
-            id: "log-1",
-            action_type: "deposit",
-            order_code: "KB-84920",
-            customer_name: "Kouamé Amenan",
-            created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-            commission_earned: 300,
-          },
-          {
-            id: "log-2",
-            action_type: "pickup",
-            order_code: "KB-83902",
-            customer_name: "Bamba Sekou",
-            created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
-            commission_earned: 300,
-          },
-        ]);
-      }
+      setRelayLogs(logData || []);
     } catch (err) {
       console.error("Error loading relay cockpit:", err);
     } finally {
@@ -426,6 +372,11 @@ export default function AdminRelaysPage() {
                 <div className="py-12 text-center text-xs text-gray-400 font-bold animate-pulse">
                   Synchronisation du stock en direct...
                 </div>
+              ) : relayInventory.length === 0 ? (
+                <div className="py-12 text-center text-xs text-gray-400 font-medium space-y-1">
+                  <p className="font-bold text-gray-700">Aucun colis en stock dans ce point relais</p>
+                  <p className="text-[11px]">Le casier virtuel se remplira automatiquement dès qu&apos;un livreur effectuera un dépôt.</p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-gray-600">
@@ -482,24 +433,30 @@ export default function AdminRelaysPage() {
               </div>
 
               <div className="space-y-3 max-h-100 overflow-y-auto pr-1">
-                {relayLogs.map((log) => (
-                  <div key={log.id} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className={`font-black uppercase px-2 py-0.5 rounded-md ${
-                        log.action_type === "deposit"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-emerald-100 text-emerald-800"
-                      }`}>
-                        {log.action_type === "deposit" ? "📥 Dépôt Livreur" : "📤 Retrait Client (OTP)"}
-                      </span>
-                      <span className="text-gray-400 font-medium">
-                        {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-gray-800 mt-1">Colis: {log.order_code}</p>
-                    <p className="text-[11px] text-gray-500">Bénéficiaire : {log.customer_name}</p>
+                {relayLogs.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-gray-400 font-medium">
+                    Aucun scan enregistré aujourd&apos;hui.
                   </div>
-                ))}
+                ) : (
+                  relayLogs.map((log) => (
+                    <div key={log.id} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className={`font-black uppercase px-2 py-0.5 rounded-md ${
+                          log.action_type === "deposit"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}>
+                          {log.action_type === "deposit" ? "📥 Dépôt Livreur" : "📤 Retrait Client (OTP)"}
+                        </span>
+                        <span className="text-gray-400 font-medium">
+                          {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-800 mt-1">Colis: {log.order_code}</p>
+                      <p className="text-[11px] text-gray-500">Bénéficiaire : {log.customer_name}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

@@ -56,50 +56,10 @@ export default function RiskPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setAlerts(data);
       } else {
-        // High fidelity security seeds
-        setAlerts([
-          {
-            id: "risk-1",
-            alert_type: "failed_otp_bruteforce",
-            severity: "critical",
-            target_entity_type: "relay_point",
-            target_entity_id: "RELAY-YOP-002",
-            target_entity_label: "Point Relais Yopougon Maroc",
-            description: "5 tentatives consécutives de code OTP erroné détectées. Système anti-bruteforce déclenché.",
-            risk_score: 95,
-            status: "open",
-            created_at: new Date(Date.now() - 35 * 60000).toISOString(),
-          },
-          {
-            id: "risk-2",
-            alert_type: "velocity_abuse",
-            severity: "high",
-            target_entity_type: "user",
-            target_entity_id: "usr_94821",
-            target_entity_label: "Compte Client (+225 07 00 11 22)",
-            description: "6 commandes créées en moins de 2 minutes avec des adresses de livraison différentes.",
-            risk_score: 82,
-            status: "investigating",
-            investigated_by: "Sécurité Kalagban",
-            created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
-          },
-          {
-            id: "risk-3",
-            alert_type: "counterfeit_flag",
-            severity: "medium",
-            target_entity_type: "shop",
-            target_entity_id: "shop_4821",
-            target_entity_label: "Boutique Prestige Luxe",
-            description: "Signalement d'acheteur pour suspicion de contrefaçon sur un article.",
-            risk_score: 60,
-            status: "resolved",
-            action_taken: "Fiche produit retirée et commerçant rappelé à l'ordre.",
-            created_at: new Date(Date.now() - 28 * 3600000).toISOString(),
-          },
-        ]);
+        setAlerts([]);
       }
     } catch (err) {
       console.error("Error fetching risk alerts:", err);
@@ -253,65 +213,74 @@ export default function RiskPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredAlerts.map((alert) => (
-                <tr key={alert.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="py-4 px-5">
-                    <div className="space-y-1">
-                      {getSeverityBadge(alert.severity)}
-                      <div className="text-[10px] font-bold text-gray-500">
-                        Score Risque: <span className="font-black text-red-600">{alert.risk_score}/100</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-5 font-bold text-gray-900 capitalize">
-                    {alert.alert_type.replace(/_/g, " ")}
-                  </td>
-
-                  <td className="py-4 px-5">
-                    <p className="font-bold text-gray-900">{alert.target_entity_label || alert.target_entity_id}</p>
-                    <span className="text-[10px] text-gray-400 font-mono uppercase">{alert.target_entity_type}</span>
-                  </td>
-
-                  <td className="py-4 px-5 max-w-sm">
-                    <p className="text-xs text-gray-600">{alert.description}</p>
-                    {alert.action_taken && (
-                      <p className="text-[10px] text-emerald-700 bg-emerald-50 p-1.5 rounded-lg mt-1 font-medium">
-                        Action : {alert.action_taken}
-                      </p>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-5">
-                    {alert.status === "account_frozen" ? (
-                      <span className="bg-red-500 text-white font-bold px-2.5 py-0.5 rounded-full text-[10px]">
-                        Compte Gelé ⛔
-                      </span>
-                    ) : alert.status === "resolved" ? (
-                      <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full text-[10px]">
-                        Résolu ✅
-                      </span>
-                    ) : alert.status === "investigating" ? (
-                      <span className="bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full text-[10px]">
-                        En Examen 🔍
-                      </span>
-                    ) : (
-                      <span className="bg-red-100 text-red-800 font-bold px-2.5 py-0.5 rounded-full text-[10px] animate-pulse">
-                        Non Traité 🔴
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-5 text-center">
-                    <button
-                      onClick={() => setSelectedAlert(alert)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                    >
-                      Intervenir
-                    </button>
+              {filteredAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-xs text-gray-400 font-medium">
+                    <p className="font-bold text-gray-700 text-sm mb-1">Aucune anomalie ou alerte de fraude active</p>
+                    <p>La sécurité et la protection anti-bruteforce veillent sur les transactions en temps réel.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredAlerts.map((alert) => (
+                  <tr key={alert.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-4 px-5">
+                      <div className="space-y-1">
+                        {getSeverityBadge(alert.severity)}
+                        <div className="text-[10px] font-bold text-gray-500">
+                          Score Risque: <span className="font-black text-red-600">{alert.risk_score}/100</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-5 font-bold text-gray-900 capitalize">
+                      {alert.alert_type.replace(/_/g, " ")}
+                    </td>
+
+                    <td className="py-4 px-5">
+                      <p className="font-bold text-gray-900">{alert.target_entity_label || alert.target_entity_id}</p>
+                      <span className="text-[10px] text-gray-400 font-mono uppercase">{alert.target_entity_type}</span>
+                    </td>
+
+                    <td className="py-4 px-5 max-w-sm">
+                      <p className="text-xs text-gray-600">{alert.description}</p>
+                      {alert.action_taken && (
+                        <p className="text-[10px] text-emerald-700 bg-emerald-50 p-1.5 rounded-lg mt-1 font-medium">
+                          Action : {alert.action_taken}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="py-4 px-5">
+                      {alert.status === "account_frozen" ? (
+                        <span className="bg-red-500 text-white font-bold px-2.5 py-0.5 rounded-full text-[10px]">
+                          Compte Gelé ⛔
+                        </span>
+                      ) : alert.status === "resolved" ? (
+                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full text-[10px]">
+                          Résolu ✅
+                        </span>
+                      ) : alert.status === "investigating" ? (
+                        <span className="bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full text-[10px]">
+                          En Examen 🔍
+                        </span>
+                      ) : (
+                        <span className="bg-red-100 text-red-800 font-bold px-2.5 py-0.5 rounded-full text-[10px] animate-pulse">
+                          Non Traité 🔴
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="py-4 px-5 text-center">
+                      <button
+                        onClick={() => setSelectedAlert(alert)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                      >
+                        Intervenir
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

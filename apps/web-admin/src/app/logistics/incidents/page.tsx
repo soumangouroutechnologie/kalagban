@@ -65,46 +65,10 @@ export default function LogisticsIncidentsPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setIncidents(data);
       } else {
-        // High fidelity sample data
-        setIncidents([
-          {
-            id: "inc-1",
-            incident_type: "retard",
-            severity: "medium",
-            status: "open",
-            order_code: "KB-84920",
-            title: "Retard de livraison - Embouteillages Pont HKB",
-            description: "Le livreur signale un ralentissement majeur sur l'axe Cocody -> Marcory.",
-            reported_by: "Mamadou Koné (Livreur)",
-            created_at: new Date(Date.now() - 45 * 60000).toISOString(),
-          },
-          {
-            id: "inc-2",
-            incident_type: "relais_sature",
-            severity: "high",
-            status: "investigating",
-            title: "Point Relais Angré proche de la saturation (92%)",
-            description: "Afflux de dépôts de colis créateurs de mode avant le week-end.",
-            reported_by: "Système Automatique",
-            created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
-          },
-          {
-            id: "inc-3",
-            incident_type: "erreur_adresse",
-            severity: "low",
-            status: "resolved",
-            order_code: "KB-83110",
-            title: "Numéro de téléphone client corrigé",
-            description: "Le client a mis à jour son numéro de contact pour la réception OTP.",
-            resolution_notes: "Numéro synchronisé sur la commande, retrait validé avec succès.",
-            resolved_at: new Date(Date.now() - 24 * 3600000).toISOString(),
-            reported_by: "Support Kalagban",
-            created_at: new Date(Date.now() - 30 * 3600000).toISOString(),
-          },
-        ]);
+        setIncidents([]);
       }
     } catch (err) {
       console.error("Error fetching incidents:", err);
@@ -276,53 +240,62 @@ export default function LogisticsIncidentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredIncidents.map((inc) => (
-                <tr key={inc.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="py-4 px-5">
-                    <div className="space-y-1">
-                      {getSeverityBadge(inc.severity)}
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">{inc.incident_type}</p>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-5 max-w-sm">
-                    <h4 className="font-extrabold text-gray-900 text-xs">{inc.title}</h4>
-                    <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{inc.description}</p>
-                    {inc.resolution_notes && (
-                      <p className="text-[10px] text-emerald-700 font-medium bg-emerald-50 p-1.5 rounded-lg mt-1">
-                        Résolution : {inc.resolution_notes}
-                      </p>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-5">
-                    {inc.order_code && (
-                      <p className="font-mono font-black text-indigo-600">{inc.order_code}</p>
-                    )}
-                    <p className="text-[11px] text-gray-500">Par : {inc.reported_by || "Opérateur"}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {new Date(inc.created_at).toLocaleDateString("fr-FR")} à {new Date(inc.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </td>
-
-                  <td className="py-4 px-5">
-                    {getStatusBadge(inc.status)}
-                  </td>
-
-                  <td className="py-4 px-5 text-center">
-                    {inc.status !== "resolved" ? (
-                      <button
-                        onClick={() => setResolvingIncident(inc)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                      >
-                        Résoudre
-                      </button>
-                    ) : (
-                      <span className="text-xs text-gray-400 font-bold">Terminé</span>
-                    )}
+              {filteredIncidents.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-xs text-gray-400 font-medium">
+                    <p className="font-bold text-gray-700 text-sm mb-1">Aucun incident logistique à signaler</p>
+                    <p>Le réseau de livraison et les points relais fonctionnent normalement.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredIncidents.map((inc) => (
+                  <tr key={inc.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-4 px-5">
+                      <div className="space-y-1">
+                        {getSeverityBadge(inc.severity)}
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">{inc.incident_type}</p>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-5 max-w-sm">
+                      <h4 className="font-extrabold text-gray-900 text-xs">{inc.title}</h4>
+                      <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{inc.description}</p>
+                      {inc.resolution_notes && (
+                        <p className="text-[10px] text-emerald-700 font-medium bg-emerald-50 p-1.5 rounded-lg mt-1">
+                          Résolution : {inc.resolution_notes}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="py-4 px-5">
+                      {inc.order_code && (
+                        <p className="font-mono font-black text-indigo-600">{inc.order_code}</p>
+                      )}
+                      <p className="text-[11px] text-gray-500">Par : {inc.reported_by || "Opérateur"}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(inc.created_at).toLocaleDateString("fr-FR")} à {new Date(inc.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </td>
+
+                    <td className="py-4 px-5">
+                      {getStatusBadge(inc.status)}
+                    </td>
+
+                    <td className="py-4 px-5 text-center">
+                      {inc.status !== "resolved" ? (
+                        <button
+                          onClick={() => setResolvingIncident(inc)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                        >
+                          Résoudre
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 font-bold">Terminé</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

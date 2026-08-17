@@ -69,57 +69,10 @@ export default function CouriersPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setCouriers(data);
       } else {
-        // Fallback sample data if table newly created
-        setCouriers([
-          {
-            id: "c-1",
-            full_name: "Mamadou Koné",
-            phone: "+225 07 48 92 10 33",
-            email: "mamadou.kone@logistics.ci",
-            vehicle_type: "moto",
-            license_plate: "1234-JK-01",
-            preferred_zone: "Cocody / Marcory",
-            status: "available",
-            total_deliveries: 142,
-            rating: 4.95,
-            acceptance_rate: 99.0,
-            cancellation_rate: 0.5,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "c-2",
-            full_name: "Aristide Koffi",
-            phone: "+225 05 66 77 88 99",
-            email: "aristide.koffi@logistics.ci",
-            vehicle_type: "moto",
-            license_plate: "5678-AB-01",
-            preferred_zone: "Yopougon / Plateau",
-            status: "on_delivery",
-            total_deliveries: 98,
-            rating: 4.88,
-            acceptance_rate: 96.5,
-            cancellation_rate: 1.2,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "c-3",
-            full_name: "Bakary Diarra",
-            phone: "+225 01 22 33 44 55",
-            email: "bakary.diarra@logistics.ci",
-            vehicle_type: "camionnette",
-            license_plate: "9012-CD-01",
-            preferred_zone: "Grand Abidjan & Environs",
-            status: "available",
-            total_deliveries: 310,
-            rating: 4.98,
-            acceptance_rate: 100.0,
-            cancellation_rate: 0.0,
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        setCouriers([]);
       }
     } catch (err) {
       console.error("Error fetching couriers:", err);
@@ -283,69 +236,85 @@ export default function CouriersPage() {
           </div>
         </div>
 
-        {/* Couriers Grid Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-          {filteredCouriers.map((courier) => (
-            <div key={courier.id} className="p-5 rounded-3xl border border-gray-100 hover:border-indigo-200 hover:shadow-xs transition-all space-y-4 bg-white flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 font-black text-sm flex items-center justify-center border border-orange-100">
-                      {courier.full_name.charAt(0)}
+        {filteredCouriers.length === 0 ? (
+          <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
+            <Truck className="mx-auto text-gray-300 w-12 h-12" />
+            <p className="text-sm font-extrabold text-gray-700">Aucun livreur enregistré pour le moment</p>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              Enregistrez vos premiers transporteurs partenaires pour leur assigner les tournées de livraison.
+            </p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              + Enregistrer un premier livreur
+            </button>
+          </div>
+        ) : (
+          /* Couriers Grid Cards */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            {filteredCouriers.map((courier) => (
+              <div key={courier.id} className="p-5 rounded-3xl border border-gray-100 hover:border-indigo-200 hover:shadow-xs transition-all space-y-4 bg-white flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 font-black text-sm flex items-center justify-center border border-orange-100">
+                        {courier.full_name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-sm text-gray-900">{courier.full_name}</h3>
+                        <p className="text-xs text-gray-500 font-mono">{courier.phone}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-extrabold text-sm text-gray-900">{courier.full_name}</h3>
-                      <p className="text-xs text-gray-500 font-mono">{courier.phone}</p>
+                    {renderStatusBadge(courier.status)}
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded-2xl space-y-1 text-xs">
+                    <div className="flex items-center justify-between text-gray-600">
+                      <span>Véhicule :</span>
+                      <span className="font-bold text-gray-800 capitalize">
+                        {courier.vehicle_type} ({courier.license_plate || "N/A"})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-gray-600">
+                      <span>Zone d&apos;activité :</span>
+                      <span className="font-bold text-indigo-600">{courier.preferred_zone}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-gray-600">
+                      <span>Livraisons réussies :</span>
+                      <span className="font-bold text-gray-900">{courier.total_deliveries} colis</span>
+                    </div>
+                    <div className="flex items-center justify-between text-gray-600">
+                      <span>Note satisfaction :</span>
+                      <span className="font-bold text-amber-600 flex items-center gap-1">
+                        <Star size={12} className="fill-amber-500 text-amber-500" /> {courier.rating} / 5
+                      </span>
                     </div>
                   </div>
-                  {renderStatusBadge(courier.status)}
                 </div>
 
-                <div className="bg-gray-50 p-3 rounded-2xl space-y-1 text-xs">
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Véhicule :</span>
-                    <span className="font-bold text-gray-800 capitalize">
-                      {courier.vehicle_type} ({courier.license_plate || "N/A"})
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Zone d&apos;activité :</span>
-                    <span className="font-bold text-indigo-600">{courier.preferred_zone}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Livraisons réussies :</span>
-                    <span className="font-bold text-gray-900">{courier.total_deliveries} colis</span>
-                  </div>
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Note satisfaction :</span>
-                    <span className="font-bold text-amber-600 flex items-center gap-1">
-                      <Star size={12} className="fill-amber-500 text-amber-500" /> {courier.rating} / 5
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <a
+                    href={`tel:${courier.phone}`}
+                    className="flex-1 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold text-center transition-colors"
+                  >
+                    Appeler
+                  </a>
+                  <button
+                    onClick={() => handleToggleStatus(courier)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                      courier.status === "suspended"
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        : "bg-red-50 text-red-700 hover:bg-red-100"
+                    }`}
+                  >
+                    {courier.status === "suspended" ? "Réactiver" : "Suspendre"}
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                <a
-                  href={`tel:${courier.phone}`}
-                  className="flex-1 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold text-center transition-colors"
-                >
-                  Appeler
-                </a>
-                <button
-                  onClick={() => handleToggleStatus(courier)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                    courier.status === "suspended"
-                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      : "bg-red-50 text-red-700 hover:bg-red-100"
-                  }`}
-                >
-                  {courier.status === "suspended" ? "Réactiver" : "Suspendre"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* MODAL: Add Courier */}

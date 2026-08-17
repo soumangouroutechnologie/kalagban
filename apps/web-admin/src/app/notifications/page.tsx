@@ -52,31 +52,10 @@ export default function NotificationsPage() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setNotifications(data);
       } else {
-        setNotifications([
-          {
-            id: "n-1",
-            title: "Bienvenue sur la nouvelle version de Kalagban",
-            message: "Découvrez notre nouvelle expérience d'achat et le réseau de Points Relais partout à Abidjan !",
-            target_group: "buyers",
-            notification_type: "info",
-            sent_by: "Admin Kalagban",
-            delivered_count: 3240,
-            created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-          },
-          {
-            id: "n-2",
-            title: "Conseil Vendeur : Soignez vos fiches produits",
-            message: "Des photos nettes et des descriptions précises augmentent vos ventes de 40%.",
-            target_group: "sellers",
-            notification_type: "promo",
-            sent_by: "Modérateur Kalagban",
-            delivered_count: 85,
-            created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-          },
-        ]);
+        setNotifications([]);
       }
     } catch (err) {
       console.error("Error fetching notifications:", err);
@@ -172,27 +151,34 @@ export default function NotificationsPage() {
         <h2 className="font-extrabold text-base text-gray-900">Historique des Messages Envoyés</h2>
 
         <div className="space-y-3 pt-2">
-          {notifications.map((n) => (
-            <div key={n.id} className="p-5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm text-gray-900">{n.title}</h3>
-                  {getTargetBadge(n.target_group)}
-                </div>
-                <p className="text-xs text-gray-600 max-w-2xl">{n.message}</p>
-                <div className="flex items-center gap-4 text-[10px] text-gray-400 pt-1">
-                  <span>Envoyé par : <strong>{n.sent_by || "Admin"}</strong></span>
-                  <span>•</span>
-                  <span>Date : {new Date(n.created_at).toLocaleDateString("fr-FR")}</span>
-                </div>
-              </div>
-
-              <div className="text-right sm:border-l sm:border-gray-200 sm:pl-6 shrink-0">
-                <p className="text-xl font-black text-emerald-600">{n.delivered_count.toLocaleString()}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase">Destinataires</p>
-              </div>
+          {notifications.length === 0 ? (
+            <div className="py-12 text-center text-xs text-gray-400 font-medium">
+              <p className="font-bold text-gray-700 text-sm mb-1">Aucune notification diffusée pour le moment</p>
+              <p>Envoyez un message d&apos;information ou promotionnel à vos acheteurs, marchands ou livreurs.</p>
             </div>
-          ))}
+          ) : (
+            notifications.map((n) => (
+              <div key={n.id} className="p-5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm text-gray-900">{n.title}</h3>
+                    {getTargetBadge(n.target_group)}
+                  </div>
+                  <p className="text-xs text-gray-600 max-w-2xl">{n.message}</p>
+                  <div className="flex items-center gap-4 text-[10px] text-gray-400 pt-1">
+                    <span>Envoyé par : <strong>{n.sent_by || "Admin"}</strong></span>
+                    <span>•</span>
+                    <span>Date : {new Date(n.created_at).toLocaleDateString("fr-FR")}</span>
+                  </div>
+                </div>
+
+                <div className="text-right sm:border-l sm:border-gray-200 sm:pl-6 shrink-0">
+                  <p className="text-xl font-black text-emerald-600">{n.delivered_count.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase">Destinataires</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

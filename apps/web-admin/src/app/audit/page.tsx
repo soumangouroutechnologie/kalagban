@@ -46,48 +46,10 @@ export default function AuditPage() {
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         setLogs(data);
       } else {
-        // High quality demonstration seed entries
-        setLogs([
-          {
-            id: "aud-1",
-            admin_name: "Super Administrateur Kalagban",
-            action: "RBAC_ROLE_UPDATED",
-            target_type: "user",
-            target_id: "usr_jean_kouassi",
-            details: { previous_role: "moderator", new_role: "logistician", assigned_domains: ["relays", "couriers", "incidents"] },
-            created_at: new Date(Date.now() - 30 * 60000).toISOString(),
-          },
-          {
-            id: "aud-2",
-            admin_name: "Comptable Kalagban",
-            action: "PAYOUT_PROCESSED",
-            target_type: "payout",
-            target_id: "pay_84920",
-            details: { amount: 145000, recipient: "Boutique Wax Ivoire", method: "Wave" },
-            created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-          },
-          {
-            id: "aud-3",
-            admin_name: "Super Administrateur Kalagban",
-            action: "PRICING_RULE_CHANGED",
-            target_type: "platform_pricing_rules",
-            target_id: "app_fee_tier_1",
-            details: { old_value: 5.0, new_value: 4.75, reason: "Ajustement barème de rentrée" },
-            created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
-          },
-          {
-            id: "aud-4",
-            admin_name: "Sécurité Kalagban",
-            action: "ACCOUNT_FROZEN",
-            target_type: "user",
-            target_id: "usr_fraud_flag_99",
-            details: { reason: "Abus de vélocité de commande (6 commandes en 2 minutes)" },
-            created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
-          },
-        ]);
+        setLogs([]);
       }
     } catch (err) {
       console.error("Error fetching audit logs:", err);

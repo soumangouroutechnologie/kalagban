@@ -64,14 +64,14 @@ export default function AnalyticsPage() {
       const { count: courierCount } = await supabase.from("couriers").select("*", { count: "exact", head: true });
 
       setMetrics({
-        totalOrders: count || 48,
-        totalGMV: totalAmount || 2850000,
-        totalFees: totalFees || 114000,
-        totalShops: shopCount || 12,
-        totalProducts: prodCount || 154,
-        totalRelays: relayCount || 8,
-        totalCouriers: courierCount || 6,
-        avgOrderValue: count > 0 ? Math.round(totalAmount / count) : 24500,
+        totalOrders: count,
+        totalGMV: totalAmount,
+        totalFees: totalFees,
+        totalShops: shopCount || 0,
+        totalProducts: prodCount || 0,
+        totalRelays: relayCount || 0,
+        totalCouriers: courierCount || 0,
+        avgOrderValue: count > 0 ? Math.round(totalAmount / count) : 0,
       });
     } catch (err) {
       console.error("Error fetching analytics:", err);
