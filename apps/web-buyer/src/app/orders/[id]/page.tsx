@@ -18,6 +18,9 @@ interface OrderDetail {
   customer_name: string;
   customer_phone?: string;
   total_amount: number;
+  subtotal?: number;
+  application_fee?: number;
+  shipping_fee?: number;
   status: string;
   created_at: string;
   shop_id: string;
@@ -218,9 +221,36 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
             ))}
           </div>
 
-          <div className="flex justify-between items-center text-lg font-black text-gray-900 pt-2">
-            <span>Total payé/du</span>
-            <span className="text-indigo-600">{Number(order.total_amount).toLocaleString("fr-FR")} FCFA</span>
+          <div className="border-t border-gray-100 pt-4 flex flex-col gap-2.5">
+            <div className="flex justify-between items-center text-sm font-medium text-gray-500">
+              <span>Sous-total articles</span>
+              <span className="font-bold text-gray-900">
+                {Number(order.subtotal || (Number(order.total_amount) - Number(order.application_fee || 0))).toLocaleString("fr-FR")} FCFA
+              </span>
+            </div>
+
+            {Number(order.application_fee) > 0 && (
+              <div className="flex justify-between items-center text-sm font-medium text-gray-500">
+                <span>Frais d&apos;application</span>
+                <span className="font-bold text-indigo-600">
+                  +{Number(order.application_fee).toLocaleString("fr-FR")} FCFA
+                </span>
+              </div>
+            )}
+
+            {Number(order.shipping_fee) > 0 && (
+              <div className="flex justify-between items-center text-sm font-medium text-gray-500">
+                <span>Frais de livraison</span>
+                <span className="font-bold text-emerald-600">
+                  +{Number(order.shipping_fee).toLocaleString("fr-FR")} FCFA
+                </span>
+              </div>
+            )}
+
+            <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-lg font-black text-gray-900">
+              <span>Total payé/dû</span>
+              <span className="text-indigo-600">{Number(order.total_amount).toLocaleString("fr-FR")} FCFA</span>
+            </div>
           </div>
         </div>
 

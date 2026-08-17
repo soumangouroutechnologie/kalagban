@@ -198,7 +198,7 @@ export default function Footer() {
             <ul className="space-y-2.5 text-xs text-gray-500 font-medium">
               <li>
                 <a 
-                  href="http://localhost:3003/register" 
+                  href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/register`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="hover:text-[#6d28d9] transition-colors flex items-center gap-1.5 font-bold text-[#6d28d9]"
@@ -209,7 +209,7 @@ export default function Footer() {
               </li>
               <li>
                 <a 
-                  href="http://localhost:3003/login" 
+                  href={`${process.env.NEXT_PUBLIC_SELLER_URL || "https://seller.kalagban.ci"}/login`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="hover:text-[#6d28d9] transition-colors"
@@ -218,12 +218,12 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <Link href="/faq" className="hover:text-[#6d28d9] transition-colors">
+                <Link href="/seller-guide" className="hover:text-[#6d28d9] transition-colors">
                   Guide du Vendeur Certifié
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-[#6d28d9] transition-colors">
+                <Link href="/quality-charter" className="hover:text-[#6d28d9] transition-colors">
                   Charte Qualité &amp; Sécurité
                 </Link>
               </li>
@@ -252,7 +252,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-[#6d28d9] transition-colors">
+                <Link href="/privacy-policy" className="hover:text-[#6d28d9] transition-colors">
                   Protection des Données Personnelles
                 </Link>
               </li>

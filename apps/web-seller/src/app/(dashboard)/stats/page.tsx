@@ -31,7 +31,7 @@ export default function StatsPage() {
         // 1. Fetch Orders for total sales
         const { data: orders } = await supabase
           .from('orders')
-          .select('id, total_amount, status')
+          .select('id, total_amount, subtotal, status')
           .eq('shop_id', session.user.id);
 
         let sales = 0;
@@ -40,7 +40,7 @@ export default function StatsPage() {
         if (orders) {
           orders.forEach(o => {
             if (o.status !== 'cancelled') {
-              sales += Number(o.total_amount);
+              sales += Number(o.subtotal || o.total_amount || 0);
               orderIds.push(o.id);
             }
           });

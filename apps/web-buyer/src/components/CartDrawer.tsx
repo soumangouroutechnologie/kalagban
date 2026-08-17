@@ -4,6 +4,7 @@ import React from "react";
 import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { calculateApplicationFee } from "@/lib/fee";
 
 export default function CartDrawer() {
   const { isCartOpen, setIsCartOpen, cart, updateQuantity, removeFromCart, totalPrice } = useCart();
@@ -106,24 +107,35 @@ export default function CartDrawer() {
           </div>
 
           {/* Footer / Checkout Button */}
-          {cart.length > 0 && (
-            <div className="p-6 border-t border-gray-100 bg-white flex flex-col gap-4">
-              <div className="flex justify-between items-center text-lg font-black text-gray-900">
-                <span>Total</span>
-                <span className="text-indigo-600">{totalPrice.toLocaleString("fr-FR")} FCFA</span>
+          {cart.length > 0 && (() => {
+            const { subtotal, applicationFee, total } = calculateApplicationFee(totalPrice);
+            return (
+              <div className="p-6 border-t border-gray-100 bg-white flex flex-col gap-3">
+                <div className="flex justify-between items-center text-sm font-medium text-gray-500">
+                  <span>Sous-total</span>
+                  <span className="font-bold text-gray-900">{subtotal.toLocaleString("fr-FR")} FCFA</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-medium text-gray-500">
+                  <span>Frais d&apos;application</span>
+                  <span className="font-bold text-indigo-600">+{applicationFee.toLocaleString("fr-FR")} FCFA</span>
+                </div>
+                <div className="border-t border-gray-100 pt-2 flex justify-between items-center text-lg font-black text-gray-900">
+                  <span>Total</span>
+                  <span className="text-indigo-600">{total.toLocaleString("fr-FR")} FCFA</span>
+                </div>
+                <p className="text-[11px] text-gray-400">Livraison calculée lors de la validation de commande.</p>
+                
+                <Link
+                  href="/checkout"
+                  onClick={() => setIsCartOpen(false)}
+                  className="w-full bg-indigo-600 text-white font-bold text-base py-4 rounded-2xl shadow-xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 group mt-2"
+                >
+                  Commander maintenant
+                  <ArrowRight className="group-hover:translate-x-1 transition-transform" size={18} />
+                </Link>
               </div>
-              <p className="text-xs text-gray-500">Livraison calculée lors de la validation.</p>
-              
-              <Link
-                href="/checkout"
-                onClick={() => setIsCartOpen(false)}
-                className="w-full bg-indigo-600 text-white font-bold text-base py-4 rounded-2xl shadow-xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 group"
-              >
-                Commander maintenant
-                <ArrowRight className="group-hover:translate-x-1 transition-transform" size={18} />
-              </Link>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

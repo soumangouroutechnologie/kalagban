@@ -23,6 +23,8 @@ apps/*/.turbo/
 .env.*.local
 *.pem
 *.key
+ADMIN_CREDENTIALS.txt
+*CREDENTIALS*
 supabase/.temp/
 
 # Security reports
@@ -65,4 +67,5 @@ builds/
 # Temp files
 current_auth.json
 patch*.json
+test_storage.js
 

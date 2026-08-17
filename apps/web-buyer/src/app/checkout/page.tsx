@@ -7,6 +7,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
+import { calculateApplicationFee } from "@/lib/fee";
 import { supabase } from "@/lib/supabase";
 import { 
   ArrowLeft, 
@@ -131,12 +132,13 @@ export default function CheckoutPage() {
       let lastOrderId = "";
 
       for (const [shopId, items] of Object.entries(shopGroups)) {
-        const groupTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+        const groupSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+        const feeCalc = calculateApplicationFee(groupSubtotal, 0);
 
         const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
         const selectedRelay = availableRelays.find(r => (r.code || r.id) === selectedRelayId || r.id === selectedRelayId);
 
-        // 1. Insert Order
+        // 1. Insert Order with full financial breakdown
         const { data: orderData, error: orderError } = await supabase
           .from("orders")
           .insert({
@@ -147,7 +149,11 @@ export default function CheckoutPage() {
             shipping_address: deliveryType === "pickup_point" 
               ? `Point Relais: ${selectedRelay?.name || 'Sélectionné'} (${selectedCommune}) - ${selectedRelay?.address || ''}`
               : `${city} - ${district}${notes ? ` (${notes})` : ""}`,
-            total_amount: groupTotal,
+            subtotal: feeCalc.subtotal,
+            application_fee: feeCalc.applicationFee,
+            application_fee_rate: feeCalc.rate,
+            shipping_fee: 0,
+            total_amount: feeCalc.total,
             status: "pending",
             delivery_type: deliveryType,
             pickup_point_id: deliveryType === "pickup_point" ? (selectedRelay?.id || null) : null,
@@ -560,22 +566,31 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              <div className="border-t border-gray-100 pt-4 flex flex-col gap-3">
-                <div className="flex justify-between text-sm text-gray-500 font-medium">
-                  <span>Sous-total</span>
-                  <span className="font-bold text-gray-900">{totalPrice.toLocaleString("fr-FR")} FCFA</span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-500 font-medium">
-                  <span>Livraison</span>
-                  <span className="font-extrabold text-emerald-600">À régler au livreur</span>
-                </div>
-                <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline">
-                  <span className="font-black text-base text-gray-900">Total à payer</span>
-                  <span className="font-black text-2xl text-indigo-600">
-                    {totalPrice.toLocaleString("fr-FR")} FCFA
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const summaryFee = calculateApplicationFee(totalPrice, 0);
+                return (
+                  <div className="border-t border-gray-100 pt-4 flex flex-col gap-3">
+                    <div className="flex justify-between text-sm text-gray-500 font-medium">
+                      <span>Sous-total</span>
+                      <span className="font-bold text-gray-900">{summaryFee.subtotal.toLocaleString("fr-FR")} FCFA</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500 font-medium">
+                      <span>Frais d&apos;application</span>
+                      <span className="font-bold text-indigo-600">+{summaryFee.applicationFee.toLocaleString("fr-FR")} FCFA</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500 font-medium">
+                      <span>Livraison</span>
+                      <span className="font-extrabold text-emerald-600">À régler au livreur</span>
+                    </div>
+                    <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline">
+                      <span className="font-black text-base text-gray-900">Total à payer</span>
+                      <span className="font-black text-2xl text-indigo-600">
+                        {summaryFee.total.toLocaleString("fr-FR")} FCFA
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

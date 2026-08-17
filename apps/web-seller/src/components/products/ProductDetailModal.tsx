@@ -264,7 +264,7 @@ export default function ProductDetailModal({
         <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Buyer view link */}
           <a
-            href={`http://localhost:3001/products/${product.id}`}
+            href={`${process.env.NEXT_PUBLIC_BUYER_URL || "https://kalagban.ci"}/products/${product.id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-bold text-gray-600 hover:text-primary transition-colors flex items-center gap-1.5 py-2 px-3 rounded-xl hover:bg-gray-200/60"

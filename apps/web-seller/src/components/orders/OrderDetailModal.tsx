@@ -30,6 +30,9 @@ export interface SellerOrder {
   shop_id: string;
   customer_name: string;
   total_amount: number;
+  subtotal?: number;
+  application_fee?: number;
+  shipping_fee?: number;
   status: string;
   created_at: string;
 }
@@ -270,12 +273,30 @@ export default function OrderDetailModal({
             )}
           </div>
 
-          {/* Total Amount Box */}
-          <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 flex items-center justify-between mt-2">
-            <span className="text-sm font-extrabold text-gray-700">Montant Total de la commande</span>
-            <span className="text-2xl font-black text-primary">
-              {Number(order.total_amount).toLocaleString("fr-FR")} FCFA
-            </span>
+          {/* Total & Financial Breakdown Box */}
+          <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 flex flex-col gap-2 mt-2">
+            <div className="flex items-center justify-between text-xs text-gray-600 font-medium">
+              <span>Part Vendeur (Sous-total articles)</span>
+              <span className="font-bold text-gray-900">
+                {Number(order.subtotal || (Number(order.total_amount) - Number(order.application_fee || 0))).toLocaleString("fr-FR")} FCFA
+              </span>
+            </div>
+
+            {Number(order.application_fee) > 0 && (
+              <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
+                <span>Frais d&apos;application (Plateforme)</span>
+                <span className="font-bold text-indigo-600">
+                  +{Number(order.application_fee).toLocaleString("fr-FR")} FCFA
+                </span>
+              </div>
+            )}
+
+            <div className="border-t border-primary/10 pt-2 flex items-center justify-between">
+              <span className="text-sm font-extrabold text-gray-700">Total payé par l&apos;acheteur</span>
+              <span className="text-xl font-black text-primary">
+                {Number(order.total_amount).toLocaleString("fr-FR")} FCFA
+              </span>
+            </div>
           </div>
 
         </div>

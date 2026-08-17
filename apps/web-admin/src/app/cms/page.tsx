@@ -433,7 +433,7 @@ export default function CMSPage() {
 
         <div className="flex items-center gap-3">
           <a
-            href="http://localhost:3001"
+            href={process.env.NEXT_PUBLIC_BUYER_URL || "https://kalagban.ci"}
             target="_blank"
             rel="noreferrer"
             className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-3 rounded-2xl flex items-center gap-2 transition-colors"

@@ -32,6 +32,9 @@ interface CustomerOrder {
   shop_id: string;
   customer_name: string;
   total_amount: number;
+  subtotal?: number | null;
+  application_fee?: number | null;
+  shipping_fee?: number | null;
   status: string;
   created_at: string;
   delivery_type?: string | null;
@@ -432,6 +435,17 @@ export default function CustomerAccountPage() {
                       );
                     })}
                   </div>
+
+                  {/* Financial Breakdown */}
+                  {Number(ord.application_fee) > 0 && (
+                    <div className="flex flex-wrap items-center justify-between text-xs text-gray-500 bg-gray-50/80 px-4 py-2.5 rounded-xl border border-gray-100">
+                      <span>Articles : <strong className="text-gray-900">{Number(ord.subtotal || (Number(ord.total_amount) - Number(ord.application_fee || 0))).toLocaleString("fr-FR")} FCFA</strong></span>
+                      <span>Frais d&apos;application : <strong className="text-indigo-600">+{Number(ord.application_fee).toLocaleString("fr-FR")} FCFA</strong></span>
+                      {Number(ord.shipping_fee) > 0 && (
+                        <span>Livraison : <strong className="text-emerald-600">+{Number(ord.shipping_fee).toLocaleString("fr-FR")} FCFA</strong></span>
+                      )}
+                    </div>
+                  )}
 
                   {/* ANIMATED STATUS TIMELINE (JUMIA INSPIRED) */}
                   <div className="pt-2">

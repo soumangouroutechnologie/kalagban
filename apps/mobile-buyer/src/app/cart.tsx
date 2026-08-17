@@ -24,6 +24,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { useCart } from '@/context/cart-context';
+import { calculateApplicationFee } from '@/lib/fee';
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
@@ -34,7 +35,7 @@ export default function CartScreen() {
   const { items, updateQuantity, removeFromCart, clearCart, totalAmount, totalItems } = useCart();
 
   const deliveryFee = items.length > 0 ? 500 : 0; // 500 FCFA Point Relais
-  const grandTotal = totalAmount + deliveryFee;
+  const feeCalc = calculateApplicationFee(totalAmount, deliveryFee);
 
   const formatPrice = (amount: number) => {
     return amount.toLocaleString('fr-FR') + ' FCFA';
@@ -151,7 +152,12 @@ export default function CartScreen() {
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Sous-total ({totalItems} articles)</Text>
-                <Text style={styles.summaryValue}>{formatPrice(totalAmount)}</Text>
+                <Text style={styles.summaryValue}>{formatPrice(feeCalc.subtotal)}</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Frais d&apos;application</Text>
+                <Text style={[styles.summaryValue, { color: '#4F46E5' }]}>+{formatPrice(feeCalc.applicationFee)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
@@ -163,7 +169,7 @@ export default function CartScreen() {
 
               <View style={styles.summaryRowTotal}>
                 <Text style={styles.totalLabel}>Total Général</Text>
-                <Text style={styles.totalValue}>{formatPrice(grandTotal)}</Text>
+                <Text style={styles.totalValue}>{formatPrice(feeCalc.total)}</Text>
               </View>
             </View>
           </ScrollView>
@@ -172,7 +178,7 @@ export default function CartScreen() {
           <View style={[styles.footerBar, { paddingBottom: bottomPadding, height: 72 + bottomPadding }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.footerLabel}>Total à payer</Text>
-              <Text style={styles.footerTotal}>{formatPrice(grandTotal)}</Text>
+              <Text style={styles.footerTotal}>{formatPrice(feeCalc.total)}</Text>
             </View>
 
             <TouchableOpacity

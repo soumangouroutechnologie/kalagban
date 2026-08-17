@@ -84,7 +84,7 @@ export default function SellerDashboard() {
       // 1. Fetch Orders for stats
       const { data: orders } = await supabase
         .from('orders')
-        .select('total_amount, status')
+        .select('total_amount, subtotal, status')
         .eq('shop_id', session.user.id);
         
       let sales = 0;
@@ -94,7 +94,7 @@ export default function SellerDashboard() {
         orderCount = orders.length;
         orders.forEach(o => {
           if (o.status !== 'cancelled') {
-            sales += Number(o.total_amount);
+            sales += Number(o.subtotal || o.total_amount || 0);
           }
         });
       }

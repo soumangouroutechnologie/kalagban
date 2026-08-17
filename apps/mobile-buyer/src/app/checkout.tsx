@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
+import { calculateApplicationFee } from '@/lib/fee';
 
 interface PickupPoint {
   id: string;
@@ -61,7 +62,7 @@ export default function MobileCheckoutScreen() {
 
   const itemsTotal = items.length > 0 ? totalAmount : 25000;
   const shippingFee = deliveryType === 'pickup_point' ? 500 : 1500;
-  const finalTotal = itemsTotal + shippingFee;
+  const feeCalc = calculateApplicationFee(itemsTotal, shippingFee);
 
   useEffect(() => {
     const fetchPickupPoints = async () => {
@@ -138,7 +139,11 @@ export default function MobileCheckoutScreen() {
         .insert({
           customer_name: customerName,
           customer_phone: customerPhone,
-          total_amount: finalTotal,
+          subtotal: feeCalc.subtotal,
+          application_fee: feeCalc.applicationFee,
+          application_fee_rate: feeCalc.rate,
+          shipping_fee: feeCalc.shippingFee,
+          total_amount: feeCalc.total,
           status: 'pending',
           delivery_type: deliveryType,
           pickup_point_id: deliveryType === 'pickup_point' ? (selectedRelay?.id || null) : null,
@@ -368,16 +373,20 @@ export default function MobileCheckoutScreen() {
         <View style={styles.totalCard}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Sous-total articles</Text>
-            <Text style={styles.totalVal}>{formatPrice(itemsTotal)}</Text>
+            <Text style={styles.totalVal}>{formatPrice(feeCalc.subtotal)}</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Frais d&apos;application</Text>
+            <Text style={[styles.totalVal, { color: '#4F46E5' }]}>+{formatPrice(feeCalc.applicationFee)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Frais de livraison</Text>
-            <Text style={styles.totalVal}>{formatPrice(shippingFee)}</Text>
+            <Text style={styles.totalVal}>{formatPrice(feeCalc.shippingFee)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalRowFinal}>
             <Text style={styles.finalLabel}>Total de la commande</Text>
-            <Text style={styles.finalVal}>{formatPrice(finalTotal)}</Text>
+            <Text style={styles.finalVal}>{formatPrice(feeCalc.total)}</Text>
           </View>
         </View>
 

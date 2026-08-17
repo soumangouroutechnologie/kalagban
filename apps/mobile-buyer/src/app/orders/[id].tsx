@@ -20,6 +20,9 @@ interface OrderDetail {
   customer_name: string;
   customer_phone?: string;
   total_amount: number;
+  subtotal?: number;
+  application_fee?: number;
+  shipping_fee?: number;
   status: string;
   created_at: string;
   delivery_type?: string;
@@ -151,8 +154,37 @@ export default function OrderDetailsReceiptScreen() {
         {/* Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Réglé :</Text>
-            <Text style={styles.summaryValue}>{Number(order.total_amount).toLocaleString('fr-FR')} FCFA</Text>
+            <Text style={styles.summaryLabel}>Sous-total articles :</Text>
+            <Text style={styles.summaryValue}>
+              {Number(order.subtotal || (Number(order.total_amount) - Number(order.application_fee || 0) - Number(order.shipping_fee || 0))).toLocaleString('fr-FR')} FCFA
+            </Text>
+          </View>
+
+          {Number(order.application_fee) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Frais d&apos;application :</Text>
+              <Text style={[styles.summaryValue, { color: '#4F46E5' }]}>
+                +{Number(order.application_fee).toLocaleString('fr-FR')} FCFA
+              </Text>
+            </View>
+          )}
+
+          {Number(order.shipping_fee) > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Frais de livraison :</Text>
+              <Text style={[styles.summaryValue, { color: '#10B981' }]}>
+                +{Number(order.shipping_fee).toLocaleString('fr-FR')} FCFA
+              </Text>
+            </View>
+          )}
+
+          <View style={{ height: 1, backgroundColor: '#F1F5F9', marginVertical: 8 }} />
+
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { fontWeight: '900', color: '#0F172A' }]}>Total Réglé :</Text>
+            <Text style={[styles.summaryValue, { fontWeight: '900', color: '#4F46E5', fontSize: 16 }]}>
+              {Number(order.total_amount).toLocaleString('fr-FR')} FCFA
+            </Text>
           </View>
         </View>
 

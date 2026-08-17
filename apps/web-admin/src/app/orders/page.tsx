@@ -7,6 +7,10 @@ import { Package, Truck, CheckCircle2, Clock, Loader2, MapPin, Search, X } from 
 interface AdminOrder {
   id: string;
   total_amount: number;
+  subtotal?: number;
+  application_fee?: number;
+  application_fee_rate?: number;
+  shipping_fee?: number;
   status: string;
   created_at: string;
   customer_name?: string;
@@ -187,11 +191,19 @@ export default function AdminOrdersPage() {
                     )}
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
                     <span className="text-lg font-black text-indigo-700">
                       {Number(order.total_amount || 0).toLocaleString()} FCFA
                     </span>
-                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                    <div className="text-[11px] text-gray-500 font-medium flex flex-col items-end">
+                      <span>Articles: <strong className="text-gray-800">{Number(order.subtotal || (Number(order.total_amount) - Number(order.application_fee || 0))).toLocaleString()} FCFA</strong></span>
+                      {Number(order.application_fee) > 0 && (
+                        <span className="text-indigo-600 font-bold">
+                          Frais app: +{Number(order.application_fee).toLocaleString()} FCFA {order.application_fee_rate ? `(${Number(order.application_fee_rate * 100).toFixed(2)}%)` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
                       {new Date(order.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
                     </p>
                   </div>

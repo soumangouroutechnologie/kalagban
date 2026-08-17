@@ -31,6 +31,7 @@ import {
   Heart,
   Megaphone,
   User,
+  X,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
