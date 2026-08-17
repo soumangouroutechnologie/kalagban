@@ -121,7 +121,6 @@ export default function OrderStatusTimeline({
         {steps.map((step) => {
           const isDone = currentStep > step.id;
           const isCurrent = currentStep === step.id;
-          const isPending = currentStep < step.id;
 
           return (
             <div key={step.id} className="relative flex items-start group">

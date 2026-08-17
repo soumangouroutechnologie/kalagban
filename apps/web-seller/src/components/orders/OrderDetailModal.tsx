@@ -6,14 +6,16 @@ import {
   X, 
   ShoppingCart, 
   User, 
-  MapPin, 
   Clock, 
   Loader2,
   PackageCheck,
   Truck,
   ShieldCheck,
   Headphones,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  Lock,
+  ArrowRight
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -55,6 +57,7 @@ export default function OrderDetailModal({
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string>(order?.status || "pending");
+  const [pendingConfirmStatus, setPendingConfirmStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!order) return;
@@ -80,8 +83,9 @@ export default function OrderDetailModal({
 
   if (!order) return null;
 
-  const handleUpdateStatus = async (newStatus: string) => {
+  const handleExecuteStatusUpdate = async (newStatus: string) => {
     setIsUpdatingStatus(true);
+    setPendingConfirmStatus(null);
     try {
       const { error } = await supabase
         .from("orders")
@@ -100,6 +104,17 @@ export default function OrderDetailModal({
       setIsUpdatingStatus(false);
     }
   };
+
+  // Status progression rank to forbid going backwards
+  const getStatusRank = (status: string) => {
+    if (status === "pending") return 1;
+    if (status === "processing" || status === "preparing") return 2;
+    if (status === "shipped" || status === "in_transit") return 3;
+    if (status === "delivered" || status === "picked_up") return 4;
+    return 1;
+  };
+
+  const currentRank = getStatusRank(currentStatus);
 
   // Anonymized customer display name
   const nameParts = order.customer_name.split("(");
@@ -164,19 +179,24 @@ export default function OrderDetailModal({
               className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-3.5 rounded-xl transition-all flex items-center gap-2 shadow-sm shrink-0"
             >
               <Headphones size={15} className="text-indigo-400" />
-              <span>Support Logistique</span>
+              <span>Support Logistique Kalagban</span>
             </a>
           </div>
 
-          {/* Privacy Note */}
-          <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3.5 flex items-start gap-2.5">
-            <ShieldCheck size={18} className="text-blue-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-900 font-medium leading-relaxed">
-              <strong>Livraison opérée par Kalagban :</strong> Les coordonnées directes de l&apos;acheteur sont sécurisées. Vous devez uniquement préparer le colis et marquer son état d&apos;avancement ci-dessous. Le livreur Kalagban se charge de la collecte et de la remise.
-            </p>
+          {/* Privacy Note: No direct seller delivery */}
+          <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
+            <ShieldCheck size={20} className="text-blue-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-xs font-black text-blue-950 uppercase tracking-wide">
+                Logistique 100% Centralisée par Kalagban
+              </p>
+              <p className="text-xs text-blue-900 font-medium leading-relaxed">
+                <strong>Aucune livraison directe par le marchand au client n&apos;est autorisée.</strong> Vous devez uniquement emballer soigneusement les articles et marquer le colis prêt. Le réseau logistique officiel de Kalagban prend le relais pour l&apos;acheminement et la remise sécurisée.
+              </p>
+            </div>
           </div>
 
-          {/* Seller Action & Order Progression Controls */}
+          {/* Seller Action & Order Progression Controls (Irreversible) */}
           <div className="flex flex-col gap-3 bg-indigo-50/60 p-5 rounded-2xl border border-indigo-100">
             <div className="flex items-center justify-between">
               <div>
@@ -184,63 +204,89 @@ export default function OrderDetailModal({
                   Progression de la Préparation
                 </span>
                 <p className="text-[11px] text-gray-500 font-medium">
-                  Le client voit ce statut s&apos;actualiser en direct sur sa page de suivi.
+                  Les étapes sont définitives et actualisent instantanément le suivi client.
                 </p>
               </div>
               {isUpdatingStatus && <Loader2 size={18} className="animate-spin text-indigo-600" />}
             </div>
 
             {currentStatus === "delivered" ? (
-              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl p-3 flex items-center gap-2 font-bold text-xs">
-                <CheckCircle2 size={18} className="text-emerald-600" />
-                <span>Cette commande a été livrée avec succès au client par Kalagban Express.</span>
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl p-3.5 flex items-center gap-2.5 font-bold text-xs">
+                <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+                <span>Cette commande a été livrée et remise au client avec succès.</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-1">
+                
                 {/* Status 1: Pending */}
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("pending")}
-                  disabled={isUpdatingStatus}
-                  className={`py-3 px-3 rounded-xl text-xs font-black transition-all border flex flex-col items-center gap-1 ${
-                    currentStatus === "pending" 
+                <div
+                  className={`py-3 px-3 rounded-xl text-xs font-black border flex flex-col items-center gap-1 text-center transition-all ${
+                    currentRank === 1 
                       ? "bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20" 
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
                   }`}
                 >
-                  <span>1. En attente</span>
-                  <span className="text-[10px] font-normal opacity-80">Nouvelle commande</span>
-                </button>
+                  <div className="flex items-center gap-1">
+                    {currentRank > 1 && <Lock size={12} />}
+                    <span>1. En attente</span>
+                  </div>
+                  <span className="text-[10px] font-normal opacity-80">
+                    {currentRank > 1 ? "Validée" : "Nouvelle commande"}
+                  </span>
+                </div>
 
                 {/* Status 2: Processing (Preparing) */}
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("processing")}
-                  disabled={isUpdatingStatus}
-                  className={`py-3 px-3 rounded-xl text-xs font-black transition-all border flex flex-col items-center gap-1 ${
-                    currentStatus === "processing" || currentStatus === "preparing"
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20" 
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  <span>2. En préparation 👨‍🍳</span>
-                  <span className="text-[10px] font-normal opacity-80">Colis en cours d&apos;emballage</span>
-                </button>
+                {currentRank === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPendingConfirmStatus("processing")}
+                    disabled={isUpdatingStatus}
+                    className="py-3 px-3 rounded-xl text-xs font-black transition-all border border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-700 shadow-sm flex flex-col items-center gap-1 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span>2. Mettre en préparation 👨‍🍳</span>
+                    <span className="text-[10px] font-normal text-indigo-500">Commencer l&apos;emballage</span>
+                  </button>
+                ) : currentRank === 2 ? (
+                  <div className="py-3 px-3 rounded-xl text-xs font-black border bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20 flex flex-col items-center gap-1">
+                    <span>2. En préparation 👨‍🍳</span>
+                    <span className="text-[10px] font-normal opacity-90">Colis en cours d&apos;emballage</span>
+                  </div>
+                ) : (
+                  <div className="py-3 px-3 rounded-xl text-xs font-black border bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60 flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <Lock size={12} />
+                      <span>2. En préparation</span>
+                    </div>
+                    <span className="text-[10px] font-normal opacity-80">Préparée</span>
+                  </div>
+                )}
 
                 {/* Status 3: Shipped (Ready for pickup by courier) */}
-                <button
-                  type="button"
-                  onClick={() => handleUpdateStatus("shipped")}
-                  disabled={isUpdatingStatus}
-                  className={`py-3 px-3 rounded-xl text-xs font-black transition-all border flex flex-col items-center gap-1 ${
-                    currentStatus === "shipped" || currentStatus === "in_transit"
-                      ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20" 
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
-                >
-                  <span>3. Colis Prêt / Expédié 📦</span>
-                  <span className="text-[10px] font-normal opacity-80">Prêt pour le livreur Kalagban</span>
-                </button>
+                {currentRank === 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPendingConfirmStatus("shipped")}
+                    disabled={isUpdatingStatus}
+                    className="py-3 px-3 rounded-xl text-xs font-black transition-all border border-blue-300 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 flex flex-col items-center gap-1 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span>3. Colis Prêt / Expédié 📦</span>
+                    <span className="text-[10px] font-normal text-blue-100">Transmettre à Kalagban</span>
+                  </button>
+                ) : currentRank === 3 ? (
+                  <div className="py-3 px-3 rounded-xl text-xs font-black border bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20 flex flex-col items-center gap-1">
+                    <span>3. Colis Expédié 📦</span>
+                    <span className="text-[10px] font-normal opacity-90">En acheminement Kalagban</span>
+                  </div>
+                ) : (
+                  <div className="py-3 px-3 rounded-xl text-xs font-black border bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60 flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <Lock size={12} />
+                      <span>3. Expédition</span>
+                    </div>
+                    <span className="text-[10px] font-normal opacity-80">En attente étape 2</span>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
@@ -297,7 +343,7 @@ export default function OrderDetailModal({
                 <span>+{Number(order.application_fee).toLocaleString("fr-FR")} FCFA</span>
               </div>
             )}
-            <div className="h-[1px] bg-gray-200 my-1" />
+            <div className="h-px bg-gray-200 my-1" />
             <div className="flex justify-between items-center text-sm font-black text-gray-900">
               <span>Total payé par l&apos;acheteur</span>
               <span className="text-indigo-600">{Number(order.total_amount).toLocaleString("fr-FR")} FCFA</span>
@@ -317,6 +363,66 @@ export default function OrderDetailModal({
         </div>
 
       </div>
+
+      {/* Confirmation Dialog Overlay */}
+      {pendingConfirmStatus && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-6 text-center animate-in zoom-in-95">
+            
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-inner ${
+              pendingConfirmStatus === "shipped" 
+                ? "bg-blue-50 text-blue-600 ring-8 ring-blue-50/50" 
+                : "bg-indigo-50 text-indigo-600 ring-8 ring-indigo-50/50"
+            }`}>
+              {pendingConfirmStatus === "shipped" ? <Truck size={32} /> : <PackageCheck size={32} />}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-gray-900">
+                {pendingConfirmStatus === "shipped" 
+                  ? "Confirmer que le colis est prêt ?" 
+                  : "Mettre la commande en préparation ?"}
+              </h3>
+              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                {pendingConfirmStatus === "shipped" ? (
+                  <>
+                    Vérifiez que le colis est <strong>bien emballé, scellé et étiqueté</strong> avec le N° de commande <strong>#{order.id.slice(0, 8).toUpperCase()}</strong>.<br /><br />
+                    <span className="text-blue-700 font-bold">⚠️ Cette action est irréversible.</span> Elle alerte immédiatement le réseau logistique Kalagban et l&apos;acheteur.
+                  </>
+                ) : (
+                  <>
+                    Confirmez-vous la disponibilité en stock de ces articles ? Dès validation, l&apos;acheteur verra sa timeline passer à <strong>« En préparation chez le vendeur »</strong>.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingConfirmStatus(null)}
+                className="flex-1 py-3 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExecuteStatusUpdate(pendingConfirmStatus)}
+                className={`flex-1 py-3 px-4 rounded-xl text-white font-extrabold text-xs transition-all shadow-lg flex items-center justify-center gap-1.5 ${
+                  pendingConfirmStatus === "shipped" 
+                    ? "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25" 
+                    : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25"
+                }`}
+              >
+                <span>Confirmer</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
