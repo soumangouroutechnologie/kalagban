@@ -33,7 +33,7 @@ export default function CheckoutPage() {
   const [district, setDistrict] = useState("");
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("kpay"); // 'kpay' | 'cod'
-  const [deliveryType, setDeliveryType] = useState<"home_delivery" | "pickup_point">("home_delivery");
+  const [deliveryType, setDeliveryType] = useState<"home_delivery" | "pickup_point">("pickup_point");
   const [selectedCommune, setSelectedCommune] = useState("Cocody");
   const [selectedRelayId, setSelectedRelayId] = useState("");
 
@@ -358,37 +358,42 @@ export default function CheckoutPage() {
 
                 {/* Delivery Type Selector Tabs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryType("home_delivery")}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 text-left transition-all cursor-pointer ${
-                      deliveryType === "home_delivery"
-                        ? "border-indigo-600 bg-indigo-50/50 text-indigo-950 font-bold"
-                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0">🏠</div>
-                    <div>
-                      <h4 className="font-extrabold text-sm">Livraison à Domicile</h4>
-                      <p className="text-xs text-gray-500">Expédition directe à votre adresse</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
+                  {/* Option 1: Retrait en Point Relais (Active & Prioritaire) */}
+                  <div
                     onClick={() => setDeliveryType("pickup_point")}
-                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 text-left transition-all cursor-pointer ${
-                      deliveryType === "pickup_point"
-                        ? "border-amber-500 bg-amber-50/50 text-amber-950 font-bold"
-                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                    className="p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50/70 text-indigo-950 flex items-center gap-3 text-left transition-all cursor-pointer shadow-sm ring-2 ring-indigo-600/20"
                   >
-                    <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">📍</div>
-                    <div>
-                      <h4 className="font-extrabold text-sm">Retrait en Point Relais</h4>
-                      <p className="text-xs text-gray-500">Récupération sécurisée par Code OTP</p>
+                    <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-md shadow-indigo-600/30">
+                      📍
                     </div>
-                  </button>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-sm text-indigo-950">Retrait en Point Relais</h4>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
+                          Recommandé
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-800/80 font-medium">Récupération sécurisée par Code OTP</p>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Livraison à Domicile (Bientôt disponible) */}
+                  <div
+                    className="p-4 rounded-2xl border-2 border-gray-200 bg-gray-50/70 text-gray-400 flex items-center gap-3 text-left relative overflow-hidden cursor-not-allowed opacity-75 select-none"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm shrink-0">
+                      🏠
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-sm text-gray-600">Livraison à Domicile</h4>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
+                          Bientôt
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">Prochainement disponible</p>
+                    </div>
+                  </div>
                 </div>
 
                 {deliveryType === "home_delivery" ? (
