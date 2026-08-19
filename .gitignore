@@ -27,6 +27,8 @@ apps/*/.turbo/
 *.key
 ADMIN_CREDENTIALS.txt
 *CREDENTIALS*
+*CONFIG*.txt
+KPAY_CONFIG.txt
 supabase/.temp/
 
 # Security reports
