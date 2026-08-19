@@ -69,18 +69,25 @@ export default function RelayDashboardLayout({
         return;
       }
 
-      setRelayCode(relayPoint.code);
+      if (relayPoint) {
+        setRelayCode(relayPoint.code);
+        fetchNotifications(relayPoint.id);
+      }
     };
 
-    verifyRelaySession();
-
-    // Fetch notifications from Supabase
-    const fetchNotifications = async () => {
-      const { data } = await supabase
+    // Fetch notifications from Supabase ONLY for THIS relay point
+    const fetchNotifications = async (pointId?: string) => {
+      let query = supabase
         .from("relay_notifications")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
+
+      if (pointId) {
+        query = query.or(`pickup_point_id.eq.${pointId},pickup_point_id.is.null`);
+      }
+
+      const { data } = await query;
 
       if (data && data.length > 0) {
         setNotifications(data);
@@ -98,7 +105,7 @@ export default function RelayDashboardLayout({
       }
     };
 
-    fetchNotifications();
+    verifyRelaySession();
 
     const channel = supabase
       .channel("relay_notifications_realtime")

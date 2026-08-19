@@ -21,15 +21,32 @@ export default function RelayPackagesPage() {
 
   useEffect(() => {
     const fetchPackages = async () => {
+      const relayCode = localStorage.getItem("kalagban_relay_code");
+      let currentId = localStorage.getItem("kalagban_relay_id");
+
+      if (!currentId && relayCode) {
+        const { data: pt } = await supabase.from("pickup_points").select("id").eq("code", relayCode).maybeSingle();
+        if (pt) {
+          currentId = pt.id;
+          localStorage.setItem("kalagban_relay_id", pt.id);
+        }
+      }
+
+      if (!currentId) {
+        setPackages([]);
+        return;
+      }
+
       const { data } = await supabase
         .from("orders")
         .select("*")
+        .eq("pickup_point_id", currentId)
         .eq("delivery_type", "pickup_point")
         .order("created_at", { ascending: false });
 
       if (data && data.length > 0) {
         setPackages(data.map((o: Record<string, any>) => ({
-          id: o.id,
+          id: o.id.slice(0, 8).toUpperCase(),
           client: o.customer_name || "Client Kalagban",
           phone: o.customer_phone || "+225 --",
           status: o.relay_status || "ready_for_pickup",

@@ -72,45 +72,73 @@ export default function RelayDashboardHome() {
   const [packageLogs, setPackageLogs] = useState<PackageLog[]>([]);
   const [expectedOrders, setExpectedOrders] = useState<ExpectedOrder[]>([]);
 
-  // Initial load from Supabase PostgreSQL
+  // Initial load from Supabase PostgreSQL with strict relay tenant isolation
   useEffect(() => {
     const code = localStorage.getItem("kalagban_relay_code");
     const storedId = localStorage.getItem("kalagban_relay_id");
     if (code) setRelayCode(code);
     if (storedId) setRelayId(storedId);
 
-    if (code && !storedId) {
-      supabase.from("pickup_points").select("id").eq("code", code).maybeSingle().then(({ data }) => {
-        if (data?.id) {
-          setRelayId(data.id);
-          localStorage.setItem("kalagban_relay_id", data.id);
-        }
-      });
-    }
-
     const loadRealData = async () => {
-      // 1. Load Expected Orders (Pending Deposit from Seller/Courier)
+      const activeCode = localStorage.getItem("kalagban_relay_code");
+      let currentId = localStorage.getItem("kalagban_relay_id");
+      let maxCap = 50;
+
+      if (activeCode) {
+        const { data: pt } = await supabase
+          .from("pickup_points")
+          .select("id, max_capacity, name, code")
+          .eq("code", activeCode)
+          .maybeSingle();
+
+        if (pt) {
+          currentId = pt.id;
+          maxCap = pt.max_capacity || 50;
+          setRelayId(pt.id);
+          localStorage.setItem("kalagban_relay_id", pt.id);
+          localStorage.setItem("kalagban_relay_name", pt.name);
+        }
+      }
+
+      if (!currentId) {
+        setExpectedOrders([]);
+        setPackageLogs([]);
+        setTodayPickups(0);
+        setTotalCommissions(0);
+        return;
+      }
+
+      // 1. Load Expected Orders ONLY for THIS point relais
       const { data: pendingOrders } = await supabase
         .from("orders")
         .select("id, customer_name, customer_phone, total_amount, created_at, pickup_code")
+        .eq("pickup_point_id", currentId)
         .eq("delivery_type", "pickup_point")
         .eq("relay_status", "pending_deposit")
         .order("created_at", { ascending: false });
 
-      if (pendingOrders) {
-        setExpectedOrders(pendingOrders as ExpectedOrder[]);
-      }
+      setExpectedOrders((pendingOrders as ExpectedOrder[]) || []);
 
-      // 2. Load Relay Logs
+      // 2. Count Colis en étagère (In-Stock) ONLY for THIS point relais
+      const { data: inStockOrders } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("pickup_point_id", currentId)
+        .eq("relay_status", "ready_for_pickup");
+
+      setCapacity({ current: inStockOrders?.length || 0, max: maxCap });
+
+      // 3. Load Relay Logs ONLY for THIS point relais
       const { data: logsData } = await supabase
         .from("relay_logs")
         .select("*")
+        .eq("pickup_point_id", currentId)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (logsData && logsData.length > 0) {
         setPackageLogs(logsData.map((l: Record<string, any>) => ({
-          id: l.order_code,
+          id: l.order_code || (l.order_id ? l.order_id.slice(0, 8).toUpperCase() : "---"),
           client: l.customer_name || "Client Kalagban",
           phone: l.customer_phone || "+225 --",
           status: l.action_type === "pickup" ? "picked_up" : "ready_for_pickup",
@@ -119,18 +147,24 @@ export default function RelayDashboardHome() {
           amount: "300 FCFA"
         })));
 
-        const pickedUpCount = logsData.filter((l: Record<string, any>) => l.action_type === "pickup").length;
-        setTodayPickups(pickedUpCount);
-        setTotalCommissions(pickedUpCount * 300);
-        
-        const inShelfCount = logsData.filter((l: Record<string, any>) => l.action_type === "deposit").length - pickedUpCount;
-        setCapacity(prev => ({ ...prev, current: Math.max(0, inShelfCount) }));
+        const pickedUpLogs = logsData.filter((l: Record<string, any>) => l.action_type === "pickup");
+        const totalEarned = pickedUpLogs.reduce((sum, l) => sum + (l.commission_earned || 300), 0);
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayCount = pickedUpLogs.filter(l => l.created_at && l.created_at.startsWith(todayStr)).length;
+
+        setTodayPickups(todayCount);
+        setTotalCommissions(totalEarned);
+      } else {
+        setPackageLogs([]);
+        setTodayPickups(0);
+        setTotalCommissions(0);
       }
     };
 
     loadRealData();
 
-    // Supabase Live Realtime
+    // Supabase Live Realtime (orders & relay_logs)
     const channel = supabase
       .channel("relay_dashboard_orders_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadRealData())
@@ -325,36 +359,50 @@ export default function RelayDashboardHome() {
         p_relay_code: relayCode || null
       });
 
-      if (universalRpcData && universalRpcData.success) {
-        const orderId = universalRpcData.order_id || universalRpcData.order_code || targetCode.toUpperCase();
-        const displayCode = universalRpcData.order_code || orderId.slice(0, 8).toUpperCase();
-        const customerName = universalRpcData.customer_name || "Client Kalagban";
-        const customerPhone = universalRpcData.customer_phone || "+225 --";
+      if (universalRpcData) {
+        if (universalRpcData.success) {
+          const orderId = universalRpcData.order_id || universalRpcData.order_code || targetCode.toUpperCase();
+          const displayCode = universalRpcData.order_code || orderId.slice(0, 8).toUpperCase();
+          const customerName = universalRpcData.customer_name || "Client Kalagban";
+          const customerPhone = universalRpcData.customer_phone || "+225 --";
 
-        setOtpSuccess(`Code OTP Valide ! Colis #${displayCode} remis à ${customerName}. Commission de +300 FCFA créditée !`);
-        setReceiptModalData({
-          orderCode: displayCode,
-          customerName: customerName,
-          customerPhone: customerPhone,
-          date: new Date().toLocaleString("fr-FR"),
-          relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
-          amount: "Retrait Confirmé"
-        });
-        setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === displayCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
-        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
-        setTodayPickups(prev => prev + 1);
-        setTotalCommissions(prev => prev + 300);
-        setOtpCode("");
-        setIsVerifyingOtp(false);
-        return;
+          setOtpSuccess(`Code OTP Valide ! Colis #${displayCode} remis à ${customerName}. Commission de +300 FCFA créditée !`);
+          setReceiptModalData({
+            orderCode: displayCode,
+            customerName: customerName,
+            customerPhone: customerPhone,
+            date: new Date().toLocaleString("fr-FR"),
+            relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+            amount: "Retrait Confirmé"
+          });
+          setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === displayCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
+          setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
+          setTodayPickups(prev => prev + 1);
+          setTotalCommissions(prev => prev + 300);
+          setOtpCode("");
+          setIsVerifyingOtp(false);
+          return;
+        } else if (universalRpcData.message && !universalRpcData.message.includes("introuvable")) {
+          // If RPC explicitly rejected due to wrong relay or other business rule
+          setOtpError(universalRpcData.message);
+          setIsVerifyingOtp(false);
+          return;
+        }
       }
 
       // 2. Search order in Supabase by pickup_code or ID
       let { data: dbOrder } = await supabase
         .from("orders")
-        .select("*")
+        .select("*, pickup_points(name)")
         .eq("pickup_code", targetCode)
         .maybeSingle();
+
+      if (dbOrder && relayId && dbOrder.pickup_point_id && dbOrder.pickup_point_id !== relayId) {
+        const otherRelayName = (dbOrder as any).pickup_points?.name || "un autre Point Relais";
+        setOtpError(`Ce code OTP appartient à un colis déposé au Point Relais "${otherRelayName}". Impossible de valider la remise ici.`);
+        setIsVerifyingOtp(false);
+        return;
+      }
 
       if (!dbOrder) {
         // Also try by full or partial ID

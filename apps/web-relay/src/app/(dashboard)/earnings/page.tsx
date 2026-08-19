@@ -43,18 +43,22 @@ export default function RelayEarningsPage() {
       }
     }
 
-    // 1. Calculate earned commissions from relay_logs
+    if (!pId) return;
+
+    // 1. Calculate earned commissions from relay_logs ONLY for THIS relay point
     const { data: logs } = await supabase
       .from("relay_logs")
       .select("commission_earned, action_type")
+      .eq("pickup_point_id", pId)
       .eq("action_type", "pickup");
 
     const totalEarned = (logs || []).reduce((acc, l) => acc + (Number(l.commission_earned) || 300), 0);
 
-    // 2. Fetch payouts
+    // 2. Fetch payouts ONLY for THIS relay point
     const { data: payoutsData } = await supabase
       .from("relay_payouts")
       .select("*")
+      .eq("pickup_point_id", pId)
       .order("created_at", { ascending: false });
 
     if (payoutsData && payoutsData.length > 0) {
