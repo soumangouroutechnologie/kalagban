@@ -38,7 +38,9 @@ import {
   Info,
   Map,
   LayoutGrid,
-  List
+  List,
+  Activity,
+  History
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
@@ -100,9 +102,16 @@ interface RelayLog {
   id: string;
   action_type: string;
   order_code: string;
+  order_id?: string;
   customer_name: string;
+  customer_phone?: string;
+  otp_code?: string;
   created_at: string;
   commission_earned: number;
+  pickup_point_id?: string;
+  pickup_point_name?: string;
+  commune?: string;
+  color_code?: string;
 }
 
 interface ConfirmationModalState {
@@ -141,7 +150,10 @@ export default function AdminRelaysPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCommune, setSelectedCommune] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [activeTab, setActiveTab] = useState<"map" | "grid">("map");
+  const [activeTab, setActiveTab] = useState<"map" | "grid" | "history">("map");
+
+  // Global Realtime Activity Logs across all relays
+  const [globalLogs, setGlobalLogs] = useState<RelayLog[]>([]);
 
   // Selected Relay for Map / Details
   const [selectedRelay, setSelectedRelay] = useState<PickupPoint | null>(null);
@@ -202,18 +214,40 @@ export default function AdminRelaysPage() {
     }
   };
 
-  // 2. Fetch Relays with joined Communes
+  // 2. Fetch Relays, Orders and Realtime Activity Logs
   const fetchRelays = async () => {
     setLoading(true);
     try {
       const [relaysRes, ordersRes, logsRes] = await Promise.all([
         supabase.from("pickup_points").select("*").order("created_at", { ascending: false }),
         supabase.from("orders").select("id, pickup_point_id, relay_status, status").eq("delivery_type", "pickup_point"),
-        supabase.from("relay_logs").select("pickup_point_id, action_type, commission_earned")
+        supabase.from("relay_logs").select("id, pickup_point_id, order_id, order_code, customer_name, customer_phone, action_type, otp_code, commission_earned, created_at, pickup_points(name, commune, color_code)").order("created_at", { ascending: false }).limit(60)
       ]);
 
       const allOrders = ordersRes.data || [];
       const allLogs = logsRes.data || [];
+
+      // Format Global Logs with Pickup Point Name and Color
+      const formattedGlobalLogs: RelayLog[] = allLogs.map((l: any) => {
+        const pt = l.pickup_points;
+        return {
+          id: l.id,
+          order_code: l.order_code || (l.order_id ? l.order_id.slice(0, 8).toUpperCase() : "---"),
+          order_id: l.order_id,
+          customer_name: l.customer_name || "Client Kalagban",
+          customer_phone: l.customer_phone || "+225 --",
+          action_type: l.action_type,
+          otp_code: l.otp_code || "---",
+          commission_earned: l.commission_earned || 300,
+          created_at: l.created_at,
+          pickup_point_id: l.pickup_point_id,
+          pickup_point_name: Array.isArray(pt) ? (pt[0]?.name || "Point Relais") : (pt?.name || "Point Relais"),
+          commune: Array.isArray(pt) ? (pt[0]?.commune || "Abidjan") : (pt?.commune || "Abidjan"),
+          color_code: Array.isArray(pt) ? (pt[0]?.color_code || "#6366F1") : (pt?.color_code || "#6366F1")
+        };
+      });
+
+      setGlobalLogs(formattedGlobalLogs);
 
       if (!relaysRes.error && relaysRes.data) {
         const formatted: PickupPoint[] = relaysRes.data.map((p: any) => {
@@ -260,8 +294,9 @@ export default function AdminRelaysPage() {
   useEffect(() => {
     fetchCommunes().then(() => fetchRelays());
 
+    // Live Realtime listener on orders, pickup_points and relay_logs
     const channel = supabase
-      .channel("admin_relays_live_sync")
+      .channel("admin_relays_live_sync_all")
       .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchRelays())
       .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => fetchRelays())
@@ -320,7 +355,7 @@ export default function AdminRelaysPage() {
           order_code: o.id.slice(0, 8).toUpperCase(),
           customer_name: o.customer_name || "Client",
           customer_phone: o.customer_phone || "+225 --",
-          seller_name: o.shops?.name || "Boutique Kalagban",
+          seller_name: Array.isArray(o.shops) ? (o.shops[0]?.name || "Boutique Kalagban") : (o.shops?.name || "Boutique Kalagban"),
           seller_phone: "+225 --",
           deposited_at: o.deposited_at || o.created_at,
           status: "in_stock",
@@ -611,20 +646,20 @@ export default function AdminRelaysPage() {
                 Logistique & Réseau Relais
               </span>
               <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold flex items-center gap-1">
-                <Sparkles size={10} /> Communes & Carte Interactive
+                <Sparkles size={10} /> Communes & Historique Temps Réel
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 tracking-tight mt-1">
               Supervision & Carte des Points Relais
             </h1>
             <p className="text-xs text-gray-500 font-medium mt-0.5">
-              Visualisation géographique, suivi des capacités et cockpit en immersion directe.
+              Visualisation géographique, suivi des capacités et monitoring live des scans.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Tab switcher: Map vs Grid */}
+          {/* Tab switcher: Map vs Grid vs History */}
           <div className="bg-gray-100 p-1 rounded-2xl flex items-center gap-1">
             <button
               onClick={() => setActiveTab("map")}
@@ -640,7 +675,16 @@ export default function AdminRelaysPage() {
                 activeTab === "grid" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              <LayoutGrid size={14} /> <span>Grille Complète ({points.length})</span>
+              <LayoutGrid size={14} /> <span>Grille ({points.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "history" ? "bg-white text-indigo-700 shadow-xs font-black" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Activity size={14} className="text-emerald-500 animate-pulse" /> 
+              <span>Journal Live ({globalLogs.length})</span>
             </button>
           </div>
 
@@ -837,11 +881,11 @@ export default function AdminRelaysPage() {
               </div>
             </div>
 
-            {/* Live Scan Journal */}
+            {/* Live Scan Journal in Cockpit */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-black text-base text-gray-900 flex items-center gap-2">
-                  <Clock size={16} className="text-indigo-600" /> Journal Live des Scans
+                  <Clock size={16} className="text-indigo-600" /> Journal des Scans Relais
                 </h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
               </div>
@@ -1285,6 +1329,110 @@ export default function AdminRelaysPage() {
                   })
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 3 OR BOTTOM SECTION: REALTIME LIVE SCANS & MOVEMENT HISTORY */}
+          {(activeTab === "history" || activeTab === "map" || activeTab === "grid") && (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                    <Activity size={20} className="text-emerald-500 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base text-gray-900 flex items-center gap-2">
+                      <span>Journal Live des Scans & Déplacements Réseau</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Historique en direct de tous les dépôts livreurs et retraits clients OTP à travers Abidjan.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-black flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                    Live Supabase Connecté
+                  </span>
+                  <span className="text-xs font-mono font-bold text-gray-400">
+                    {globalLogs.length} scans récents
+                  </span>
+                </div>
+              </div>
+
+              {globalLogs.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 font-medium text-xs bg-slate-50/50 rounded-2xl border border-dashed border-gray-200 space-y-2">
+                  <Clock className="w-8 h-8 mx-auto text-gray-300 stroke-1" />
+                  <p className="font-bold text-gray-600">Aucun mouvement enregistré aujourd'hui</p>
+                  <p className="text-[11px]">Les nouveaux scans de dépôt et retraits OTP apparaîtront ici instantanément.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 text-gray-600 font-black border-b border-gray-200">
+                        <th className="px-4 py-3 rounded-l-xl">N° Commande</th>
+                        <th className="px-4 py-3">Point Relais & Commune</th>
+                        <th className="px-4 py-3">Type d'Opération</th>
+                        <th className="px-4 py-3">Client & Téléphone</th>
+                        <th className="px-4 py-3">Code OTP</th>
+                        <th className="px-4 py-3">Commission</th>
+                        <th className="px-4 py-3 rounded-r-xl text-right">Horodatage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {globalLogs.map((log) => {
+                        const isPickup = log.action_type === "pickup";
+                        return (
+                          <tr key={log.id} className="hover:bg-indigo-50/40 transition-colors">
+                            <td className="px-4 py-3.5 font-mono font-black text-indigo-700">
+                              #{log.order_code}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: log.color_code || "#6366F1" }}
+                                />
+                                <div>
+                                  <p className="font-extrabold text-gray-900">{log.pickup_point_name}</p>
+                                  <p className="text-[10px] text-gray-400 font-bold">{log.commune}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black ${
+                                isPickup 
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                  : "bg-blue-50 text-blue-800 border border-blue-200"
+                              }`}>
+                                {isPickup ? "✨ Retrait Client (OTP)" : "📥 Dépôt Livreur"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <p className="font-bold text-gray-900">{log.customer_name}</p>
+                              <p className="font-mono text-[11px] text-gray-500">{log.customer_phone}</p>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className="font-mono font-black text-[11px] bg-gray-100 text-gray-800 px-2 py-0.5 rounded-md border border-gray-200">
+                                {log.otp_code || "------"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 font-extrabold text-emerald-600">
+                              +{log.commission_earned || 300} FCFA
+                            </td>
+                            <td className="px-4 py-3.5 font-mono text-gray-400 text-[11px] text-right">
+                              {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
