@@ -30,20 +30,20 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-
-  // Load cart from localStorage
-  useEffect(() => {
-    try {
-      const savedCart = localStorage.getItem("kalagban_buyer_cart");
-      if (savedCart) {
-        setCart(JSON.parse(savedCart));
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const savedCart = localStorage.getItem("kalagban_buyer_cart");
+        if (savedCart) {
+          return JSON.parse(savedCart);
+        }
+      } catch (err) {
+        console.error("Error loading cart:", err);
       }
-    } catch (err) {
-      console.error("Error loading cart:", err);
     }
-  }, []);
+    return [];
+  });
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Save cart to localStorage
   useEffect(() => {

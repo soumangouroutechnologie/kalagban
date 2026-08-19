@@ -99,6 +99,7 @@ interface ProductItem {
   category?: string;
   price: number;
   old_price?: number;
+  stock_quantity?: number;
   image_url: string;
   shop_name?: string;
   shop_id?: string;
@@ -147,6 +148,7 @@ export default function CategoryJumiaStyleScreen() {
           category,
           price,
           old_price,
+          stock_quantity,
           status,
           shop_id,
           product_media (url),
@@ -163,6 +165,7 @@ export default function CategoryJumiaStyleScreen() {
           category: item.category,
           price: Number(item.price),
           old_price: item.old_price ? Number(item.old_price) : undefined,
+          stock_quantity: Number(item.stock_quantity ?? 0),
           image_url: item.product_media && item.product_media.length > 0 ? item.product_media[0].url : '',
           shop_name: item.shops?.name || 'Vendeur Certifié',
           shop_id: item.shop_id,
@@ -179,7 +182,7 @@ export default function CategoryJumiaStyleScreen() {
   };
 
   const handleAddToCart = (prod: ProductItem) => {
-    if (prod.stock_quantity <= 0) return;
+    if (prod.stock_quantity && prod.stock_quantity <= 0) return;
     addToCart({
       id: prod.id,
       title: prod.title,
