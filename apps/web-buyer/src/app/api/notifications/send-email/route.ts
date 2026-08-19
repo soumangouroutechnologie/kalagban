@@ -60,24 +60,45 @@ export async function POST(req: NextRequest) {
 
     // Provider check (e.g. Resend API Key if set in environment)
     const resendApiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Kalagban <onboarding@resend.dev>";
     let providerResponse = null;
 
     if (resendApiKey && recipientEmail) {
       try {
-        const res = await fetch("https://api.resend.com/emails", {
+        let res = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${resendApiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: "Kalagban <notifications@kalagban.com>",
+            from: fromEmail,
             to: recipientEmail,
             subject,
             html: htmlContent,
           }),
         });
+
         providerResponse = await res.json();
+
+        // Fallback to onboarding@resend.dev if custom domain is not yet verified
+        if (!res.ok && fromEmail !== "Kalagban <onboarding@resend.dev>") {
+          console.warn("Retrying Resend with onboarding@resend.dev fallback...");
+          res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "Kalagban <onboarding@resend.dev>",
+              to: recipientEmail,
+              subject,
+              html: htmlContent,
+            }),
+          });
+          providerResponse = await res.json();
+        }
       } catch (sendErr) {
         console.error("Resend API dispatch error:", sendErr);
       }
