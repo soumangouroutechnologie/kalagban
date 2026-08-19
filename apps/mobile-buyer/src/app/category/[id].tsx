@@ -179,6 +179,7 @@ export default function CategoryJumiaStyleScreen() {
   };
 
   const handleAddToCart = (prod: ProductItem) => {
+    if (prod.stock_quantity <= 0) return;
     addToCart({
       id: prod.id,
       title: prod.title,
@@ -187,6 +188,7 @@ export default function CategoryJumiaStyleScreen() {
       image_url: prod.image_url,
       shop_id: prod.shop_id || '',
       shop_name: prod.shop_name,
+      max_stock: prod.stock_quantity,
     });
     setAddedNotice(prod.title);
     setTimeout(() => setAddedNotice(null), 2000);

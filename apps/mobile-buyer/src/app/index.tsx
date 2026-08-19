@@ -268,6 +268,7 @@ export default function MarketplaceHomeScreen() {
   };
 
   const handleAddToCart = (product: ProductItem) => {
+    if (product.stock_quantity <= 0) return;
     addToCart({
       id: product.id,
       title: product.title,
@@ -276,6 +277,7 @@ export default function MarketplaceHomeScreen() {
       image_url: product.image_url,
       shop_id: product.shop_id,
       shop_name: product.shop_name,
+      max_stock: product.stock_quantity,
     });
 
     setAddedNotice(product.title);

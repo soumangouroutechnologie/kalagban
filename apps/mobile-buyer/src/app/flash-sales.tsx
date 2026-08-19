@@ -151,6 +151,7 @@ export default function FlashSalesScreen() {
   });
 
   const handleAddToCart = (product: FlashProduct) => {
+    if (product.stock_quantity <= 0) return;
     addToCart({
       id: product.id,
       shop_id: product.shop_id,
@@ -158,6 +159,7 @@ export default function FlashSalesScreen() {
       price: product.price,
       old_price: product.old_price,
       image_url: product.image_url,
+      max_stock: product.stock_quantity,
     });
     setAddedNotice(product.title);
     setTimeout(() => setAddedNotice(null), 2500);

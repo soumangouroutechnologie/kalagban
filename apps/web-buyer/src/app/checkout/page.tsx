@@ -123,6 +123,24 @@ export default function CheckoutPage() {
     }
 
     try {
+      // 0. Verify real-time stock availability
+      const productIds = Array.from(new Set(cart.map((i) => i.productId)));
+      const { data: currentProducts } = await supabase
+        .from("products")
+        .select("id, title, stock_quantity")
+        .in("id", productIds);
+
+      if (currentProducts) {
+        for (const cartItem of cart) {
+          const matching = currentProducts.find((p) => p.id === cartItem.productId);
+          if (matching && cartItem.quantity > matching.stock_quantity) {
+            setErrorMsg(`Stock insuffisant pour "${matching.title}". Il ne reste que ${matching.stock_quantity} unité(s) disponible(s). Veuillez ajuster votre panier.`);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
+
       // Group cart items by shopId so each shop receives its own order!
       const shopGroups: Record<string, typeof cart> = {};
       cart.forEach((item) => {

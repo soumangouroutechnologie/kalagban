@@ -124,11 +124,18 @@ export default function CartScreen() {
                       <Text style={styles.qtyVal}>{item.quantity}</Text>
 
                       <TouchableOpacity
-                        style={styles.qtyBtn}
+                        style={[styles.qtyBtn, item.max_stock !== undefined && item.quantity >= item.max_stock && { opacity: 0.3 }]}
+                        disabled={item.max_stock !== undefined && item.quantity >= item.max_stock}
                         onPress={() => updateQuantity(item.id, item.quantity + 1)}
                       >
                         <Plus size={14} color="#0F172A" />
                       </TouchableOpacity>
+
+                      {item.max_stock !== undefined && item.quantity >= item.max_stock && (
+                        <Text style={{ fontSize: 10, color: '#D97706', fontWeight: 'bold', marginLeft: 6 }}>
+                          (Max {item.max_stock})
+                        </Text>
+                      )}
                     </View>
                   </View>
                 </View>

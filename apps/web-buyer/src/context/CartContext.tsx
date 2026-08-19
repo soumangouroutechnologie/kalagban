@@ -12,6 +12,7 @@ export interface CartItem {
   image?: string | null;
   quantity: number;
   selectedOptions?: Record<string, string>;
+  maxStock?: number | null;
 }
 
 interface CartContextType {
@@ -54,15 +55,27 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   }, [cart]);
 
   const addToCart = (newItem: Omit<CartItem, "id">) => {
+    const maxAllowed = newItem.maxStock !== undefined && newItem.maxStock !== null ? Math.max(0, newItem.maxStock) : Infinity;
+    if (maxAllowed <= 0) return;
+
     const itemKey = `${newItem.productId}-${JSON.stringify(newItem.selectedOptions || {})}`;
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === itemKey);
       if (existingIndex > -1) {
         const updated = [...prev];
-        updated[existingIndex].quantity += newItem.quantity;
+        const currentStockCap = newItem.maxStock !== undefined && newItem.maxStock !== null 
+          ? newItem.maxStock 
+          : (updated[existingIndex].maxStock ?? Infinity);
+
+        const newTotalQty = updated[existingIndex].quantity + newItem.quantity;
+        updated[existingIndex].quantity = Math.min(newTotalQty, currentStockCap);
+        if (newItem.maxStock !== undefined) {
+          updated[existingIndex].maxStock = newItem.maxStock;
+        }
         return updated;
       } else {
-        return [...prev, { ...newItem, id: itemKey }];
+        const initialQty = Math.min(newItem.quantity, maxAllowed);
+        return [...prev, { ...newItem, id: itemKey, quantity: initialQty }];
       }
     });
     setIsCartOpen(true);
@@ -77,8 +90,13 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       prev
         .map((item) => {
           if (item.id === id) {
+            const maxAllowed = item.maxStock !== undefined && item.maxStock !== null 
+              ? Math.max(1, item.maxStock) 
+              : Infinity;
+
             const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
+            if (newQty <= 0) return null;
+            return { ...item, quantity: Math.min(newQty, maxAllowed) };
           }
           return item;
         })

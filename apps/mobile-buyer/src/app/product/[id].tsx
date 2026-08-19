@@ -121,6 +121,9 @@ export default function ProductDetailScreen() {
 
   const handleAddToCart = () => {
     if (!product) return;
+    const cappedQty = Math.min(quantity, product.stock_quantity);
+    if (cappedQty <= 0) return;
+
     addToCart(
       {
         id: product.id,
@@ -130,9 +133,10 @@ export default function ProductDetailScreen() {
         image_url: product.image_url,
         shop_id: product.shop_id,
         shop_name: product.shop_name,
+        max_stock: product.stock_quantity,
         selected_variant: { Taille: selectedSize },
       },
-      quantity
+      cappedQty
     );
     setAddedNotice(true);
     setTimeout(() => setAddedNotice(false), 2000);
@@ -265,8 +269,9 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
               <Text style={styles.qtyText}>{quantity}</Text>
               <TouchableOpacity
-                style={styles.qtyBtn}
-                onPress={() => setQuantity(quantity + 1)}
+                style={[styles.qtyBtn, (product.stock_quantity <= 0 || quantity >= product.stock_quantity) && { opacity: 0.3 }]}
+                disabled={product.stock_quantity <= 0 || quantity >= product.stock_quantity}
+                onPress={() => setQuantity(Math.min(quantity + 1, product.stock_quantity))}
               >
                 <Plus size={18} color="#0F172A" />
               </TouchableOpacity>

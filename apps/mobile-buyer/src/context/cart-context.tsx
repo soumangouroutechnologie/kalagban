@@ -10,6 +10,7 @@ export interface CartItem {
   shop_id: string;
   shop_name?: string;
   quantity: number;
+  max_stock?: number;
   selected_variant?: Record<string, string>;
 }
 
@@ -58,14 +59,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (newItem: Omit<CartItem, 'quantity'>, qty = 1) => {
+    const maxAllowed = newItem.max_stock !== undefined ? Math.max(0, newItem.max_stock) : Infinity;
+    if (maxAllowed <= 0) return;
+
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex((item) => item.id === newItem.id);
       if (existingIndex > -1) {
         const updated = [...prevItems];
-        updated[existingIndex].quantity += qty;
+        const currentCap = newItem.max_stock ?? updated[existingIndex].max_stock ?? Infinity;
+        const newTotal = updated[existingIndex].quantity + qty;
+        updated[existingIndex].quantity = Math.min(newTotal, currentCap);
+        if (newItem.max_stock !== undefined) {
+          updated[existingIndex].max_stock = newItem.max_stock;
+        }
         return updated;
       }
-      return [...prevItems, { ...newItem, quantity: qty }];
+      return [...prevItems, { ...newItem, quantity: Math.min(qty, maxAllowed) }];
     });
   };
 
@@ -79,7 +88,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     setItems((prevItems) =>
-      prevItems.map((item) => (item.id === id ? { ...item, quantity } : item))
+      prevItems.map((item) => {
+        if (item.id === id) {
+          const cap = item.max_stock !== undefined ? item.max_stock : Infinity;
+          return { ...item, quantity: Math.min(quantity, cap) };
+        }
+        return item;
+      })
     );
   };
 

@@ -159,7 +159,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       price: product.price,
       oldPrice: product.old_price,
       image: selectedImage,
-      quantity: quantity,
+      quantity: Math.min(quantity, product.stock_quantity),
+      maxStock: product.stock_quantity,
     });
     router.push("/checkout");
   };
@@ -329,10 +330,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       price: product.price,
                       oldPrice: product.old_price,
                       image: selectedImage,
-                      quantity: quantity,
+                      quantity: Math.min(quantity, product.stock_quantity),
+                      maxStock: product.stock_quantity,
                     })
                   }
-                  className="flex-1 bg-gray-900 text-white font-bold py-4 px-6 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-gray-900/10"
+                  className="flex-1 bg-gray-900 text-white font-bold py-4 px-6 rounded-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-gray-900/10 cursor-pointer"
                 >
                   <ShoppingBag size={20} />
                   Ajouter au panier

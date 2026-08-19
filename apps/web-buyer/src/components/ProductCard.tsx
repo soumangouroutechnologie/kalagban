@@ -127,6 +127,7 @@ export default function ProductCard({ product }: { product: ProductType }) {
           </div>
 
           <button
+            disabled={product.stock_quantity <= 0}
             onClick={() =>
               addToCart({
                 productId: product.id,
@@ -136,10 +137,11 @@ export default function ProductCard({ product }: { product: ProductType }) {
                 oldPrice: product.old_price,
                 image: product.image_url,
                 quantity: 1,
+                maxStock: product.stock_quantity,
               })
             }
-            className="w-8 h-8 sm:w-11 sm:h-11 bg-indigo-50 text-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-xs group/btn cursor-pointer shrink-0"
-            title="Ajouter au panier"
+            className="w-8 h-8 sm:w-11 sm:h-11 bg-indigo-50 text-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-xs group/btn cursor-pointer shrink-0 disabled:opacity-40 disabled:hover:bg-indigo-50 disabled:hover:text-indigo-600 disabled:cursor-not-allowed"
+            title={product.stock_quantity <= 0 ? "Rupture de stock" : "Ajouter au panier"}
           >
             <ShoppingBag size={16} className="group-hover/btn:scale-110 transition-transform" />
           </button>

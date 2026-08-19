@@ -509,6 +509,7 @@ export default function CustomerAccountPage() {
 
                       <div className="flex items-center gap-2 pt-2 border-t border-gray-200/60">
                         <button
+                          disabled={item.products.stock_quantity <= 0}
                           onClick={() => addToCart({
                             productId: item.products.id,
                             shopId: "shop",
@@ -516,12 +517,13 @@ export default function CustomerAccountPage() {
                             price: item.products.price,
                             oldPrice: item.products.old_price,
                             image: mediaUrl || "",
-                            quantity: 1
+                            quantity: 1,
+                            maxStock: item.products.stock_quantity,
                           })}
-                          className="flex-1 bg-gray-900 text-white font-bold text-xs py-2.5 px-3 rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 bg-gray-900 text-white font-bold text-xs py-2.5 px-3 rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <ShoppingBag size={14} />
-                          Ajouter au panier
+                          {item.products.stock_quantity <= 0 ? "Épuisé" : "Ajouter au panier"}
                         </button>
 
                         <button

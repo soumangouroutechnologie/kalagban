@@ -80,22 +80,32 @@ export default function CartDrawer() {
                       <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
                         <button
                           onClick={() => updateQuantity(item.id, -1)}
-                          className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded"
+                          className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded cursor-pointer"
+                          title="Diminuer la quantité"
                         >
                           <Minus size={14} />
                         </button>
                         <span className="text-xs font-extrabold text-gray-900 w-4 text-center">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, 1)}
-                          className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded"
+                          disabled={item.maxStock !== undefined && item.maxStock !== null && item.quantity >= item.maxStock}
+                          className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          title={item.maxStock !== undefined && item.maxStock !== null && item.quantity >= item.maxStock ? `Stock maximum atteint (${item.maxStock} dispo)` : "Augmenter la quantité"}
                         >
                           <Plus size={14} />
                         </button>
                       </div>
 
+                      {item.maxStock !== undefined && item.maxStock !== null && item.quantity >= item.maxStock && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          Max stock ({item.maxStock})
+                        </span>
+                      )}
+
                       <button
                         onClick={() => removeFromCart(item.id)}
-                        className="text-red-500 hover:text-red-700 p-1.5 transition-colors"
+                        className="text-red-500 hover:text-red-700 p-1.5 transition-colors cursor-pointer"
+                        title="Supprimer du panier"
                       >
                         <Trash2 size={16} />
                       </button>

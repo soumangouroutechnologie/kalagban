@@ -48,6 +48,7 @@ interface Product {
   category?: string;
   price: number;
   old_price?: number;
+  stock_quantity?: number;
   image_url: string;
   shop_id?: string;
   shop_name?: string;
@@ -200,6 +201,7 @@ export default function ExploreScreen() {
   };
 
   const handleAddToCart = (product: Product) => {
+    if (product.stock_quantity !== undefined && product.stock_quantity <= 0) return;
     addToCart({
       id: product.id,
       title: product.title,
@@ -208,6 +210,7 @@ export default function ExploreScreen() {
       image_url: product.image_url,
       shop_id: product.shop_id || 'shop_1',
       shop_name: product.shop_name || 'Boutique Partenaire',
+      max_stock: product.stock_quantity,
     });
     setAddedNotice(product.title);
     setTimeout(() => setAddedNotice(null), 2500);
