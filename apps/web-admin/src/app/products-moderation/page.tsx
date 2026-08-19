@@ -422,21 +422,32 @@ export default function ProductsModerationPage() {
                       <div className="p-5 flex gap-4">
                         {/* Image Preview Thumbnail */}
                         <div
-                          onClick={() => setPreviewImage(firstImage)}
-                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-slate-100 overflow-hidden shrink-0 relative group cursor-pointer border border-gray-200"
+                          onClick={() => {
+                            if (mediaUrls.length > 0) setPreviewImage(mediaUrls[0]);
+                          }}
+                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-slate-100 overflow-hidden shrink-0 relative group cursor-pointer border border-gray-200 flex items-center justify-center shadow-inner"
                         >
-                          <img
-                            src={firstImage}
-                            alt={product.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                            <Eye size={20} />
-                          </div>
-                          {mediaUrls.length > 1 && (
-                            <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                              +{mediaUrls.length - 1}
-                            </span>
+                          {mediaUrls.length > 0 ? (
+                            <>
+                              <img
+                                src={mediaUrls[0]}
+                                alt={product.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Eye size={20} />
+                              </div>
+                              {mediaUrls.length > 1 && (
+                                <span className="absolute bottom-1.5 right-1.5 bg-black/75 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow">
+                                  +{mediaUrls.length - 1} photos
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
+                              <Package size={28} />
+                              <span className="text-[10px] font-bold">Sans photo</span>
+                            </div>
                           )}
                         </div>
 
