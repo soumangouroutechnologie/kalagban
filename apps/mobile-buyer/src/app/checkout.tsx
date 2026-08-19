@@ -51,8 +51,9 @@ export default function MobileCheckoutScreen() {
   const [customerPhone, setCustomerPhone] = useState('+225 07 00 11 22');
   
   const [deliveryType, setDeliveryType] = useState<'home_delivery' | 'pickup_point'>('pickup_point');
-  const [selectedCommune, setSelectedCommune] = useState('Cocody');
+  const [selectedCommune, setSelectedCommune] = useState('');
   const [selectedRelayId, setSelectedRelayId] = useState('');
+  const [communesList, setCommunesList] = useState<string[]>([]);
   
   const [addressLine, setAddressLine] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'wave'>('cod');
@@ -67,16 +68,26 @@ export default function MobileCheckoutScreen() {
   useEffect(() => {
     const fetchPickupPoints = async () => {
       try {
-        const { data } = await supabase
-          .from('pickup_points')
-          .select('*')
-          .eq('status', 'active');
+        const [communesRes, pointsRes] = await Promise.all([
+          supabase.from('communes').select('name').order('display_order', { ascending: true }),
+          supabase.from('pickup_points').select('*').eq('status', 'active')
+        ]);
 
-        if (data && data.length > 0) {
-          setAvailableRelays(data);
-          setSelectedCommune(data[0].commune);
-          setSelectedRelayId(data[0].id);
-        } else {
+        const dbPoints = pointsRes.data || [];
+        setAvailableRelays(dbPoints);
+
+        const dbCommunes = communesRes.data ? communesRes.data.map(c => c.name) : [];
+        const uniqueNames = Array.from(new Set([...(dbPoints.map(p => p.commune)), ...dbCommunes]));
+        setCommunesList(uniqueNames.length > 0 ? uniqueNames : ['Adjamé', 'Cocody', 'Yopougon', 'Marcory', 'Plateau']);
+
+        if (dbPoints.length > 0) {
+          setSelectedCommune(dbPoints[0].commune);
+          setSelectedRelayId(dbPoints[0].id);
+        } else if (uniqueNames.length > 0) {
+          setSelectedCommune(uniqueNames[0]);
+        }
+      } catch {
+        // Fallback demo points
           setAvailableRelays([
             {
               id: 'p1',
@@ -327,17 +338,25 @@ export default function MobileCheckoutScreen() {
               <Text style={styles.inputLabel}>Sélectionnez votre Point Relais à Abidjan *</Text>
               
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                {['Cocody', 'Marcory', 'Yopougon', 'Plateau', 'Abobo'].map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[styles.chip, selectedCommune === c && styles.chipActive]}
-                    onPress={() => setSelectedCommune(c)}
-                  >
-                    <Text style={[styles.chipText, selectedCommune === c && styles.chipTextActive]}>
-                      {c}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {communesList.map((c) => {
+                  const count = availableRelays.filter(r => r.commune.toLowerCase() === c.toLowerCase()).length;
+                  return (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.chip, selectedCommune.toLowerCase() === c.toLowerCase() && styles.chipActive]}
+                      onPress={() => {
+                        setSelectedCommune(c);
+                        const match = availableRelays.find(r => r.commune.toLowerCase() === c.toLowerCase());
+                        if (match) setSelectedRelayId(match.id);
+                        else setSelectedRelayId('');
+                      }}
+                    >
+                      <Text style={[styles.chipText, selectedCommune.toLowerCase() === c.toLowerCase() && styles.chipTextActive]}>
+                        {c} {count > 0 ? `(${count})` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
 
               {filteredRelays.map((relay) => {

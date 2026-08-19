@@ -34,14 +34,15 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("kpay"); // 'kpay' | 'cod'
   const [deliveryType, setDeliveryType] = useState<"home_delivery" | "pickup_point">("pickup_point");
-  const [selectedCommune, setSelectedCommune] = useState("Cocody");
+  const [selectedCommune, setSelectedCommune] = useState("");
   const [selectedRelayId, setSelectedRelayId] = useState("");
+  const [communesList, setCommunesList] = useState<Array<{ id: string; name: string; code: string; color_hex?: string }>>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-  const [availableRelays, setAvailableRelays] = useState<Array<{ id: string; code: string; name: string; commune: string; address: string; manager_name?: string; phone?: string }>>([]);
+  const [availableRelays, setAvailableRelays] = useState<Array<{ id: string; code: string; name: string; commune: string; address: string; manager_name?: string; phone?: string; color_code?: string }>>([]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -62,19 +63,41 @@ export default function CheckoutPage() {
         }
       }
 
-      // Fetch Real Active Pickup Points created by Admin
+      // 1. Fetch Real Communes
+      const { data: dbCommunes } = await supabase
+        .from("communes")
+        .select("id, name, code, color_hex")
+        .order("display_order", { ascending: true });
+
+      // 2. Fetch Real Active Pickup Points created by Admin
       const { data: pointsData } = await supabase
         .from("pickup_points")
-        .select("id, code, name, commune, address, manager_name, phone")
+        .select("id, code, name, commune, address, manager_name, phone, color_code")
         .eq("status", "active");
 
-      if (pointsData && pointsData.length > 0) {
-        setAvailableRelays(pointsData);
-        setSelectedCommune(pointsData[0].commune);
-        setSelectedRelayId(pointsData[0].code || pointsData[0].id);
-        setDistrict(pointsData[0].commune);
-      } else {
-        setAvailableRelays([]);
+      const rawPoints = pointsData || [];
+      setAvailableRelays(rawPoints);
+
+      let finalCommunes = dbCommunes || [];
+      if (finalCommunes.length === 0 && rawPoints.length > 0) {
+        const uniqueNames = Array.from(new Set(rawPoints.map(p => p.commune)));
+        finalCommunes = uniqueNames.map(name => ({
+          id: name,
+          name,
+          code: name.substring(0, 3).toUpperCase(),
+          color_hex: "#6366F1"
+        }));
+      }
+      setCommunesList(finalCommunes);
+
+      if (rawPoints.length > 0) {
+        const defaultCommune = rawPoints[0].commune;
+        setSelectedCommune(defaultCommune);
+        setSelectedRelayId(rawPoints[0].code || rawPoints[0].id);
+        setDistrict(defaultCommune);
+      } else if (finalCommunes.length > 0) {
+        setSelectedCommune(finalCommunes[0].name);
+        setDistrict(finalCommunes[0].name);
         setSelectedRelayId("");
       }
 
@@ -503,56 +526,70 @@ export default function CheckoutPage() {
                             setSelectedRelayId("");
                           }
                         }}
-                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-amber-500/40 font-bold text-sm transition-all"
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-indigo-600/40 font-bold text-sm transition-all"
                       >
-                        <option value="Cocody">Cocody</option>
-                        <option value="Yopougon">Yopougon</option>
-                        <option value="Marcory">Marcory</option>
-                        <option value="Plateau">Plateau</option>
-                        <option value="Koumassi">Koumassi</option>
-                        <option value="Abobo">Abobo</option>
+                        {communesList.map((c) => {
+                          const count = availableRelays.filter(r => r.commune.toLowerCase() === c.name.toLowerCase()).length;
+                          return (
+                            <option key={c.id || c.name} value={c.name}>
+                              {c.name} {count > 0 ? `(${count} point${count > 1 ? 's' : ''} relais actif${count > 1 ? 's' : ''})` : "(Bientôt disponible)"}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
                     {/* Étape 2: Choix du Point Relais dans la commune */}
                     <div className="flex flex-col gap-2">
                       <label className="text-xs font-extrabold uppercase tracking-wider text-gray-700">
-                        2. Sélectionnez le Point Relais de {selectedCommune} *
+                        2. Sélectionnez le Point Relais de {selectedCommune || "votre commune"} *
                       </label>
 
                       {availableRelays.filter(r => r.commune.toLowerCase() === selectedCommune.toLowerCase()).length === 0 ? (
-                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-medium text-amber-900">
-                          Aucun point relais disponible dans la commune de <strong>{selectedCommune}</strong> pour le moment. Veuillez sélectionner &quot;Livraison à Domicile&quot; ou choisir une autre commune.
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-medium text-amber-900 flex items-center gap-3">
+                          <span className="text-lg">⚠️</span>
+                          <span>
+                            Aucun point relais actif dans la commune de <strong>{selectedCommune}</strong> pour le moment. Veuillez sélectionner une autre commune (comme Cocody ou Adjamé).
+                          </span>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-3">
                           {availableRelays
                             .filter(r => r.commune.toLowerCase() === selectedCommune.toLowerCase())
-                            .map((relay) => (
-                              <div
-                                key={relay.id}
-                                onClick={() => {
-                                  setSelectedRelayId(relay.code || relay.id);
-                                  setDistrict(relay.commune);
-                                }}
-                                className={`p-4 rounded-2xl border-2 flex items-start justify-between cursor-pointer transition-all ${
-                                  selectedRelayId === (relay.code || relay.id)
-                                    ? "border-amber-500 bg-amber-50/60 shadow-sm"
-                                    : "border-gray-200 hover:bg-gray-50"
-                                }`}
-                              >
-                                <div>
-                                  <h4 className="font-extrabold text-sm text-gray-900">{relay.name}</h4>
-                                  <p className="text-xs text-gray-600 font-medium mt-1">📍 {relay.address}</p>
-                                  {relay.manager_name && (
-                                    <p className="text-[11px] text-gray-400 font-medium mt-0.5">Gérant : {relay.manager_name}</p>
+                            .map((relay) => {
+                              const isSelected = selectedRelayId === (relay.code || relay.id) || selectedRelayId === relay.id;
+                              return (
+                                <div
+                                  key={relay.id}
+                                  onClick={() => {
+                                    setSelectedRelayId(relay.code || relay.id);
+                                    setDistrict(relay.commune);
+                                  }}
+                                  style={{ borderLeftColor: relay.color_code || "#6366F1" }}
+                                  className={`p-4 rounded-2xl border border-l-4 flex items-start justify-between cursor-pointer transition-all ${
+                                    isSelected
+                                      ? "border-indigo-600 bg-indigo-50/60 shadow-sm ring-2 ring-indigo-600/20"
+                                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-extrabold text-sm text-gray-900">{relay.name}</h4>
+                                      <span className="font-mono text-[10px] text-gray-400 font-bold">{relay.code}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 font-medium mt-1">📍 {relay.address}</p>
+                                    {relay.manager_name && (
+                                      <p className="text-[11px] text-gray-400 font-medium mt-0.5">Gérant : {relay.manager_name} • {relay.phone}</p>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <span className="text-emerald-700 font-black text-xs bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full shrink-0">
+                                      Sélectionné
+                                    </span>
                                   )}
                                 </div>
-                                {selectedRelayId === (relay.code || relay.id) && (
-                                  <span className="text-emerald-600 font-black text-xs bg-emerald-100 px-2.5 py-1 rounded-full shrink-0">Sélectionné</span>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
                       )}
                     </div>
