@@ -100,6 +100,8 @@ export default function AdminRelaysPage() {
   const [otpInput, setOtpInput] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
+  const generateRandomPin = () => Math.floor(100000 + Math.random() * 900000).toString();
+
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -115,7 +117,7 @@ export default function AdminRelaysPage() {
     commission_per_package: 300,
     latitude: 5.3484,
     longitude: -4.0197,
-    pin_code: "123456",
+    pin_code: generateRandomPin(),
   });
 
   const fetchRelays = async () => {
@@ -144,7 +146,7 @@ export default function AdminRelaysPage() {
             ...p,
             current_packages_count: inStock,
             total_commissions_earned: totalEarned,
-            pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : "123456"),
+            pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : generateRandomPin()),
           };
         });
 
@@ -280,6 +282,7 @@ export default function AdminRelaysPage() {
   const handleCreateRelay = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const generatedPin = newRelay.pin_code || generateRandomPin();
       const code = newRelay.code || `RELAY-${newRelay.commune.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
       const { error } = await supabase.from("pickup_points").insert({
@@ -287,7 +290,8 @@ export default function AdminRelaysPage() {
         code,
         manager_name: newRelay.manager_name,
         phone: newRelay.phone,
-        email: `pin:${newRelay.pin_code}`,
+        email: `pin:${generatedPin}`,
+        pin_code: generatedPin,
         address: newRelay.address,
         city: newRelay.city,
         commune: newRelay.commune,
@@ -300,9 +304,43 @@ export default function AdminRelaysPage() {
 
       if (error) throw error;
       setShowAddModal(false);
+      setNewRelay({
+        name: "",
+        code: "",
+        manager_name: "",
+        phone: "",
+        address: "",
+        city: "Abidjan",
+        commune: "Cocody",
+        max_capacity: 50,
+        commission_per_package: 300,
+        latitude: 5.3484,
+        longitude: -4.0197,
+        pin_code: generateRandomPin(),
+      });
       fetchRelays();
     } catch (err: any) {
       alert("Erreur lors de la création du point relais : " + err.message);
+    }
+  };
+
+  const handleRegeneratePin = async (relay: PickupPoint) => {
+    const newPin = generateRandomPin();
+    try {
+      const { error } = await supabase
+        .from("pickup_points")
+        .update({
+          pin_code: newPin,
+          email: `pin:${newPin}`,
+        })
+        .eq("id", relay.id);
+
+      if (error) throw error;
+
+      setImmersiveRelay((prev) => (prev ? { ...prev, pin_code: newPin } : null));
+      setPoints((prev) => prev.map((p) => (p.id === relay.id ? { ...p, pin_code: newPin } : p)));
+    } catch (err: any) {
+      alert("Erreur lors de la régénération du code PIN : " + err.message);
     }
   };
 
@@ -429,10 +467,19 @@ export default function AdminRelaysPage() {
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Code PIN de Connexion</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-black text-sm bg-gray-100 px-3 py-1 rounded-xl text-gray-900">
-                  {immersiveRelay.pin_code || "123456"}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Code PIN de Connexion</span>
+                <button
+                  onClick={() => handleRegeneratePin(immersiveRelay)}
+                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 transition-colors"
+                  title="Générer un nouveau code PIN aléatoire"
+                >
+                  <RefreshCw size={10} /> Régénérer
+                </button>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono font-black text-sm bg-indigo-50/70 border border-indigo-100 px-3 py-1 rounded-xl text-indigo-950 tracking-widest">
+                  {immersiveRelay.pin_code || "------"}
                 </span>
                 <KeyRound size={16} className="text-amber-500" />
               </div>
@@ -877,6 +924,32 @@ export default function AdminRelaysPage() {
                   onChange={(e) => setNewRelay({ ...newRelay, address: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
                 />
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                    <KeyRound size={14} className="text-amber-500" /> Code PIN Aléatoire de Connexion
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setNewRelay({ ...newRelay, pin_code: generateRandomPin() })}
+                    className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs"
+                  >
+                    <RefreshCw size={10} /> Régénérer
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={newRelay.pin_code}
+                    onChange={(e) => setNewRelay({ ...newRelay, pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                    className="w-full font-mono text-center font-black tracking-widest text-base px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400">Ce code secret unique sera utilisé par le gérant pour se connecter à l&apos;application Point Relais.</p>
               </div>
 
               <div className="flex gap-3 pt-3 border-t border-gray-100">
