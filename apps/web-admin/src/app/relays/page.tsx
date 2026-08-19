@@ -35,7 +35,10 @@ import {
   Smartphone,
   Palette,
   Sparkles,
-  Info
+  Info,
+  Map,
+  LayoutGrid,
+  List
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
@@ -113,19 +116,19 @@ interface ConfirmationModalState {
 }
 
 const DEFAULT_COMMUNES: CommuneItem[] = [
-  { id: "c-adj", name: "Adjamé", code: "ADJ", color_hex: "#10B981", badge_bg: "rgba(16, 185, 129, 0.12)", badge_text: "#065F46", city: "Abidjan", zone: "Abidjan Nord", display_order: 1 },
-  { id: "c-coc", name: "Cocody", code: "COC", color_hex: "#6366F1", badge_bg: "rgba(99, 102, 241, 0.12)", badge_text: "#3730A3", city: "Abidjan", zone: "Abidjan Est", display_order: 2 },
-  { id: "c-yop", name: "Yopougon", code: "YOP", color_hex: "#F59E0B", badge_bg: "rgba(245, 158, 11, 0.12)", badge_text: "#92400E", city: "Abidjan", zone: "Abidjan Ouest", display_order: 3 },
-  { id: "c-mar", name: "Marcory", code: "MAR", color_hex: "#8B5CF6", badge_bg: "rgba(139, 92, 246, 0.12)", badge_text: "#5B21B6", city: "Abidjan", zone: "Abidjan Sud", display_order: 4 },
-  { id: "c-pla", name: "Plateau", code: "PLA", color_hex: "#06B6D4", badge_bg: "rgba(6, 182, 212, 0.12)", badge_text: "#155E75", city: "Abidjan", zone: "Abidjan Centre", display_order: 5 },
-  { id: "c-tre", name: "Treichville", code: "TRE", color_hex: "#EC4899", badge_bg: "rgba(236, 72, 153, 0.12)", badge_text: "#9D174D", city: "Abidjan", zone: "Abidjan Sud", display_order: 6 },
-  { id: "c-kou", name: "Koumassi", code: "KOU", color_hex: "#3B82F6", badge_bg: "rgba(59, 130, 246, 0.12)", badge_text: "#1E40AF", city: "Abidjan", zone: "Abidjan Sud", display_order: 7 },
-  { id: "c-pb", name: "Port-Bouët", code: "PB", color_hex: "#EAB308", badge_bg: "rgba(234, 179, 8, 0.12)", badge_text: "#854D0E", city: "Abidjan", zone: "Abidjan Littoral", display_order: 8 },
-  { id: "c-abo", name: "Abobo", code: "ABO", color_hex: "#EF4444", badge_bg: "rgba(239, 68, 68, 0.12)", badge_text: "#991B1B", city: "Abidjan", zone: "Abidjan Nord", display_order: 9 },
-  { id: "c-att", name: "Attécoubé", code: "ATT", color_hex: "#84CC16", badge_bg: "rgba(132, 204, 22, 0.12)", badge_text: "#3F6212", city: "Abidjan", zone: "Abidjan Centre", display_order: 10 },
-  { id: "c-bin", name: "Bingerville", code: "BIN", color_hex: "#14B8A6", badge_bg: "rgba(20, 184, 166, 0.12)", badge_text: "#115E59", city: "Abidjan", zone: "Grand Abidjan", display_order: 11 },
-  { id: "c-son", name: "Songon", code: "SON", color_hex: "#64748B", badge_bg: "rgba(100, 116, 139, 0.12)", badge_text: "#334155", city: "Abidjan", zone: "Grand Abidjan", display_order: 12 },
-  { id: "c-any", name: "Anyama", code: "ANY", color_hex: "#A855F7", badge_bg: "rgba(168, 85, 247, 0.12)", badge_text: "#6B21A8", city: "Abidjan", zone: "Grand Abidjan", display_order: 13 },
+  { id: "c-adj", name: "Adjamé", code: "ADJ", color_hex: "#10B981", badge_bg: "rgba(16, 185, 129, 0.12)", badge_text: "#065F46", city: "Abidjan", zone: "Abidjan Nord", display_order: 1, latitude: 5.3567, longitude: -4.0245 },
+  { id: "c-coc", name: "Cocody", code: "COC", color_hex: "#6366F1", badge_bg: "rgba(99, 102, 241, 0.12)", badge_text: "#3730A3", city: "Abidjan", zone: "Abidjan Est", display_order: 2, latitude: 5.3484, longitude: -3.9858 },
+  { id: "c-yop", name: "Yopougon", code: "YOP", color_hex: "#F59E0B", badge_bg: "rgba(245, 158, 11, 0.12)", badge_text: "#92400E", city: "Abidjan", zone: "Abidjan Ouest", display_order: 3, latitude: 5.3438, longitude: -4.0725 },
+  { id: "c-mar", name: "Marcory", code: "MAR", color_hex: "#8B5CF6", badge_bg: "rgba(139, 92, 246, 0.12)", badge_text: "#5B21B6", city: "Abidjan", zone: "Abidjan Sud", display_order: 4, latitude: 5.2974, longitude: -3.9870 },
+  { id: "c-pla", name: "Plateau", code: "PLA", color_hex: "#06B6D4", badge_bg: "rgba(6, 182, 212, 0.12)", badge_text: "#155E75", city: "Abidjan", zone: "Abidjan Centre", display_order: 5, latitude: 5.3235, longitude: -4.0177 },
+  { id: "c-tre", name: "Treichville", code: "TRE", color_hex: "#EC4899", badge_bg: "rgba(236, 72, 153, 0.12)", badge_text: "#9D174D", city: "Abidjan", zone: "Abidjan Sud", display_order: 6, latitude: 5.3032, longitude: -4.0094 },
+  { id: "c-kou", name: "Koumassi", code: "KOU", color_hex: "#3B82F6", badge_bg: "rgba(59, 130, 246, 0.12)", badge_text: "#1E40AF", city: "Abidjan", zone: "Abidjan Sud", display_order: 7, latitude: 5.2905, longitude: -3.9482 },
+  { id: "c-pb", name: "Port-Bouët", code: "PB", color_hex: "#EAB308", badge_bg: "rgba(234, 179, 8, 0.12)", badge_text: "#854D0E", city: "Abidjan", zone: "Abidjan Littoral", display_order: 8, latitude: 5.2575, longitude: -3.9298 },
+  { id: "c-abo", name: "Abobo", code: "ABO", color_hex: "#EF4444", badge_bg: "rgba(239, 68, 68, 0.12)", badge_text: "#991B1B", city: "Abidjan", zone: "Abidjan Nord", display_order: 9, latitude: 5.4182, longitude: -4.0163 },
+  { id: "c-att", name: "Attécoubé", code: "ATT", color_hex: "#84CC16", badge_bg: "rgba(132, 204, 22, 0.12)", badge_text: "#3F6212", city: "Abidjan", zone: "Abidjan Centre", display_order: 10, latitude: 5.3377, longitude: -4.0416 },
+  { id: "c-bin", name: "Bingerville", code: "BIN", color_hex: "#14B8A6", badge_bg: "rgba(20, 184, 166, 0.12)", badge_text: "#115E59", city: "Abidjan", zone: "Grand Abidjan", display_order: 11, latitude: 5.3556, longitude: -3.8950 },
+  { id: "c-son", name: "Songon", code: "SON", color_hex: "#64748B", badge_bg: "rgba(100, 116, 139, 0.12)", badge_text: "#334155", city: "Abidjan", zone: "Grand Abidjan", display_order: 12, latitude: 5.3167, longitude: -4.2667 },
+  { id: "c-any", name: "Anyama", code: "ANY", color_hex: "#A855F7", badge_bg: "rgba(168, 85, 247, 0.12)", badge_text: "#6B21A8", city: "Abidjan", zone: "Grand Abidjan", display_order: 13, latitude: 5.4944, longitude: -4.0519 },
 ];
 
 export default function AdminRelaysPage() {
@@ -138,6 +141,7 @@ export default function AdminRelaysPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCommune, setSelectedCommune] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
+  const [activeTab, setActiveTab] = useState<"map" | "grid">("map");
 
   // Selected Relay for Map / Details
   const [selectedRelay, setSelectedRelay] = useState<PickupPoint | null>(null);
@@ -147,8 +151,6 @@ export default function AdminRelaysPage() {
   const [relayInventory, setRelayInventory] = useState<RelayInventoryItem[]>([]);
   const [relayLogs, setRelayLogs] = useState<RelayLog[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(false);
-  const [otpInput, setOtpInput] = useState("");
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const generateRandomPin = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -223,7 +225,6 @@ export default function AdminRelaysPage() {
           const earnedFromOrders = pointOrders.filter((o) => o.relay_status === "picked_up" || o.status === "delivered").length * (p.commission_per_package || 300);
           const totalEarned = Math.max(earnedFromLogs, earnedFromOrders, p.total_commissions_earned || 0);
 
-          // Find commune color
           const matchedCommune = communesList.find(c => c.name.toLowerCase() === (p.commune || "").toLowerCase());
           const colorCode = p.color_code || matchedCommune?.color_hex || "#6366F1";
           const badgeBg = matchedCommune?.badge_bg || "rgba(99, 102, 241, 0.12)";
@@ -244,6 +245,9 @@ export default function AdminRelaysPage() {
         setPoints(formatted);
         if (!selectedRelay && formatted.length > 0) {
           setSelectedRelay(formatted[0]);
+        } else if (selectedRelay) {
+          const updated = formatted.find(f => f.id === selectedRelay.id);
+          if (updated) setSelectedRelay(updated);
         }
       }
     } catch (err) {
@@ -255,9 +259,19 @@ export default function AdminRelaysPage() {
 
   useEffect(() => {
     fetchCommunes().then(() => fetchRelays());
+
+    const channel = supabase
+      .channel("admin_relays_live_sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchRelays())
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => fetchRelays())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Update newRelay commune data when commune changes in form
   const handleCommuneSelection = (communeName: string) => {
     const selected = communesList.find(c => c.name.toLowerCase() === communeName.toLowerCase()) || DEFAULT_COMMUNES[0];
     const generatedCode = `RELAY-${selected.code}-${Math.floor(100 + Math.random() * 900)}`;
@@ -273,7 +287,7 @@ export default function AdminRelaysPage() {
     }));
   };
 
-  // 3. Load Immersive Cockpit Data
+  // 3. Load Cockpit Data
   const loadRelayCockpitData = async (relay: PickupPoint) => {
     setLoadingInventory(true);
     try {
@@ -357,7 +371,7 @@ export default function AdminRelaysPage() {
     setConfirmModal({
       isOpen: true,
       title: "Confirmer la Création du Point Relais",
-      description: "Vous êtes sur le point de créer un nouveau partenaire point relais. Un code secret aléatoire lui sera attribué.",
+      description: "Vous êtes sur le point d'ajouter ce nouveau partenaire point relais. Un code secret aléatoire lui sera attribué.",
       confirmLabel: "Créer le Relais",
       type: "primary",
       details: [
@@ -404,12 +418,41 @@ export default function AdminRelaysPage() {
     });
   };
 
+  const promptDeleteRelay = (relay: PickupPoint) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Supprimer Définitivement ce Point Relais",
+      description: `Êtes-vous absolument certain de vouloir supprimer le point relais "${relay.name}" (${relay.code}) ? Cette action est irréversible.`,
+      confirmLabel: "Supprimer Définitivement",
+      type: "danger",
+      details: [
+        { label: "Établissement", value: relay.name },
+        { label: "Commune", value: relay.commune, color: relay.color_code },
+        { label: "Code", value: relay.code }
+      ],
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from("pickup_points").delete().eq("id", relay.id);
+          if (error) throw error;
+          setSelectedRelay(null);
+          if (immersiveRelay && immersiveRelay.id === relay.id) {
+            setImmersiveRelay(null);
+          }
+          fetchRelays();
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        } catch (err: any) {
+          alert("Erreur lors de la suppression : " + err.message);
+        }
+      }
+    });
+  };
+
   const promptRegeneratePin = (relay: PickupPoint) => {
     const nextPin = generateRandomPin();
     setConfirmModal({
       isOpen: true,
       title: "Régénérer le Code PIN Secret",
-      description: `Attention : L'ancien code PIN sera immédiatement désactivé. Le gérant du point relais devra utiliser ce nouveau code secret pour se connecter.`,
+      description: `L'ancien code PIN sera immédiatement révoqué. Le gérant devra se connecter avec ce nouveau code.`,
       confirmLabel: "Régénérer le Code",
       type: "warning",
       details: [
@@ -448,8 +491,8 @@ export default function AdminRelaysPage() {
       isOpen: true,
       title: isSuspending ? "Suspendre ce Point Relais" : "Réactiver ce Point Relais",
       description: isSuspending
-        ? `En suspendant "${relay.name}", les clients ne pourront plus le sélectionner lors de leurs achats, et les accès gérant seront temporairement verrouillés.`
-        : `Ce point relais redeviendra immédiatement sélectionnable par les acheteurs et opérationnel pour les dépôts.`,
+        ? `En suspendant "${relay.name}", les clients ne pourront plus le sélectionner lors de leurs achats.`
+        : `Ce point relais redeviendra immédiatement sélectionnable par les acheteurs.`,
       confirmLabel: isSuspending ? "Confirmer la Suspension" : "Réactiver le Relais",
       type: isSuspending ? "danger" : "primary",
       details: [
@@ -468,7 +511,6 @@ export default function AdminRelaysPage() {
     });
   };
 
-  // Add new custom commune
   const handleAddCommune = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -536,37 +578,81 @@ export default function AdminRelaysPage() {
   const activeCount = points.filter((p) => p.status === "active").length;
   const totalGlobalCommissions = points.reduce((acc, p) => acc + (p.total_commissions_earned || 0), 0);
 
+  // Approximate relative percentages on stylized map of Abidjan
+  const getMapPosition = (communeName: string) => {
+    const norm = communeName.toLowerCase();
+    if (norm.includes("yop")) return { top: "45%", left: "18%" };
+    if (norm.includes("adj")) return { top: "35%", left: "42%" };
+    if (norm.includes("coc")) return { top: "40%", left: "68%" };
+    if (norm.includes("pla")) return { top: "52%", left: "48%" };
+    if (norm.includes("tre")) return { top: "62%", left: "48%" };
+    if (norm.includes("mar")) return { top: "68%", left: "62%" };
+    if (norm.includes("kou")) return { top: "72%", left: "75%" };
+    if (norm.includes("port") || norm.includes("pb")) return { top: "82%", left: "80%" };
+    if (norm.includes("abo")) return { top: "20%", left: "48%" };
+    if (norm.includes("att")) return { top: "42%", left: "36%" };
+    if (norm.includes("bin")) return { top: "38%", left: "88%" };
+    if (norm.includes("son")) return { top: "55%", left: "8%" };
+    if (norm.includes("any")) return { top: "12%", left: "44%" };
+    return { top: "50%", left: "50%" };
+  };
+
   return (
-    <main className="min-h-screen bg-slate-900/5 p-4 sm:p-6 lg:p-8 font-sans space-y-6">
+    <main className="min-h-screen bg-slate-900/5 p-3 sm:p-5 lg:p-7 font-sans space-y-5">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black tracking-wider uppercase flex items-center gap-1.5">
-              <Building2 size={12} /> Logistique & Réseau Relais
-            </span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold flex items-center gap-1">
-              <Sparkles size={10} /> Communes & Couleurs Actives
-            </span>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-gray-100 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <MapPin size={24} />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight mt-1.5">
-            Supervision & Gestion des Points Relais
-          </h1>
-          <p className="text-xs text-gray-500 font-medium mt-1">
-            Création, repérage visuel par commune, audit des casiers virtuels et monitoring des scans.
-          </p>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                Logistique & Réseau Relais
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold flex items-center gap-1">
+                <Sparkles size={10} /> Communes & Carte Interactive
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 tracking-tight mt-1">
+              Supervision & Carte des Points Relais
+            </h1>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">
+              Visualisation géographique, suivi des capacités et cockpit en immersion directe.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tab switcher: Map vs Grid */}
+          <div className="bg-gray-100 p-1 rounded-2xl flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab("map")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "map" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Map size={14} /> <span>Carte & Explorer</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("grid")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "grid" ? "bg-white text-gray-900 shadow-xs" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <LayoutGrid size={14} /> <span>Grille Complète ({points.length})</span>
+            </button>
+          </div>
+
           {canManage && (
             <>
               <button
                 onClick={() => setShowCommunesModal(true)}
-                className="px-3.5 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-all flex items-center gap-2 shadow-2xs cursor-pointer"
+                className="px-3.5 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Gérer les communes et leurs codes couleurs"
               >
-                <Palette size={15} className="text-indigo-600" />
-                <span>Communes & Couleurs</span>
+                <Palette size={14} className="text-indigo-600" />
+                <span className="hidden sm:inline">Communes</span>
               </button>
 
               <button
@@ -574,10 +660,10 @@ export default function AdminRelaysPage() {
                   handleCommuneSelection("Adjamé");
                   setShowAddModal(true);
                 }}
-                className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
               >
-                <Plus size={16} />
-                <span>Nouveau Point Relais</span>
+                <Plus size={15} />
+                <span>Nouveau Relais</span>
               </button>
             </>
           )}
@@ -587,14 +673,14 @@ export default function AdminRelaysPage() {
             className="p-2.5 rounded-2xl bg-white border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-2xs cursor-pointer"
             title="Rafraîchir les données"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin text-indigo-600" : ""} />
+            <RefreshCw size={15} className={loading ? "animate-spin text-indigo-600" : ""} />
           </button>
         </div>
       </div>
 
       {/* IMMERSIVE COCKPIT MODE */}
       {immersiveRelay ? (
-        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
           <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
             <div className="space-y-2 relative z-10">
               <button
@@ -621,19 +707,29 @@ export default function AdminRelaysPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 relative z-10">
+            <div className="flex flex-wrap items-center gap-3 relative z-10">
               {canManage && (
-                <button
-                  onClick={() => promptToggleStatus(immersiveRelay)}
-                  className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-                    immersiveRelay.status === "active"
-                      ? "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30"
-                      : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
-                  }`}
-                >
-                  {immersiveRelay.status === "active" ? <Lock size={14} /> : <Unlock size={14} />}
-                  <span>{immersiveRelay.status === "active" ? "Verrouiller ce Relais" : "Déverrouiller ce Relais"}</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => promptToggleStatus(immersiveRelay)}
+                    className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                      immersiveRelay.status === "active"
+                        ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30"
+                        : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
+                    }`}
+                  >
+                    {immersiveRelay.status === "active" ? <Lock size={14} /> : <Unlock size={14} />}
+                    <span>{immersiveRelay.status === "active" ? "Verrouiller ce Relais" : "Déverrouiller"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => promptDeleteRelay(immersiveRelay)}
+                    className="px-4 py-2.5 rounded-2xl text-xs font-extrabold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Trash2 size={14} />
+                    <span>Supprimer</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -775,9 +871,9 @@ export default function AdminRelaysPage() {
           </div>
         </div>
       ) : (
-        /* STANDARD VIEW */
-        <div className="space-y-6">
-          {/* Top Global KPI Cards */}
+        /* STANDARD OVERVIEW */
+        <div className="space-y-5">
+          {/* Top KPI Strip */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Réseau Points Relais</span>
@@ -820,7 +916,7 @@ export default function AdminRelaysPage() {
                   <span className="text-[10px] font-bold text-gray-400">+{communesList.length - 7}</span>
                 )}
               </div>
-              <p className="text-[10px] text-gray-400 mt-1">Repères visuels par couleur</p>
+              <p className="text-[10px] text-gray-400 mt-1">Repères visuels par commune</p>
             </div>
           </div>
 
@@ -875,10 +971,212 @@ export default function AdminRelaysPage() {
             </div>
           </div>
 
-          {/* Search & Filters */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left 2 Cols: Main Relays Grid */}
-            <div className="lg:col-span-2 space-y-4">
+          {/* TAB 1: INTERACTIVE MAP & EXPLORER */}
+          {activeTab === "map" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left 7 Cols: Stylized Interactive Map of Abidjan */}
+              <div className="lg:col-span-7 bg-slate-950 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-between min-h-[460px] relative overflow-hidden border border-slate-800">
+                {/* Map Header */}
+                <div className="relative z-10 flex items-center justify-between pb-3 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <div>
+                      <h3 className="font-black text-sm text-white">Carte Interactive d'Abidjan & Relais</h3>
+                      <p className="text-[11px] text-slate-400">Positionnement en direct des points relais et statut de saturation</p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-xl bg-slate-800 text-[10px] font-mono font-bold text-slate-300 border border-slate-700">
+                    Grand Abidjan Hub
+                  </span>
+                </div>
+
+                {/* Stylized Vector Grid of Abidjan Lagoon & Zones */}
+                <div className="relative w-full h-[340px] my-3 rounded-2xl bg-radial from-slate-900 to-slate-950 border border-slate-800/60 overflow-hidden flex items-center justify-center">
+                  {/* Subtle Grid Lines */}
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:24px_24px]" />
+                  
+                  {/* Stylized Lagoon Shape (Ébrié Lagoon) */}
+                  <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 800 400" preserveAspectRatio="none">
+                    <path
+                      d="M 50 200 Q 200 180 350 220 T 650 200 T 780 240 L 780 280 Q 600 260 400 300 T 50 260 Z"
+                      fill="#38bdf8"
+                    />
+                    <path
+                      d="M 300 220 Q 400 240 500 210 T 600 250 L 580 340 Q 450 320 320 330 Z"
+                      fill="#38bdf8"
+                    />
+                  </svg>
+
+                  {/* Commune Area Badges on Map */}
+                  <span className="absolute top-[10%] left-[45%] text-[9px] font-black text-slate-600 uppercase tracking-widest pointer-events-none">Zone Nord (Abobo / Anyama)</span>
+                  <span className="absolute top-[42%] left-[12%] text-[9px] font-black text-slate-600 uppercase tracking-widest pointer-events-none">Ouest (Yopougon)</span>
+                  <span className="absolute top-[38%] left-[75%] text-[9px] font-black text-slate-600 uppercase tracking-widest pointer-events-none">Est (Cocody / Bingerville)</span>
+                  <span className="absolute top-[68%] left-[48%] text-[9px] font-black text-slate-600 uppercase tracking-widest pointer-events-none">Sud (Marcory / Treich / Koumassi)</span>
+
+                  {/* Relay Marker Pins on Map */}
+                  {filteredPoints.map((p) => {
+                    const pos = getMapPosition(p.commune);
+                    const isSelected = selectedRelay?.id === p.id;
+                    const color = p.color_code || "#6366F1";
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedRelay(p)}
+                        style={{ top: pos.top, left: pos.left }}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group z-20"
+                      >
+                        {/* Pulse Ring */}
+                        <div
+                          className="absolute -inset-2 rounded-full opacity-40 animate-ping pointer-events-none"
+                          style={{ backgroundColor: color }}
+                        />
+
+                        {/* Pin Dot */}
+                        <div
+                          style={{ backgroundColor: color }}
+                          className={`w-7 h-7 rounded-2xl shadow-lg flex items-center justify-center text-white font-black text-[11px] transition-transform duration-200 border-2 ${
+                            isSelected ? "scale-125 border-white ring-4 ring-white/30" : "border-slate-900 group-hover:scale-110"
+                          }`}
+                        >
+                          <Building2 size={13} />
+                        </div>
+
+                        {/* Hover / Selected Label Tooltip */}
+                        <div className={`absolute top-full mt-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900/95 border border-slate-700 px-2.5 py-1 rounded-xl shadow-xl transition-all pointer-events-none ${
+                          isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
+                        }`}>
+                          <p className="text-[10px] font-black text-white">{p.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400">{p.commune} • {p.current_packages_count}/{p.max_capacity} colis</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Map Footer / Quick Legend */}
+                <div className="relative z-10 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400 font-bold">Relais Détectés :</span>
+                    <span className="font-mono font-black text-indigo-400">{filteredPoints.length} actifs</span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Fluide (&lt; 70%)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Occupé (70-90%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right 5 Cols: Relay Selection Details & Action Panel */}
+              <div className="lg:col-span-5 space-y-4">
+                {selectedRelay ? (
+                  <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xs space-y-5">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <span 
+                        style={{ backgroundColor: selectedRelay.badge_bg || "rgba(99,102,241,0.12)", color: selectedRelay.badge_text || "#4338CA" }}
+                        className="px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5"
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedRelay.color_code || "#6366F1" }} />
+                        {selectedRelay.commune} ({selectedRelay.zone_label || "Abidjan"})
+                      </span>
+                      <span className="font-mono text-xs text-gray-400 font-bold">{selectedRelay.code}</span>
+                    </div>
+
+                    <div>
+                      <h3 className="font-black text-lg text-gray-900">{selectedRelay.name}</h3>
+                      <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
+                        <MapPin size={13} className="text-indigo-600 shrink-0 mt-0.5" />
+                        <span>{selectedRelay.address}, {selectedRelay.city}</span>
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-4 space-y-2.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Gérant Responsable :</span>
+                        <span className="font-extrabold text-gray-900">{selectedRelay.manager_name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Téléphone :</span>
+                        <span className="font-mono font-bold text-gray-900">{selectedRelay.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Stock en Casier :</span>
+                        <span className="font-black text-indigo-700">{selectedRelay.current_packages_count} / {selectedRelay.max_capacity} colis</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Code PIN Secret :</span>
+                        <span className="font-mono font-black text-indigo-900 bg-white px-2 py-0.5 rounded-md border border-gray-200">
+                          {selectedRelay.pin_code || "------"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">Commissions Totales :</span>
+                        <span className="font-extrabold text-emerald-600">
+                          {(selectedRelay.total_commissions_earned || 0).toLocaleString()} FCFA
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-1">
+                      <button
+                        onClick={() => handleEnterRelay(selectedRelay)}
+                        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <DoorOpen size={16} /> Entrer dans le Point Relais
+                      </button>
+
+                      {canManage && (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => promptRegeneratePin(selectedRelay)}
+                              className="py-2.5 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <RefreshCw size={12} /> PIN Secret
+                            </button>
+                            <button
+                              onClick={() => promptToggleStatus(selectedRelay)}
+                              className={`py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                                selectedRelay.status === "active"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                              }`}
+                            >
+                              {selectedRelay.status === "active" ? <Lock size={12} /> : <Unlock size={12} />}
+                              <span>{selectedRelay.status === "active" ? "Suspendre" : "Activer"}</span>
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => promptDeleteRelay(selectedRelay)}
+                            className="w-full py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs font-extrabold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Trash2 size={13} />
+                            <span>Supprimer ce Point Relais</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-3xl p-8 text-center border border-gray-100 shadow-xs space-y-2">
+                    <Info className="w-8 h-8 text-gray-300 mx-auto stroke-1" />
+                    <p className="text-xs font-bold text-gray-500">Sélectionnez un point relais sur la carte</p>
+                    <p className="text-[11px] text-gray-400">Cliquez sur un marqueur pour afficher sa fiche d'action détaillée.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: FULL GRID EXPLORER */}
+          {activeTab === "grid" && (
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
@@ -902,17 +1200,15 @@ export default function AdminRelaysPage() {
                 </select>
               </div>
 
-              {/* Grid of Relay Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredPoints.length === 0 ? (
-                  <div className="col-span-2 bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs space-y-3">
+                  <div className="col-span-3 bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs space-y-3">
                     <Building2 className="w-12 h-12 text-gray-300 mx-auto stroke-1" />
                     <p className="text-sm font-bold text-gray-700">Aucun point relais trouvé</p>
-                    <p className="text-xs text-gray-400">Modifiez vos critères de recherche ou ajoutez un nouveau point relais pour cette commune.</p>
+                    <p className="text-xs text-gray-400">Modifiez vos filtres ou ajoutez un nouveau point relais.</p>
                   </div>
                 ) : (
                   filteredPoints.map((p) => {
-                    const isSelected = selectedRelay?.id === p.id;
                     const matchedCommune = communesList.find(c => c.name.toLowerCase() === p.commune.toLowerCase());
                     const color = p.color_code || matchedCommune?.color_hex || "#6366F1";
                     const badgeBg = p.badge_bg || matchedCommune?.badge_bg || "rgba(99, 102, 241, 0.12)";
@@ -921,16 +1217,11 @@ export default function AdminRelaysPage() {
                     return (
                       <div
                         key={p.id}
-                        onClick={() => setSelectedRelay(p)}
                         style={{ borderLeftColor: color }}
-                        className={`bg-white rounded-3xl p-5 border border-l-4 transition-all cursor-pointer shadow-xs relative space-y-3 ${
-                          isSelected
-                            ? "border-indigo-600 ring-2 ring-indigo-600/10 shadow-md"
-                            : "border-gray-100 hover:border-gray-200 hover:shadow-md"
-                        }`}
+                        className="bg-white rounded-3xl p-5 border border-l-4 transition-all shadow-xs hover:shadow-md space-y-3 relative flex flex-col justify-between"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-1">
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2">
                             <span 
                               style={{ backgroundColor: badgeBg, color: badgeText }}
                               className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1.5"
@@ -938,12 +1229,15 @@ export default function AdminRelaysPage() {
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                               {p.commune} ({p.zone_label || "Abidjan"})
                             </span>
+                            {getSaturationBadge(p)}
+                          </div>
+
+                          <div>
                             <h3 className="font-extrabold text-sm text-gray-900">{p.name}</h3>
-                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
                               <MapPin size={11} className="text-gray-400 shrink-0" /> {p.address}
                             </p>
                           </div>
-                          {getSaturationBadge(p)}
                         </div>
 
                         <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
@@ -959,7 +1253,7 @@ export default function AdminRelaysPage() {
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <KeyRound size={13} className="text-amber-500" />
                             <span className="font-mono font-black text-xs text-gray-800 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
@@ -967,16 +1261,24 @@ export default function AdminRelaysPage() {
                             </span>
                           </div>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEnterRelay(p);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <DoorOpen size={14} />
-                            <span>Entrer Cockpit</span>
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {canManage && (
+                              <button
+                                onClick={() => promptDeleteRelay(p)}
+                                className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-colors cursor-pointer"
+                                title="Supprimer ce Relais"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleEnterRelay(p)}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <DoorOpen size={14} />
+                              <span>Cockpit</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -984,97 +1286,7 @@ export default function AdminRelaysPage() {
                 )}
               </div>
             </div>
-
-            {/* Right 1 Col: Quick Details Card */}
-            <div className="space-y-4">
-              {selectedRelay ? (
-                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xs space-y-5 sticky top-6">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <span 
-                      style={{ backgroundColor: selectedRelay.badge_bg || "rgba(99,102,241,0.12)", color: selectedRelay.badge_text || "#4338CA" }}
-                      className="px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5"
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedRelay.color_code || "#6366F1" }} />
-                      {selectedRelay.commune}
-                    </span>
-                    <span className="font-mono text-xs text-gray-400 font-bold">{selectedRelay.code}</span>
-                  </div>
-
-                  <div>
-                    <h3 className="font-black text-lg text-gray-900">{selectedRelay.name}</h3>
-                    <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
-                      <MapPin size={13} className="text-indigo-600 shrink-0 mt-0.5" />
-                      <span>{selectedRelay.address}, {selectedRelay.city}</span>
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4 space-y-2.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-bold">Gérant :</span>
-                      <span className="font-extrabold text-gray-900">{selectedRelay.manager_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-bold">Téléphone :</span>
-                      <span className="font-mono font-bold text-gray-900">{selectedRelay.phone}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-bold">Zone Logistique :</span>
-                      <span className="font-extrabold text-indigo-700">{selectedRelay.zone_label || "Abidjan"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-bold">Code PIN :</span>
-                      <span className="font-mono font-black text-indigo-900 bg-white px-2 py-0.5 rounded-md border border-gray-200">
-                        {selectedRelay.pin_code || "------"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-bold">Commissions :</span>
-                      <span className="font-extrabold text-emerald-600">
-                        {(selectedRelay.total_commissions_earned || 0).toLocaleString()} FCFA
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <button
-                      onClick={() => handleEnterRelay(selectedRelay)}
-                      className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <DoorOpen size={16} /> Entrer dans le Point Relais
-                    </button>
-
-                    {canManage && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => promptRegeneratePin(selectedRelay)}
-                          className="py-2.5 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <RefreshCw size={12} /> PIN Secret
-                        </button>
-                        <button
-                          onClick={() => promptToggleStatus(selectedRelay)}
-                          className={`py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
-                            selectedRelay.status === "active"
-                              ? "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                          }`}
-                        >
-                          {selectedRelay.status === "active" ? <Lock size={12} /> : <Unlock size={12} />}
-                          <span>{selectedRelay.status === "active" ? "Suspendre" : "Activer"}</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-white rounded-3xl p-8 text-center border border-gray-100 shadow-xs space-y-2">
-                  <Info className="w-8 h-8 text-gray-300 mx-auto stroke-1" />
-                  <p className="text-xs font-bold text-gray-500">Sélectionnez un point relais</p>
-                  <p className="text-[11px] text-gray-400">Cliquez sur une carte pour afficher ses informations détaillées et actions rapides.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1093,7 +1305,6 @@ export default function AdminRelaysPage() {
             </div>
 
             <form onSubmit={promptCreateRelay} className="space-y-3.5">
-              {/* Commune Selection with Color preview */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">Commune d'Implantation</label>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-36 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
@@ -1253,7 +1464,6 @@ export default function AdminRelaysPage() {
               </button>
             </div>
 
-            {/* List of existing Communes */}
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {communesList.map((c) => (
                 <div key={c.id} className="p-3 rounded-2xl border border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -1271,7 +1481,6 @@ export default function AdminRelaysPage() {
               ))}
             </div>
 
-            {/* Add New Commune */}
             <form onSubmit={handleAddCommune} className="pt-3 border-t border-gray-100 space-y-3">
               <h4 className="font-extrabold text-xs text-gray-900">Ajouter une Nouvelle Commune / Zone</h4>
               <div className="grid grid-cols-2 gap-2">
