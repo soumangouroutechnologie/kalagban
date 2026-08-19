@@ -162,6 +162,5 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION public.relay_receive_package(UUID, TEXT, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.relay_receive_package(UUID, TEXT) TO anon, authenticated, service_role;
 
 NOTIFY pgrst, 'reload schema';
