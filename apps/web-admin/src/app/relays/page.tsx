@@ -32,12 +32,29 @@ import {
   ExternalLink,
   ShieldCheck,
   UserCheck,
-  Smartphone
+  Smartphone,
+  Palette,
+  Sparkles,
+  Info
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
 
-interface PickupPoint {
+export interface CommuneItem {
+  id: string;
+  name: string;
+  code: string;
+  color_hex: string;
+  badge_bg: string;
+  badge_text: string;
+  city: string;
+  zone: string;
+  display_order: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface PickupPoint {
   id: string;
   name: string;
   code: string;
@@ -47,6 +64,11 @@ interface PickupPoint {
   address: string;
   city: string;
   commune: string;
+  commune_id?: string;
+  color_code?: string;
+  badge_bg?: string;
+  badge_text?: string;
+  zone_label?: string;
   latitude: number;
   longitude: number;
   status: "active" | "suspended" | "full" | "closed";
@@ -80,10 +102,38 @@ interface RelayLog {
   commission_earned: number;
 }
 
+interface ConfirmationModalState {
+  isOpen: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  type: "primary" | "danger" | "warning";
+  details?: { label: string; value: string; color?: string }[];
+  onConfirm: () => void;
+}
+
+const DEFAULT_COMMUNES: CommuneItem[] = [
+  { id: "c-adj", name: "Adjamé", code: "ADJ", color_hex: "#10B981", badge_bg: "rgba(16, 185, 129, 0.12)", badge_text: "#065F46", city: "Abidjan", zone: "Abidjan Nord", display_order: 1 },
+  { id: "c-coc", name: "Cocody", code: "COC", color_hex: "#6366F1", badge_bg: "rgba(99, 102, 241, 0.12)", badge_text: "#3730A3", city: "Abidjan", zone: "Abidjan Est", display_order: 2 },
+  { id: "c-yop", name: "Yopougon", code: "YOP", color_hex: "#F59E0B", badge_bg: "rgba(245, 158, 11, 0.12)", badge_text: "#92400E", city: "Abidjan", zone: "Abidjan Ouest", display_order: 3 },
+  { id: "c-mar", name: "Marcory", code: "MAR", color_hex: "#8B5CF6", badge_bg: "rgba(139, 92, 246, 0.12)", badge_text: "#5B21B6", city: "Abidjan", zone: "Abidjan Sud", display_order: 4 },
+  { id: "c-pla", name: "Plateau", code: "PLA", color_hex: "#06B6D4", badge_bg: "rgba(6, 182, 212, 0.12)", badge_text: "#155E75", city: "Abidjan", zone: "Abidjan Centre", display_order: 5 },
+  { id: "c-tre", name: "Treichville", code: "TRE", color_hex: "#EC4899", badge_bg: "rgba(236, 72, 153, 0.12)", badge_text: "#9D174D", city: "Abidjan", zone: "Abidjan Sud", display_order: 6 },
+  { id: "c-kou", name: "Koumassi", code: "KOU", color_hex: "#3B82F6", badge_bg: "rgba(59, 130, 246, 0.12)", badge_text: "#1E40AF", city: "Abidjan", zone: "Abidjan Sud", display_order: 7 },
+  { id: "c-pb", name: "Port-Bouët", code: "PB", color_hex: "#EAB308", badge_bg: "rgba(234, 179, 8, 0.12)", badge_text: "#854D0E", city: "Abidjan", zone: "Abidjan Littoral", display_order: 8 },
+  { id: "c-abo", name: "Abobo", code: "ABO", color_hex: "#EF4444", badge_bg: "rgba(239, 68, 68, 0.12)", badge_text: "#991B1B", city: "Abidjan", zone: "Abidjan Nord", display_order: 9 },
+  { id: "c-att", name: "Attécoubé", code: "ATT", color_hex: "#84CC16", badge_bg: "rgba(132, 204, 22, 0.12)", badge_text: "#3F6212", city: "Abidjan", zone: "Abidjan Centre", display_order: 10 },
+  { id: "c-bin", name: "Bingerville", code: "BIN", color_hex: "#14B8A6", badge_bg: "rgba(20, 184, 166, 0.12)", badge_text: "#115E59", city: "Abidjan", zone: "Grand Abidjan", display_order: 11 },
+  { id: "c-son", name: "Songon", code: "SON", color_hex: "#64748B", badge_bg: "rgba(100, 116, 139, 0.12)", badge_text: "#334155", city: "Abidjan", zone: "Grand Abidjan", display_order: 12 },
+  { id: "c-any", name: "Anyama", code: "ANY", color_hex: "#A855F7", badge_bg: "rgba(168, 85, 247, 0.12)", badge_text: "#6B21A8", city: "Abidjan", zone: "Grand Abidjan", display_order: 13 },
+];
+
 export default function AdminRelaysPage() {
   const { hasPermission, isSuperAdmin } = useAdminAuth();
+  const canManage = hasPermission("can_manage_relays") || isSuperAdmin;
 
   const [points, setPoints] = useState<PickupPoint[]>([]);
+  const [communesList, setCommunesList] = useState<CommuneItem[]>(DEFAULT_COMMUNES);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCommune, setSelectedCommune] = useState("all");
@@ -104,7 +154,18 @@ export default function AdminRelaysPage() {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCommunesModal, setShowCommunesModal] = useState(false);
+  const [newCommune, setNewCommune] = useState({ name: "", code: "", color_hex: "#6366F1", zone: "Abidjan Centre" });
+
+  const [confirmModal, setConfirmModal] = useState<ConfirmationModalState>({
+    isOpen: false,
+    title: "",
+    description: "",
+    confirmLabel: "Confirmer",
+    type: "primary",
+    onConfirm: () => {},
+  });
+
   const [newRelay, setNewRelay] = useState({
     name: "",
     code: "",
@@ -112,14 +173,34 @@ export default function AdminRelaysPage() {
     phone: "",
     address: "",
     city: "Abidjan",
-    commune: "Cocody",
-    max_capacity: 50,
+    commune: "Adjamé",
+    commune_id: "c-adj",
+    color_code: "#10B981",
+    zone_label: "Abidjan Nord",
+    max_capacity: 100,
     commission_per_package: 300,
-    latitude: 5.3484,
-    longitude: -4.0197,
+    latitude: 5.3567,
+    longitude: -4.0245,
     pin_code: generateRandomPin(),
   });
 
+  // 1. Fetch Communes
+  const fetchCommunes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("communes")
+        .select("*")
+        .order("display_order", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        setCommunesList(data as CommuneItem[]);
+      }
+    } catch (err) {
+      console.warn("Could not load dynamic communes, using DEFAULT_COMMUNES", err);
+    }
+  };
+
+  // 2. Fetch Relays with joined Communes
   const fetchRelays = async () => {
     setLoading(true);
     try {
@@ -142,10 +223,20 @@ export default function AdminRelaysPage() {
           const earnedFromOrders = pointOrders.filter((o) => o.relay_status === "picked_up" || o.status === "delivered").length * (p.commission_per_package || 300);
           const totalEarned = Math.max(earnedFromLogs, earnedFromOrders, p.total_commissions_earned || 0);
 
+          // Find commune color
+          const matchedCommune = communesList.find(c => c.name.toLowerCase() === (p.commune || "").toLowerCase());
+          const colorCode = p.color_code || matchedCommune?.color_hex || "#6366F1";
+          const badgeBg = matchedCommune?.badge_bg || "rgba(99, 102, 241, 0.12)";
+          const badgeText = matchedCommune?.badge_text || "#4338CA";
+
           return {
             ...p,
             current_packages_count: inStock,
             total_commissions_earned: totalEarned,
+            color_code: colorCode,
+            badge_bg: badgeBg,
+            badge_text: badgeText,
+            zone_label: p.zone_label || matchedCommune?.zone || "Abidjan",
             pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : generateRandomPin()),
           };
         });
@@ -163,25 +254,29 @@ export default function AdminRelaysPage() {
   };
 
   useEffect(() => {
-    fetchRelays();
-
-    const channelId = `admin_relays_${Math.random().toString(36).substring(2, 9)}`;
-    const channel = supabase
-      .channel(channelId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchRelays())
-      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => fetchRelays())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    fetchCommunes().then(() => fetchRelays());
   }, []);
 
+  // Update newRelay commune data when commune changes in form
+  const handleCommuneSelection = (communeName: string) => {
+    const selected = communesList.find(c => c.name.toLowerCase() === communeName.toLowerCase()) || DEFAULT_COMMUNES[0];
+    const generatedCode = `RELAY-${selected.code}-${Math.floor(100 + Math.random() * 900)}`;
+    setNewRelay(prev => ({
+      ...prev,
+      commune: selected.name,
+      commune_id: selected.id,
+      color_code: selected.color_hex,
+      zone_label: selected.zone,
+      code: generatedCode,
+      latitude: selected.latitude || 5.3484,
+      longitude: selected.longitude || -4.0197,
+    }));
+  };
+
+  // 3. Load Immersive Cockpit Data
   const loadRelayCockpitData = async (relay: PickupPoint) => {
     setLoadingInventory(true);
     try {
-      // 1. Fetch live orders assigned to this point relais with shop information
       const { data: ordersData } = await supabase
         .from("orders")
         .select("id, customer_name, customer_phone, relay_status, status, deposited_at, pickup_code, created_at, shop_id, shops(name)")
@@ -190,24 +285,15 @@ export default function AdminRelaysPage() {
 
       const allOrders = ordersData || [];
 
-      // 2. Fetch live logs for this relay
-      const orderIds = allOrders.map(o => o.id);
-      let logsQuery = supabase
+      const { data: logData } = await supabase
         .from("relay_logs")
         .select("*")
+        .eq("pickup_point_id", relay.id)
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (orderIds.length > 0) {
-        logsQuery = logsQuery.or(`pickup_point_id.eq.${relay.id},order_id.in.(${orderIds.join(',')})`);
-      } else {
-        logsQuery = logsQuery.eq("pickup_point_id", relay.id);
-      }
-
-      const { data: logData } = await logsQuery;
       const logs = logData || [];
 
-      // 3. Populate Virtual Locker (Colis en étagère actuellement en stock)
       const inStockOrders = allOrders.filter(
         (o: any) => o.relay_status === "ready_for_pickup" || (o.relay_status === "deposited" && o.status !== "delivered")
       );
@@ -233,123 +319,175 @@ export default function AdminRelaysPage() {
       setRelayInventory(inventoryItems);
       setRelayLogs(logs as RelayLog[]);
 
-      // 4. Calculate live metrics for the cockpit
       const pickedUpCount = allOrders.filter((o: any) => o.relay_status === "picked_up" || o.status === "delivered").length;
       const earnedFromLogs = logs.filter((l: any) => l.action_type === "pickup").reduce((sum: number, l: any) => sum + (l.commission_earned || 300), 0);
       const liveEarned = Math.max(earnedFromLogs, pickedUpCount * (relay.commission_per_package || 300));
 
       setImmersiveRelay(prev => prev ? ({
         ...prev,
-        current_packages_count: inventoryItems.length,
-        total_commissions_earned: liveEarned,
-      }) : {
-        ...relay,
-        current_packages_count: inventoryItems.length,
-        total_commissions_earned: liveEarned,
-      });
+        current_packages_count: inStockOrders.length,
+        total_commissions_earned: liveEarned
+      }) : null);
+
     } catch (err) {
-      console.error("Error loading relay cockpit:", err);
+      console.error("Error loading cockpit data:", err);
     } finally {
       setLoadingInventory(false);
     }
   };
 
-  // Fetch Inventory and Logs when entering a Relay
-  const handleEnterRelay = async (relay: PickupPoint) => {
+  const handleEnterRelay = (relay: PickupPoint) => {
     setImmersiveRelay(relay);
-    await loadRelayCockpitData(relay);
+    loadRelayCockpitData(relay);
   };
 
-  useEffect(() => {
-    if (!immersiveRelay) return;
+  const handleExitRelay = () => {
+    setImmersiveRelay(null);
+    setRelayInventory([]);
+    setRelayLogs([]);
+    fetchRelays();
+  };
 
-    const cockpitChannelId = `cockpit_rt_${immersiveRelay.id}_${Math.random().toString(36).substring(2, 8)}`;
-    const cockpitChannel = supabase
-      .channel(cockpitChannelId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => {
-        loadRelayCockpitData(immersiveRelay);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        loadRelayCockpitData(immersiveRelay);
-      })
-      .subscribe();
+  // 4. Safe Action Confirmations
+  const promptCreateRelay = (e: React.FormEvent) => {
+    e.preventDefault();
+    const matchedCommune = communesList.find(c => c.name === newRelay.commune);
+    const color = matchedCommune?.color_hex || newRelay.color_code || "#6366F1";
 
-    return () => {
-      supabase.removeChannel(cockpitChannel);
-    };
-  }, [immersiveRelay?.id]);
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmer la Création du Point Relais",
+      description: "Vous êtes sur le point de créer un nouveau partenaire point relais. Un code secret aléatoire lui sera attribué.",
+      confirmLabel: "Créer le Relais",
+      type: "primary",
+      details: [
+        { label: "Nom du Relais", value: newRelay.name },
+        { label: "Commune & Couleur", value: `${newRelay.commune} (${newRelay.zone_label})`, color: color },
+        { label: "Code Identifiant", value: newRelay.code || "Auto-Généré" },
+        { label: "Gérant & Contact", value: `${newRelay.manager_name} • ${newRelay.phone}` },
+        { label: "Code PIN Secret", value: newRelay.pin_code },
+        { label: "Capacité Maximale", value: `${newRelay.max_capacity} colis` }
+      ],
+      onConfirm: async () => {
+        try {
+          const generatedPin = newRelay.pin_code || generateRandomPin();
+          const code = newRelay.code || `RELAY-${(matchedCommune?.code || "REL").toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
-  const handleCreateRelay = async (e: React.FormEvent) => {
+          const { error } = await supabase.from("pickup_points").insert({
+            name: newRelay.name,
+            code,
+            manager_name: newRelay.manager_name,
+            phone: newRelay.phone,
+            email: `pin:${generatedPin}`,
+            pin_code: generatedPin,
+            address: newRelay.address,
+            city: newRelay.city,
+            commune: newRelay.commune,
+            commune_id: newRelay.commune_id && !newRelay.commune_id.startsWith("c-") ? newRelay.commune_id : null,
+            color_code: color,
+            zone_label: newRelay.zone_label,
+            max_capacity: newRelay.max_capacity,
+            commission_per_package: newRelay.commission_per_package,
+            latitude: newRelay.latitude,
+            longitude: newRelay.longitude,
+            status: "active",
+          });
+
+          if (error) throw error;
+          setShowAddModal(false);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          fetchRelays();
+        } catch (err: any) {
+          alert("Erreur lors de la création du point relais : " + err.message);
+        }
+      }
+    });
+  };
+
+  const promptRegeneratePin = (relay: PickupPoint) => {
+    const nextPin = generateRandomPin();
+    setConfirmModal({
+      isOpen: true,
+      title: "Régénérer le Code PIN Secret",
+      description: `Attention : L'ancien code PIN sera immédiatement désactivé. Le gérant du point relais devra utiliser ce nouveau code secret pour se connecter.`,
+      confirmLabel: "Régénérer le Code",
+      type: "warning",
+      details: [
+        { label: "Établissement", value: relay.name },
+        { label: "Commune", value: relay.commune, color: relay.color_code },
+        { label: "Gérant", value: relay.manager_name },
+        { label: "Nouveau Code PIN", value: nextPin }
+      ],
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from("pickup_points")
+            .update({
+              pin_code: nextPin,
+              email: `pin:${nextPin}`,
+            })
+            .eq("id", relay.id);
+
+          if (error) throw error;
+
+          setImmersiveRelay((prev) => (prev ? { ...prev, pin_code: nextPin } : null));
+          setPoints((prev) => prev.map((p) => (p.id === relay.id ? { ...p, pin_code: nextPin } : p)));
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        } catch (err: any) {
+          alert("Erreur lors de la régénération du code PIN : " + err.message);
+        }
+      }
+    });
+  };
+
+  const promptToggleStatus = (relay: PickupPoint) => {
+    const isSuspending = relay.status === "active";
+    const nextStatus = isSuspending ? "suspended" : "active";
+
+    setConfirmModal({
+      isOpen: true,
+      title: isSuspending ? "Suspendre ce Point Relais" : "Réactiver ce Point Relais",
+      description: isSuspending
+        ? `En suspendant "${relay.name}", les clients ne pourront plus le sélectionner lors de leurs achats, et les accès gérant seront temporairement verrouillés.`
+        : `Ce point relais redeviendra immédiatement sélectionnable par les acheteurs et opérationnel pour les dépôts.`,
+      confirmLabel: isSuspending ? "Confirmer la Suspension" : "Réactiver le Relais",
+      type: isSuspending ? "danger" : "primary",
+      details: [
+        { label: "Point Relais", value: relay.name },
+        { label: "Commune", value: relay.commune, color: relay.color_code },
+        { label: "Colis en cours", value: `${relay.current_packages_count} en étagère` }
+      ],
+      onConfirm: async () => {
+        await supabase.from("pickup_points").update({ status: nextStatus }).eq("id", relay.id);
+        fetchRelays();
+        if (immersiveRelay && immersiveRelay.id === relay.id) {
+          setImmersiveRelay({ ...immersiveRelay, status: nextStatus });
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  // Add new custom commune
+  const handleAddCommune = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const generatedPin = newRelay.pin_code || generateRandomPin();
-      const code = newRelay.code || `RELAY-${newRelay.commune.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-
-      const { error } = await supabase.from("pickup_points").insert({
-        name: newRelay.name,
+      const code = newCommune.code.toUpperCase() || newCommune.name.substring(0, 3).toUpperCase();
+      const { error } = await supabase.from("communes").insert({
+        name: newCommune.name,
         code,
-        manager_name: newRelay.manager_name,
-        phone: newRelay.phone,
-        email: `pin:${generatedPin}`,
-        pin_code: generatedPin,
-        address: newRelay.address,
-        city: newRelay.city,
-        commune: newRelay.commune,
-        max_capacity: newRelay.max_capacity,
-        commission_per_package: newRelay.commission_per_package,
-        latitude: newRelay.latitude,
-        longitude: newRelay.longitude,
-        status: "active",
+        color_hex: newCommune.color_hex,
+        badge_bg: `${newCommune.color_hex}1f`,
+        badge_text: newCommune.color_hex,
+        zone: newCommune.zone,
+        city: "Abidjan"
       });
 
       if (error) throw error;
-      setShowAddModal(false);
-      setNewRelay({
-        name: "",
-        code: "",
-        manager_name: "",
-        phone: "",
-        address: "",
-        city: "Abidjan",
-        commune: "Cocody",
-        max_capacity: 50,
-        commission_per_package: 300,
-        latitude: 5.3484,
-        longitude: -4.0197,
-        pin_code: generateRandomPin(),
-      });
-      fetchRelays();
+      setShowCommunesModal(false);
+      fetchCommunes();
     } catch (err: any) {
-      alert("Erreur lors de la création du point relais : " + err.message);
-    }
-  };
-
-  const handleRegeneratePin = async (relay: PickupPoint) => {
-    const newPin = generateRandomPin();
-    try {
-      const { error } = await supabase
-        .from("pickup_points")
-        .update({
-          pin_code: newPin,
-          email: `pin:${newPin}`,
-        })
-        .eq("id", relay.id);
-
-      if (error) throw error;
-
-      setImmersiveRelay((prev) => (prev ? { ...prev, pin_code: newPin } : null));
-      setPoints((prev) => prev.map((p) => (p.id === relay.id ? { ...p, pin_code: newPin } : p)));
-    } catch (err: any) {
-      alert("Erreur lors de la régénération du code PIN : " + err.message);
-    }
-  };
-
-  const handleToggleRelayStatus = async (relay: PickupPoint) => {
-    const nextStatus = relay.status === "active" ? "suspended" : "active";
-    await supabase.from("pickup_points").update({ status: nextStatus }).eq("id", relay.id);
-    fetchRelays();
-    if (immersiveRelay && immersiveRelay.id === relay.id) {
-      setImmersiveRelay({ ...immersiveRelay, status: nextStatus });
+      alert("Erreur lors de l'ajout de la commune : " + err.message);
     }
   };
 
@@ -357,103 +495,165 @@ export default function AdminRelaysPage() {
     const matchSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.commune.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.manager_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCommune = selectedCommune === "all" || p.commune === selectedCommune;
+      p.manager_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.code && p.code.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchCommune = selectedCommune === "all" || p.commune.toLowerCase() === selectedCommune.toLowerCase();
     const matchStatus = selectedStatus === "all" || p.status === selectedStatus;
     return matchSearch && matchCommune && matchStatus;
   });
 
-  const communes = Array.from(new Set(points.map((p) => p.commune).filter(Boolean)));
+  const getSaturationBadge = (relay: PickupPoint) => {
+    const total = relay.max_capacity || 50;
+    const current = relay.current_packages_count || 0;
+    const rate = Math.round((current / total) * 100);
 
-  // Global Key Metrics
-  const totalRelays = points.length;
-  const activeRelays = points.filter((p) => p.status === "active").length;
-  const totalCapacity = points.reduce((acc, p) => acc + (p.max_capacity || 0), 0);
-  const totalPackages = points.reduce((acc, p) => acc + (p.current_packages_count || 0), 0);
-  const avgOccupancy = totalCapacity > 0 ? Math.round((totalPackages / totalCapacity) * 100) : 0;
-
-  // Occupancy rate calculation helper
-  const getOccupancyRate = (p: PickupPoint) => {
-    if (!p.max_capacity || p.max_capacity === 0) return 0;
-    return Math.round(((p.current_packages_count || 0) / p.max_capacity) * 100);
+    if (rate >= 90) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-50 text-red-700 border border-red-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+          Saturé ({rate}%)
+        </span>
+      );
+    }
+    if (rate >= 70) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          Occupé ({rate}%)
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        Fluide ({rate}%)
+      </span>
+    );
   };
 
-  const getSaturationBadge = (p: PickupPoint) => {
-    const rate = getOccupancyRate(p);
-    if (p.status === "suspended") {
-      return <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Suspendu ⏸️</span>;
-    }
-    if (rate >= 95) {
-      return <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-[10px] font-black animate-pulse">Saturé 🔴 ({rate}%)</span>;
-    }
-    if (rate >= 85) {
-      return <span className="bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Attention ⚠️ ({rate}%)</span>;
-    }
-    return <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-[10px] font-black">Disponible 🟢 ({rate}%)</span>;
-  };
+  const totalCap = points.reduce((acc, p) => acc + (p.max_capacity || 0), 0);
+  const totalStock = points.reduce((acc, p) => acc + (p.current_packages_count || 0), 0);
+  const activeCount = points.filter((p) => p.status === "active").length;
+  const totalGlobalCommissions = points.reduce((acc, p) => acc + (p.total_commissions_earned || 0), 0);
 
   return (
-    <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
-      {/* IMMERSIVE COCKPIT VIEW (If entered a relay) */}
-      {immersiveRelay ? (
-        <div className="space-y-6">
-          {/* Top Bar with Back Button */}
-          <div className="bg-slate-900 text-white p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
-            <div className="flex items-center gap-4">
+    <main className="min-h-screen bg-slate-900/5 p-4 sm:p-6 lg:p-8 font-sans space-y-6">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black tracking-wider uppercase flex items-center gap-1.5">
+              <Building2 size={12} /> Logistique & Réseau Relais
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold flex items-center gap-1">
+              <Sparkles size={10} /> Communes & Couleurs Actives
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight mt-1.5">
+            Supervision & Gestion des Points Relais
+          </h1>
+          <p className="text-xs text-gray-500 font-medium mt-1">
+            Création, repérage visuel par commune, audit des casiers virtuels et monitoring des scans.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {canManage && (
+            <>
               <button
-                onClick={() => setImmersiveRelay(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-white p-3 rounded-2xl transition-colors flex items-center gap-2 text-xs font-bold cursor-pointer"
+                onClick={() => setShowCommunesModal(true)}
+                className="px-3.5 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-all flex items-center gap-2 shadow-2xs cursor-pointer"
+                title="Gérer les communes et leurs codes couleurs"
               >
-                ← Quitter le Point Relais
+                <Palette size={15} className="text-indigo-600" />
+                <span>Communes & Couleurs</span>
               </button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase">
-                    Vue Cockpit En Direct
-                  </span>
-                  <span className="text-xs text-gray-400 font-mono">Code: {immersiveRelay.code}</span>
-                </div>
-                <h1 className="text-2xl font-black tracking-tight mt-1">{immersiveRelay.name}</h1>
-                <p className="text-xs text-gray-400 font-medium flex items-center gap-1.5 mt-0.5">
-                  <MapPin size={14} className="text-indigo-400" /> {immersiveRelay.address}, {immersiveRelay.commune}
-                </p>
+
+              <button
+                onClick={() => {
+                  handleCommuneSelection("Adjamé");
+                  setShowAddModal(true);
+                }}
+                className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>Nouveau Point Relais</span>
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={fetchRelays}
+            className="p-2.5 rounded-2xl bg-white border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-2xs cursor-pointer"
+            title="Rafraîchir les données"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin text-indigo-600" : ""} />
+          </button>
+        </div>
+      </div>
+
+      {/* IMMERSIVE COCKPIT MODE */}
+      {immersiveRelay ? (
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+            <div className="space-y-2 relative z-10">
+              <button
+                onClick={handleExitRelay}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors inline-flex items-center gap-2 cursor-pointer"
+              >
+                <ArrowRight className="rotate-180" size={14} /> Quitter le Point Relais
+              </button>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="px-2.5 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-[10px] font-black uppercase tracking-wider">
+                  Vue Cockpit en Direct
+                </span>
+                <span className="text-xs text-slate-400 font-mono">Code: {immersiveRelay.code}</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white">{immersiveRelay.name}</h2>
+              <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: immersiveRelay.color_code || "#6366F1" }}
+                />
+                <span className="font-bold">{immersiveRelay.commune} ({immersiveRelay.zone_label})</span>
+                <span>•</span>
+                <span className="text-slate-400">{immersiveRelay.address}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleToggleRelayStatus(immersiveRelay)}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-colors cursor-pointer flex items-center gap-2 ${
-                  immersiveRelay.status === "active"
-                    ? "bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30"
-                    : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30"
-                }`}
-              >
-                {immersiveRelay.status === "active" ? <Lock size={14} /> : <Unlock size={14} />}
-                {immersiveRelay.status === "active" ? "Verrouiller ce Relais" : "Activer ce Relais"}
-              </button>
+            <div className="flex items-center gap-3 relative z-10">
+              {canManage && (
+                <button
+                  onClick={() => promptToggleStatus(immersiveRelay)}
+                  className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+                    immersiveRelay.status === "active"
+                      ? "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30"
+                      : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
+                  }`}
+                >
+                  {immersiveRelay.status === "active" ? <Lock size={14} /> : <Unlock size={14} />}
+                  <span>{immersiveRelay.status === "active" ? "Verrouiller ce Relais" : "Déverrouiller ce Relais"}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Cockpit Status & Gauge */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Quick Metrics in Cockpit */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-2">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Capacité &amp; Occupation</span>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Capacité & Occupation</span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-gray-900">
                   {immersiveRelay.current_packages_count || 0} / {immersiveRelay.max_capacity}
                 </span>
                 <span className="text-xs font-black text-indigo-600">
-                  {getOccupancyRate(immersiveRelay)}%
+                  {Math.round(((immersiveRelay.current_packages_count || 0) / (immersiveRelay.max_capacity || 100)) * 100)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+              <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full transition-all ${
-                    getOccupancyRate(immersiveRelay) >= 95 ? "bg-red-500" :
-                    getOccupancyRate(immersiveRelay) >= 85 ? "bg-amber-500" : "bg-emerald-500"
-                  }`}
-                  style={{ width: `${Math.min(100, getOccupancyRate(immersiveRelay))}%` }}
+                  className="h-full bg-indigo-600 transition-all"
+                  style={{ width: `${Math.min(100, Math.round(((immersiveRelay.current_packages_count || 0) / (immersiveRelay.max_capacity || 100)) * 100))}%` }}
                 />
               </div>
             </div>
@@ -469,13 +669,15 @@ export default function AdminRelaysPage() {
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Code PIN de Connexion</span>
-                <button
-                  onClick={() => handleRegeneratePin(immersiveRelay)}
-                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 transition-colors"
-                  title="Générer un nouveau code PIN aléatoire"
-                >
-                  <RefreshCw size={10} /> Régénérer
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => promptRegeneratePin(immersiveRelay)}
+                    className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 transition-colors"
+                    title="Générer un nouveau code PIN aléatoire"
+                  >
+                    <RefreshCw size={10} /> Régénérer
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="font-mono font-black text-sm bg-indigo-50/70 border border-indigo-100 px-3 py-1 rounded-xl text-indigo-950 tracking-widest">
@@ -497,105 +699,74 @@ export default function AdminRelaysPage() {
 
           {/* Virtual Locker & Live Logs */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Column 1 & 2: Virtual Parcel Locker */}
             <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">
+                  <h3 className="font-black text-base text-gray-900 flex items-center gap-2">
                     📦 Casier Virtuel des Colis en Stock ({relayInventory.length})
-                  </h2>
-                  <p className="text-xs text-gray-500 font-medium">
-                    Colis actuellement stockés dans le point relais en attente de retrait client
-                  </p>
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">Colis actuellement stockés dans ce point relais en attente de retrait client</p>
                 </div>
               </div>
 
-              {loadingInventory ? (
-                <div className="py-12 text-center text-xs text-gray-400 font-bold animate-pulse">
-                  Synchronisation du stock en direct...
-                </div>
-              ) : relayInventory.length === 0 ? (
-                <div className="py-12 text-center text-xs text-gray-400 font-medium space-y-1">
-                  <p className="font-bold text-gray-700">Aucun colis en stock dans ce point relais</p>
-                  <p className="text-[11px]">Le casier virtuel se remplira automatiquement dès qu&apos;un livreur effectuera un dépôt.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-gray-600">
-                    <thead className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                      <tr>
-                        <th className="py-3 px-5">Commande</th>
-                        <th className="py-3 px-5">Client &amp; Téléphone</th>
-                        <th className="py-3 px-5">Boutique Vendeur</th>
-                        <th className="py-3 px-5">Statut &amp; Souffrance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {relayInventory.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3.5 px-5">
-                            <span className="font-mono font-black text-indigo-600">{item.order_code}</span>
-                            <div className="text-[10px] text-gray-400">
-                              Dépôt : {new Date(item.deposited_at).toLocaleDateString("fr-FR")}
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-5">
-                            <p className="font-bold text-gray-900">{item.customer_name}</p>
-                            <p className="text-[11px] text-gray-500 font-mono">{item.customer_phone}</p>
-                          </td>
-                          <td className="py-3.5 px-5">
-                            <p className="font-bold text-gray-800">{item.seller_name}</p>
-                          </td>
-                          <td className="py-3.5 px-5">
-                            {item.is_overdue ? (
-                              <span className="bg-red-50 text-red-700 font-black px-2.5 py-1 rounded-xl text-[10px] border border-red-200 flex items-center gap-1 w-fit animate-pulse">
-                                <AlertTriangle size={12} /> Colis en Souffrance (&gt; 5j)
-                              </span>
-                            ) : (
-                              <span className="bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-xl text-[10px] border border-emerald-200 flex items-center gap-1 w-fit">
-                                <CheckCircle2 size={12} /> En Stock (Dispo)
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Column 3: Live Timestamped Scans & Logs */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm text-gray-900 flex items-center gap-2">
-                  <Clock size={16} className="text-indigo-600" /> Journal Live des Scans
-                </h3>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              </div>
-
-              <div className="space-y-3 max-h-100 overflow-y-auto pr-1">
-                {relayLogs.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-gray-400 font-medium">
-                    Aucun scan enregistré aujourd&apos;hui.
+              <div className="p-6">
+                {relayInventory.length === 0 ? (
+                  <div className="text-center py-12 space-y-3">
+                    <Boxes className="w-12 h-12 text-gray-300 mx-auto stroke-1" />
+                    <p className="text-xs font-bold text-gray-500">Aucun colis en stock dans ce point relais</p>
+                    <p className="text-[11px] text-gray-400">Le casier virtuel se remplira automatiquement dès qu'un livreur effectuera un dépôt.</p>
                   </div>
                 ) : (
-                  relayLogs.map((log) => (
-                    <div key={log.id} className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className={`font-black uppercase px-2 py-0.5 rounded-md ${
-                          log.action_type === "deposit"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-emerald-100 text-emerald-800"
-                        }`}>
-                          {log.action_type === "deposit" ? "📥 Dépôt Livreur" : "📤 Retrait Client (OTP)"}
-                        </span>
-                        <span className="text-gray-400 font-medium">
-                          {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {relayInventory.map((item) => (
+                      <div key={item.id} className="p-4 rounded-2xl border border-gray-100 bg-gray-50/50 space-y-2 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-black text-xs text-indigo-600">#{item.order_code}</span>
+                          <span className="font-mono font-bold text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg border border-indigo-100">
+                            OTP: {item.otp_code}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs text-gray-900">{item.customer_name}</p>
+                          <p className="text-[11px] text-gray-500">{item.customer_phone}</p>
+                        </div>
+                        <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100 flex items-center justify-between">
+                          <span>Boutique: {item.seller_name}</span>
+                          <span>{new Date(item.deposited_at).toLocaleDateString("fr-FR")}</span>
+                        </div>
                       </div>
-                      <p className="text-xs font-bold text-gray-800 mt-1">Colis: {log.order_code}</p>
-                      <p className="text-[11px] text-gray-500">Bénéficiaire : {log.customer_name}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Live Scan Journal */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="font-black text-base text-gray-900 flex items-center gap-2">
+                  <Clock size={16} className="text-indigo-600" /> Journal Live des Scans
+                </h3>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              </div>
+              <div className="p-6 divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                {relayLogs.length === 0 ? (
+                  <p className="text-center py-10 text-xs text-gray-400 font-medium">Aucun scan enregistré pour ce point relais.</p>
+                ) : (
+                  relayLogs.map((log) => (
+                    <div key={log.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black ${
+                          log.action_type === "pickup" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"
+                        }`}>
+                          {log.action_type === "pickup" ? "✨ RETRAIT CLIENT (OTP)" : "📥 DÉPÔT LIVREUR"}
+                        </span>
+                        <p className="text-xs font-bold text-gray-900">Colis: {log.order_code}</p>
+                        <p className="text-[10px] text-gray-500">Bénéficiaire : {log.customer_name}</p>
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-400">
+                        {new Date(log.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     </div>
                   ))
                 )}
@@ -604,238 +775,304 @@ export default function AdminRelaysPage() {
           </div>
         </div>
       ) : (
-        /* GLOBAL RELAYS & MAP OVERVIEW */
-        <div className="space-y-8">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black">
-                <MapPin size={24} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Supervision des Points Relais &amp; Carte</h1>
-                <p className="text-xs text-gray-500 font-medium">
-                  Réseau de retrait physique Kalagban, taux de saturation et mode immersion
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={fetchRelays}
-                className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl transition-colors cursor-pointer"
-                title="Actualiser"
-              >
-                <RefreshCw size={16} />
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20 transition-all"
-              >
-                <Plus size={16} /> Nouveau Point Relais
-              </button>
-            </div>
-          </div>
-
-          {/* Key Metrics Strip */}
+        /* STANDARD VIEW */
+        <div className="space-y-6">
+          {/* Top Global KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Réseau Points Relais</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-gray-900">{totalRelays}</span>
-                <span className="text-xs font-bold text-emerald-600">({activeRelays} actifs)</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black text-gray-900">{points.length} Relais</span>
+                <span className="text-xs font-black text-emerald-600">{activeCount} Actifs</span>
               </div>
+              <p className="text-[10px] text-gray-400">Répartis sur {communesList.length} communes d'Abidjan</p>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Colis en Stock Global</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-indigo-600">{totalPackages}</span>
-                <span className="text-xs text-gray-400">/ {totalCapacity} places</span>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Stock Global en Étagères</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black text-indigo-600">{totalStock} Colis</span>
+                <span className="text-xs font-bold text-gray-500">Cap. {totalCap}</span>
               </div>
+              <p className="text-[10px] text-gray-400">Colis stockés en attente de remise client</p>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Taux d&apos;Occupation Réseau</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-gray-900">{avgOccupancy}%</span>
-                <span className="text-xs font-bold text-emerald-600">Capacité fluide</span>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Commissions Partenaires</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black text-emerald-600">{totalGlobalCommissions.toLocaleString()} FCFA</span>
               </div>
+              <p className="text-[10px] text-gray-400">Rémunération 300 FCFA / retrait validé</p>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sécurité des Retraits</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-emerald-600">99.4%</span>
-                <span className="text-xs font-bold text-gray-400">OTP certifié</span>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Couverture Territoriale</span>
+              <div className="flex items-center gap-1.5 mt-1">
+                {communesList.slice(0, 7).map((c) => (
+                  <span
+                    key={c.id}
+                    title={c.name}
+                    className="w-4 h-4 rounded-full border border-white shadow-xs"
+                    style={{ backgroundColor: c.color_hex }}
+                  />
+                ))}
+                {communesList.length > 7 && (
+                  <span className="text-[10px] font-bold text-gray-400">+{communesList.length - 7}</span>
+                )}
               </div>
+              <p className="text-[10px] text-gray-400 mt-1">Repères visuels par couleur</p>
             </div>
           </div>
 
-          {/* Interactive Map & Relay Explorer Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left: Interactive Map Container */}
-            <div className="lg:col-span-7 bg-slate-900 rounded-3xl p-6 text-white space-y-4 shadow-md flex flex-col justify-between min-h-120">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <h3 className="font-extrabold text-sm">Carte Interactive d&apos;Abidjan</h3>
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400">Abidjan Hub Réseau</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Cliquez sur un point relais pour visualiser son statut et y entrer en mode cockpit.
-                </p>
-              </div>
-
-              {/* Visual Interactive Map Canvas Simulation with Clickable Pins */}
-              <div className="relative w-full h-80 bg-slate-950/60 rounded-2xl border border-slate-800 overflow-hidden flex items-center justify-center p-4">
-                {/* Abidjan Map background grid */}
-                <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] bg-size-[16px_16px] opacity-40"></div>
-
-                {/* Clickable Pins for Relays */}
-                {filteredPoints.slice(0, 10).map((p, idx) => {
-                  const rate = getOccupancyRate(p);
-                  const isSelected = selectedRelay?.id === p.id;
-                  // Dynamic positions distributed for preview
-                  const leftPos = 20 + ((idx * 27) % 65);
-                  const topPos = 20 + ((idx * 33) % 60);
-
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedRelay(p)}
-                      style={{ left: `${leftPos}%`, top: `${topPos}%` }}
-                      className={`absolute transform -translate-x-1/2 -translate-y-1/2 p-2 rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
-                        isSelected
-                          ? "bg-indigo-600 text-white ring-4 ring-indigo-400/40 scale-110 z-20"
-                          : rate >= 95
-                          ? "bg-red-500 text-white z-10"
-                          : rate >= 85
-                          ? "bg-amber-500 text-white z-10"
-                          : "bg-emerald-600 text-white hover:scale-105"
-                      }`}
-                    >
-                      <MapPin size={16} />
-                      <span className="text-[10px] font-black whitespace-nowrap hidden sm:inline">
-                        {p.name.split(" ")[0]} ({rate}%)
-                      </span>
-                    </button>
-                  );
-                })}
-
-                <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-xs p-2 rounded-xl text-[10px] text-gray-300 border border-slate-800 flex items-center gap-3">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Dispo (&lt;85%)</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Élevé (85-95%)</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Saturé (&gt;95%)</span>
-                </div>
-              </div>
-
-              {/* Selected Relay Focus Box */}
-              {selectedRelay && (
-                <div className="bg-slate-800/90 p-4 rounded-2xl border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-bold text-indigo-400">{selectedRelay.commune}</span>
-                    <h4 className="font-extrabold text-sm text-white">{selectedRelay.name}</h4>
-                    <p className="text-xs text-gray-400">{selectedRelay.manager_name} • {selectedRelay.phone}</p>
-                  </div>
-
-                  <button
-                    onClick={() => handleEnterRelay(selectedRelay)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0"
-                  >
-                    <DoorOpen size={16} /> Entrer dans le Point Relais
-                  </button>
-                </div>
-              )}
+          {/* Commune Filter Color Pills */}
+          <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-gray-700 flex items-center gap-1.5">
+                <Palette size={14} className="text-indigo-600" /> Filtrer par Commune & Couleur
+              </span>
+              <span className="text-[11px] text-gray-400 font-bold">{filteredPoints.length} point(s) relais affiché(s)</span>
             </div>
 
-            {/* Right: Search, Filter & List of Relays */}
-            <div className="lg:col-span-5 bg-white rounded-3xl border border-gray-100 shadow-xs p-6 space-y-4 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-base text-gray-900">
-                    Points Relais Référencés ({filteredPoints.length})
-                  </h3>
-                </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                onClick={() => setSelectedCommune("all")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  selectedCommune === "all"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Toutes ({points.length})
+              </button>
 
-                {/* Filter Controls */}
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher par nom, commune..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500"
+              {communesList.map((c) => {
+                const count = points.filter(p => p.commune.toLowerCase() === c.name.toLowerCase()).length;
+                const isSelected = selectedCommune.toLowerCase() === c.name.toLowerCase();
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCommune(c.name)}
+                    style={{
+                      backgroundColor: isSelected ? c.color_hex : c.badge_bg,
+                      color: isSelected ? "#FFFFFF" : c.badge_text,
+                      borderColor: c.color_hex
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      isSelected ? "shadow-md scale-105" : "hover:opacity-80"
+                    }`}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: isSelected ? "#FFFFFF" : c.color_hex }}
                     />
-                  </div>
+                    <span>{c.name}</span>
+                    <span className="px-1.5 py-0.2 rounded-md text-[10px] font-mono opacity-90" style={{ backgroundColor: isSelected ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.6)" }}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedCommune}
-                      onChange={(e) => setSelectedCommune(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer"
-                    >
-                      <option value="all">Toutes Communes</option>
-                      {communes.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={selectedStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer"
-                    >
-                      <option value="all">Tous Statuts</option>
-                      <option value="active">Actifs</option>
-                      <option value="suspended">Suspendus</option>
-                    </select>
-                  </div>
+          {/* Search & Filters */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left 2 Cols: Main Relays Grid */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Rechercher par nom, gérant, code relais..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500 shadow-2xs"
+                  />
                 </div>
 
-                {/* Relays Scrollable List */}
-                <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-                  {filteredPoints.map((p) => {
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer shadow-2xs"
+                >
+                  <option value="all">Tous Statuts</option>
+                  <option value="active">Actifs</option>
+                  <option value="suspended">Suspendus</option>
+                </select>
+              </div>
+
+              {/* Grid of Relay Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredPoints.length === 0 ? (
+                  <div className="col-span-2 bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-xs space-y-3">
+                    <Building2 className="w-12 h-12 text-gray-300 mx-auto stroke-1" />
+                    <p className="text-sm font-bold text-gray-700">Aucun point relais trouvé</p>
+                    <p className="text-xs text-gray-400">Modifiez vos critères de recherche ou ajoutez un nouveau point relais pour cette commune.</p>
+                  </div>
+                ) : (
+                  filteredPoints.map((p) => {
                     const isSelected = selectedRelay?.id === p.id;
+                    const matchedCommune = communesList.find(c => c.name.toLowerCase() === p.commune.toLowerCase());
+                    const color = p.color_code || matchedCommune?.color_hex || "#6366F1";
+                    const badgeBg = p.badge_bg || matchedCommune?.badge_bg || "rgba(99, 102, 241, 0.12)";
+                    const badgeText = p.badge_text || matchedCommune?.badge_text || "#4338CA";
+
                     return (
                       <div
                         key={p.id}
                         onClick={() => setSelectedRelay(p)}
-                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        style={{ borderLeftColor: color }}
+                        className={`bg-white rounded-3xl p-5 border border-l-4 transition-all cursor-pointer shadow-xs relative space-y-3 ${
                           isSelected
-                            ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
-                            : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                            ? "border-indigo-600 ring-2 ring-indigo-600/10 shadow-md"
+                            : "border-gray-100 hover:border-gray-200 hover:shadow-md"
                         }`}
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-xs text-gray-900 truncate">{p.name}</span>
-                            {getSaturationBadge(p)}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <span 
+                              style={{ backgroundColor: badgeBg, color: badgeText }}
+                              className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1.5"
+                            >
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                              {p.commune} ({p.zone_label || "Abidjan"})
+                            </span>
+                            <h3 className="font-extrabold text-sm text-gray-900">{p.name}</h3>
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                              <MapPin size={11} className="text-gray-400 shrink-0" /> {p.address}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                            {p.commune} • {p.current_packages_count || 0}/{p.max_capacity} colis
-                          </p>
+                          {getSaturationBadge(p)}
                         </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEnterRelay(p);
-                          }}
-                          className="p-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-xs shrink-0"
-                          title="Entrer dans le point relais"
-                        >
-                          <DoorOpen size={16} />
-                        </button>
+                        <div className="pt-2 border-t border-gray-100 grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-[10px] text-gray-400 block font-bold">Gérant</span>
+                            <span className="font-extrabold text-gray-800 text-[11px]">{p.manager_name}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-gray-400 block font-bold">Stock & Capacité</span>
+                            <span className="font-black text-indigo-600 text-[11px]">
+                              {p.current_packages_count || 0} / {p.max_capacity} colis
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <KeyRound size={13} className="text-amber-500" />
+                            <span className="font-mono font-black text-xs text-gray-800 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                              {p.pin_code || "------"}
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEnterRelay(p);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <DoorOpen size={14} />
+                            <span>Entrer Cockpit</span>
+                          </button>
+                        </div>
                       </div>
                     );
-                  })}
-                </div>
+                  })
+                )}
               </div>
+            </div>
+
+            {/* Right 1 Col: Quick Details Card */}
+            <div className="space-y-4">
+              {selectedRelay ? (
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-xs space-y-5 sticky top-6">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <span 
+                      style={{ backgroundColor: selectedRelay.badge_bg || "rgba(99,102,241,0.12)", color: selectedRelay.badge_text || "#4338CA" }}
+                      className="px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedRelay.color_code || "#6366F1" }} />
+                      {selectedRelay.commune}
+                    </span>
+                    <span className="font-mono text-xs text-gray-400 font-bold">{selectedRelay.code}</span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-black text-lg text-gray-900">{selectedRelay.name}</h3>
+                    <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
+                      <MapPin size={13} className="text-indigo-600 shrink-0 mt-0.5" />
+                      <span>{selectedRelay.address}, {selectedRelay.city}</span>
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-2xl p-4 space-y-2.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-bold">Gérant :</span>
+                      <span className="font-extrabold text-gray-900">{selectedRelay.manager_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-bold">Téléphone :</span>
+                      <span className="font-mono font-bold text-gray-900">{selectedRelay.phone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-bold">Zone Logistique :</span>
+                      <span className="font-extrabold text-indigo-700">{selectedRelay.zone_label || "Abidjan"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-bold">Code PIN :</span>
+                      <span className="font-mono font-black text-indigo-900 bg-white px-2 py-0.5 rounded-md border border-gray-200">
+                        {selectedRelay.pin_code || "------"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-bold">Commissions :</span>
+                      <span className="font-extrabold text-emerald-600">
+                        {(selectedRelay.total_commissions_earned || 0).toLocaleString()} FCFA
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <button
+                      onClick={() => handleEnterRelay(selectedRelay)}
+                      className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <DoorOpen size={16} /> Entrer dans le Point Relais
+                    </button>
+
+                    {canManage && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => promptRegeneratePin(selectedRelay)}
+                          className="py-2.5 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <RefreshCw size={12} /> PIN Secret
+                        </button>
+                        <button
+                          onClick={() => promptToggleStatus(selectedRelay)}
+                          className={`py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                            selectedRelay.status === "active"
+                              ? "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {selectedRelay.status === "active" ? <Lock size={12} /> : <Unlock size={12} />}
+                          <span>{selectedRelay.status === "active" ? "Suspendre" : "Activer"}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl p-8 text-center border border-gray-100 shadow-xs space-y-2">
+                  <Info className="w-8 h-8 text-gray-300 mx-auto stroke-1" />
+                  <p className="text-xs font-bold text-gray-500">Sélectionnez un point relais</p>
+                  <p className="text-[11px] text-gray-400">Cliquez sur une carte pour afficher ses informations détaillées et actions rapides.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -844,21 +1081,52 @@ export default function AdminRelaysPage() {
       {/* MODAL: Add New Relay */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-4 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-black text-lg text-gray-900">Créer un Point Relais</h3>
+              <div>
+                <h3 className="font-black text-lg text-gray-900">Créer un Point Relais</h3>
+                <p className="text-xs text-gray-500 font-medium">Attribuez une commune, une couleur et un code d'accès aléatoire.</p>
+              </div>
               <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-700">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateRelay} className="space-y-3">
+            <form onSubmit={promptCreateRelay} className="space-y-3.5">
+              {/* Commune Selection with Color preview */}
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom de l&apos;Établissement</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Commune d'Implantation</label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-36 overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-200">
+                  {communesList.map((c) => {
+                    const isSelected = newRelay.commune.toLowerCase() === c.name.toLowerCase();
+                    return (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => handleCommuneSelection(c.name)}
+                        style={{
+                          backgroundColor: isSelected ? c.color_hex : "#FFFFFF",
+                          color: isSelected ? "#FFFFFF" : "#1F2937",
+                          borderColor: isSelected ? c.color_hex : "#E5E7EB"
+                        }}
+                        className={`p-2 rounded-xl text-[11px] font-black border transition-all text-center flex flex-col items-center gap-1 cursor-pointer shadow-2xs ${
+                          isSelected ? "scale-105 shadow-xs" : "hover:border-gray-300"
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: isSelected ? "#FFFFFF" : c.color_hex }} />
+                        <span className="truncate w-full">{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom de l'Établissement / Commerce</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Pharmacie des Arts - Angré"
+                  placeholder="Ex: Pharmacie de la Paix - Adjamé"
                   value={newRelay.name}
                   onChange={(e) => setNewRelay({ ...newRelay, name: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
@@ -867,42 +1135,18 @@ export default function AdminRelaysPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Commune</label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom du Gérant Responsable</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Cocody"
-                    value={newRelay.commune}
-                    onChange={(e) => setNewRelay({ ...newRelay, commune: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Capacité Max (Colis)</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRelay.max_capacity}
-                    onChange={(e) => setNewRelay({ ...newRelay, max_capacity: parseInt(e.target.value) || 50 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Nom du Gérant</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: M. Bamba"
+                    placeholder="Ex: M. Hassan"
                     value={newRelay.manager_name}
                     onChange={(e) => setNewRelay({ ...newRelay, manager_name: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Téléphone</label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Téléphone de Contact</label>
                   <input
                     type="text"
                     required
@@ -915,17 +1159,41 @@ export default function AdminRelaysPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Adresse Détaillée</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Adresse Précise & Repère Géographique</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Boulevard Latrille, Carrefour Duncan"
+                  placeholder="Ex: Rond point de la liberté, 220 logements"
                   value={newRelay.address}
                   onChange={(e) => setNewRelay({ ...newRelay, address: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Capacité Max (Colis)</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRelay.max_capacity}
+                    onChange={(e) => setNewRelay({ ...newRelay, max_capacity: parseInt(e.target.value) || 50 })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Code Identifiant</label>
+                  <input
+                    type="text"
+                    required
+                    value={newRelay.code}
+                    onChange={(e) => setNewRelay({ ...newRelay, code: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-indigo-700"
+                  />
+                </div>
+              </div>
+
+              {/* PIN Code Box */}
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
@@ -939,17 +1207,15 @@ export default function AdminRelaysPage() {
                     <RefreshCw size={10} /> Régénérer
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    value={newRelay.pin_code}
-                    onChange={(e) => setNewRelay({ ...newRelay, pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                    className="w-full font-mono text-center font-black tracking-widest text-base px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-900"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400">Ce code secret unique sera utilisé par le gérant pour se connecter à l&apos;application Point Relais.</p>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={newRelay.pin_code}
+                  onChange={(e) => setNewRelay({ ...newRelay, pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                  className="w-full font-mono text-center font-black tracking-widest text-base px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-900"
+                />
+                <p className="text-[10px] text-slate-400">Ce code secret unique à 6 chiffres permettra au gérant d'accéder au portail relais.</p>
               </div>
 
               <div className="flex gap-3 pt-3 border-t border-gray-100">
@@ -962,12 +1228,155 @@ export default function AdminRelaysPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 shadow-md"
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Enregistrer le Relais
+                  <span>Continuer vers Confirmation</span>
+                  <ArrowRight size={14} />
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Commune & Color Manager */}
+      {showCommunesModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-4 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-black text-lg text-gray-900">Gestion des Communes & Couleurs</h3>
+                <p className="text-xs text-gray-500 font-medium">Personnalisez le nuancier visuel de chaque commune d'Abidjan.</p>
+              </div>
+              <button onClick={() => setShowCommunesModal(false)} className="text-gray-400 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* List of existing Communes */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {communesList.map((c) => (
+                <div key={c.id} className="p-3 rounded-2xl border border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-4 h-4 rounded-full shadow-2xs shrink-0" style={{ backgroundColor: c.color_hex }} />
+                    <div>
+                      <p className="font-extrabold text-xs text-gray-900">{c.name} ({c.code})</p>
+                      <p className="text-[10px] text-gray-400">{c.zone} • {c.city}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[11px] font-bold text-gray-600 bg-white px-2 py-1 rounded-lg border border-gray-200">
+                    {c.color_hex}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Add New Commune */}
+            <form onSubmit={handleAddCommune} className="pt-3 border-t border-gray-100 space-y-3">
+              <h4 className="font-extrabold text-xs text-gray-900">Ajouter une Nouvelle Commune / Zone</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="Nom (ex: Grand-Bassam)"
+                  value={newCommune.name}
+                  onChange={(e) => setNewCommune({ ...newCommune, name: e.target.value })}
+                  className="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                />
+                <input
+                  type="text"
+                  required
+                  placeholder="Code (ex: GB)"
+                  value={newCommune.code}
+                  onChange={(e) => setNewCommune({ ...newCommune, code: e.target.value })}
+                  className="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5">
+                  <input
+                    type="color"
+                    value={newCommune.color_hex}
+                    onChange={(e) => setNewCommune({ ...newCommune, color_hex: e.target.value })}
+                    className="w-7 h-7 rounded-lg border-0 cursor-pointer"
+                  />
+                  <span className="font-mono text-xs font-bold text-gray-700">{newCommune.color_hex}</span>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Zone (ex: Littoral Sud)"
+                  value={newCommune.zone}
+                  onChange={(e) => setNewCommune({ ...newCommune, zone: e.target.value })}
+                  className="px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                Enregistrer la Commune
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP DE CONFIRMATION SÉCURISÉE */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                confirmModal.type === "danger" ? "bg-red-50 text-red-600" :
+                confirmModal.type === "warning" ? "bg-amber-50 text-amber-600" : "bg-indigo-50 text-indigo-600"
+              }`}>
+                {confirmModal.type === "danger" ? <ShieldAlert size={22} /> :
+                 confirmModal.type === "warning" ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
+              </div>
+              <div>
+                <h3 className="font-black text-base text-gray-900">{confirmModal.title}</h3>
+                <p className="text-xs text-gray-500 font-medium">Vérification de sécurité Kalagban</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 font-medium">{confirmModal.description}</p>
+
+            {confirmModal.details && confirmModal.details.length > 0 && (
+              <div className="bg-gray-50 rounded-2xl p-3.5 space-y-2 border border-gray-100">
+                {confirmModal.details.map((d, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-bold">{d.label} :</span>
+                    <span className="font-extrabold text-gray-900 flex items-center gap-1.5">
+                      {d.color && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />}
+                      {d.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-xs text-gray-700 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`flex-1 py-2.5 rounded-xl font-black text-xs text-white shadow-md transition-colors ${
+                  confirmModal.type === "danger" ? "bg-red-600 hover:bg-red-700" :
+                  confirmModal.type === "warning" ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700"
+                }`}
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
           </div>
         </div>
       )}
