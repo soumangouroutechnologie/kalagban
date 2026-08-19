@@ -1,10 +1,32 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, UploadCloud, Save, CheckCircle, Wand2, ShieldCheck, Clock, ArrowRight } from "lucide-react";
+import { 
+  ArrowLeft, 
+  UploadCloud, 
+  Save, 
+  CheckCircle, 
+  Wand2, 
+  ShieldCheck, 
+  Clock, 
+  ArrowRight,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Star
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
+
+interface ProductImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+  hasBgRemoved?: boolean;
+  bgColor?: string;
+}
 
 export default function NewProductPage() {
   const [isSaved, setIsSaved] = useState(false);
@@ -20,12 +42,10 @@ export default function NewProductPage() {
   const [stock, setStock] = useState("0");
   const [sku, setSku] = useState("");
   
-  // États pour l'éditeur magique
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  // États Multi-Images & Studio IA
+  const [images, setImages] = useState<ProductImage[]>([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [isRemovingBg, setIsRemovingBg] = useState(false);
-  const [hasBgRemoved, setHasBgRemoved] = useState(false);
-  const [selectedBgColor, setSelectedBgColor] = useState<string>("transparent");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bgColors = [
@@ -38,6 +58,8 @@ export default function NewProductPage() {
   ];
 
   const [submittedModal, setSubmittedModal] = useState(false);
+
+  const currentImage = images[selectedImageIndex] || null;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,27 +97,30 @@ export default function NewProductPage() {
 
       if (prodError || !newProd) throw prodError;
 
-      // 2. Televersement de l'image et insertion dans product_media
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop() || 'jpg';
-        const fileName = `prod_${newProd.id}_${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('kalagban_media')
-          .upload(fileName, imageFile);
-
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage
+      // 2. Upload de toutes les images vers Supabase Storage et insertion dans product_media
+      for (let i = 0; i < images.length; i++) {
+        const imgItem = images[i];
+        if (imgItem.file) {
+          const fileExt = imgItem.file.name.split('.').pop() || 'webp';
+          const fileName = `prod_${newProd.id}_${i}_${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
             .from('kalagban_media')
-            .getPublicUrl(fileName);
+            .upload(fileName, imgItem.file);
 
-          await supabase.from('product_media').insert({
-            product_id: newProd.id,
-            url: publicUrlData.publicUrl,
-            position: 0
-          });
-        } else {
-          console.error("Erreur d'upload image produit:", uploadError);
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('kalagban_media')
+              .getPublicUrl(fileName);
+
+            await supabase.from('product_media').insert({
+              product_id: newProd.id,
+              url: publicUrlData.publicUrl,
+              position: i
+            });
+          } else {
+            console.error(`Erreur d'upload image ${i}:`, uploadError);
+          }
         }
       }
 
@@ -115,22 +140,58 @@ export default function NewProductPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      const url = URL.createObjectURL(file);
-      setUploadedImage(url);
-      setHasBgRemoved(false);
-      setSelectedBgColor("transparent");
+      const selectedFiles = Array.from(e.target.files);
+      const remainingSlots = 5 - images.length;
+      const filesToAdd = selectedFiles.slice(0, remainingSlots);
+
+      const newImages: ProductImage[] = filesToAdd.map((file) => ({
+        id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        hasBgRemoved: false,
+        bgColor: "transparent",
+      }));
+
+      setImages((prev) => {
+        const updated = [...prev, ...newImages];
+        if (prev.length === 0) {
+          setSelectedImageIndex(0);
+        }
+        return updated;
+      });
+    }
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
+  const handleRemoveImage = (indexToRemove: number) => {
+    setImages((prev) => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      if (selectedImageIndex >= updated.length) {
+        setSelectedImageIndex(Math.max(0, updated.length - 1));
+      }
+      return updated;
+    });
+  };
+
+  const handleSetBgColor = (color: string) => {
+    if (!currentImage) return;
+    setImages((prev) =>
+      prev.map((img, idx) =>
+        idx === selectedImageIndex ? { ...img, bgColor: color } : img
+      )
+    );
+  };
+
   const handleRemoveBg = async () => {
-    if (!uploadedImage) return;
+    if (!currentImage) return;
     setIsRemovingBg(true);
     try {
       const mod = await import("@imgly/background-removal");
       const imglyRemoveBackground = (mod.default || mod.removeBackground || mod) as unknown as (image: string) => Promise<Blob>;
-      const blob = await imglyRemoveBackground(uploadedImage);
+      const blob = await imglyRemoveBackground(currentImage.previewUrl);
       
       // Conversion en WebP pour la légèreté et la fluidité
       const webpBlob = await new Promise<Blob>((resolve, reject) => {
@@ -148,7 +209,7 @@ export default function NewProductPage() {
               else reject(new Error("Échec de la conversion WebP"));
             },
             'image/webp',
-            0.8 // Qualité à 80% (excellent compromis poids/qualité)
+            0.85
           );
         };
         img.onerror = () => reject(new Error("Erreur de chargement pour la conversion WebP"));
@@ -156,10 +217,15 @@ export default function NewProductPage() {
       });
 
       const url = URL.createObjectURL(webpBlob);
-      setImageFile(new File([webpBlob], "product_bg_removed.webp", { type: "image/webp" }));
-      setUploadedImage(url);
-      setHasBgRemoved(true);
-      setSelectedBgColor("#ffffff"); // Par défaut on met fond blanc après détourage
+      const newFile = new File([webpBlob], `product_${selectedImageIndex}_bg_removed.webp`, { type: "image/webp" });
+
+      setImages((prev) =>
+        prev.map((img, idx) =>
+          idx === selectedImageIndex
+            ? { ...img, file: newFile, previewUrl: url, hasBgRemoved: true, bgColor: "#ffffff" }
+            : img
+        )
+      );
     } catch (error) {
       console.error("Erreur de détourage IA ou conversion:", error);
       alert("Erreur lors du traitement de l'image.");
@@ -181,22 +247,22 @@ export default function NewProductPage() {
         </div>
       </div>
 
-      {/* Header */}
+      {/* Header Page */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/products" className="p-2 border border-gray-200 rounded-xl text-text-muted hover:bg-white hover:text-text-main transition-colors bg-surface">
+        <div className="flex items-center gap-3">
+          <Link 
+            href="/products" 
+            className="w-10 h-10 rounded-xl bg-surface border border-gray-200 flex items-center justify-center text-gray-500 hover:text-primary hover:border-primary/50 transition-colors shadow-sm"
+          >
             <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-3xl font-black text-text-main tracking-tight">Ajouter un produit</h1>
-            <p className="text-text-muted mt-1">Soumettez votre article à l&apos;équipe de modération pour publication.</p>
+            <h1 className="text-2xl font-black text-text-main">Ajouter un nouveau produit</h1>
+            <p className="text-sm text-text-muted">Remplissez les détails ci-dessous pour soumettre votre article.</p>
           </div>
         </div>
-        
-        <div className="flex gap-3">
-          <Link href="/products" className="px-5 py-2.5 rounded-xl font-bold border border-gray-200 text-text-main hover:bg-white transition-colors bg-surface flex items-center">
-            Annuler
-          </Link>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <button 
             onClick={handleSave}
             disabled={isSaving}
@@ -229,7 +295,7 @@ export default function NewProductPage() {
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ex: T-shirt en coton bio" 
+                  placeholder="Ex: Polo noir en coton bio" 
                   className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 />
               </div>
@@ -239,53 +305,116 @@ export default function NewProductPage() {
                   rows={5}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Décrivez votre produit en détail..." 
+                  placeholder="Décrivez votre produit en détail (matière, coupe, conseils d'entretien...)..." 
                   className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all resize-none custom-scrollbar"
                 ></textarea>
               </div>
             </div>
           </div>
 
-          {/* Médias avec Éditeur Magique */}
+          {/* Galerie Multi-Médias avec Éditeur Magique IA */}
           <div className="bg-surface rounded-card p-6 shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-text-main">Médias</h2>
-              {uploadedImage && (
-                <button onClick={() => setUploadedImage(null)} className="text-sm font-bold text-danger hover:underline">
-                  Retirer l&apos;image
-                </button>
-              )}
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-text-main">Photos du Produit</h2>
+                <p className="text-xs text-text-muted">Ajoutez jusqu&apos;à 5 photos (Face, Dos, Zoom matière, Porté...). La 1ère photo sera la photo de couverture.</p>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 bg-primary/10 text-primary rounded-full">
+                {images.length}/5 Photos
+              </span>
+            </div>
+
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept="image/*" 
+              multiple
+              className="hidden" 
+            />
+
+            {/* Thumbnails Gallery Bar */}
+            <div className="grid grid-cols-5 gap-3 mb-6">
+              {[0, 1, 2, 3, 4].map((slotIdx) => {
+                const img = images[slotIdx];
+                const isSelected = selectedImageIndex === slotIdx && Boolean(img);
+
+                if (img) {
+                  return (
+                    <div 
+                      key={img.id}
+                      onClick={() => setSelectedImageIndex(slotIdx)}
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all group ${
+                        isSelected 
+                          ? 'border-primary ring-2 ring-primary/30 shadow-md scale-102' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <img 
+                        src={img.previewUrl} 
+                        alt={`Photo ${slotIdx + 1}`} 
+                        className="w-full h-full object-cover" 
+                      />
+
+                      {slotIdx === 0 && (
+                        <span className="absolute top-1 left-1 bg-primary text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
+                          <Star size={10} className="fill-white" /> Principale
+                        </span>
+                      )}
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveImage(slotIdx);
+                        }}
+                        title="Supprimer cette photo"
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-danger text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={slotIdx}
+                    onClick={handleUploadClick}
+                    className="aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer text-gray-400 hover:text-primary group"
+                  >
+                    <Plus size={20} className="group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] font-bold">
+                      {slotIdx === 0 ? "Couverture" : `Photo ${slotIdx + 1}`}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             
-            {!uploadedImage ? (
-              <div 
-                onClick={handleUploadClick}
-                className="border-2 border-dashed border-gray-200 rounded-2xl p-10 flex flex-col items-center justify-center gap-4 hover:bg-bg-app hover:border-primary/50 transition-all cursor-pointer group"
-              >
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
-                <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                  <UploadCloud size={32} />
+            {/* Main Interactive Studio Canvas */}
+            {currentImage ? (
+              <div className="flex flex-col gap-5 pt-4 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-800">
+                      Édition : {selectedImageIndex === 0 ? "Photo Principale (Couverture) ⭐" : `Photo ${selectedImageIndex + 1}`}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => handleRemoveImage(selectedImageIndex)} 
+                    className="text-xs font-bold text-danger hover:underline flex items-center gap-1"
+                  >
+                    <Trash2 size={14} /> Supprimer cette photo
+                  </button>
                 </div>
-                <div className="text-center">
-                  <p className="font-bold text-text-main">Cliquez pour ajouter des images</p>
-                  <p className="text-sm text-text-muted mt-1">ou glissez-déposez vos fichiers ici (PNG, JPG, max 5Mo)</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-6">
-                {/* Aperçu de l'image (Canvas simulé) */}
+
+                {/* Aperçu de l'image (Canvas Studio) */}
                 <div 
                   className="w-full max-w-sm mx-auto aspect-square rounded-2xl overflow-hidden relative flex items-center justify-center shadow-inner border border-gray-100 transition-colors duration-500"
-                  style={{ backgroundColor: selectedBgColor !== "transparent" ? selectedBgColor : "#f8fafc" }}
+                  style={{ backgroundColor: currentImage.bgColor !== "transparent" ? currentImage.bgColor : "#f8fafc" }}
                 >
                   {/* Effet damier pour le transparent */}
-                  {selectedBgColor === "transparent" && hasBgRemoved && (
+                  {currentImage.bgColor === "transparent" && currentImage.hasBgRemoved && (
                     <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-conic-gradient(#000 0% 25%, transparent 0% 50%)', backgroundSize: '20px 20px' }}></div>
                   )}
 
@@ -296,63 +425,74 @@ export default function NewProductPage() {
                     </div>
                   )}
                   
-                  {/* Vrai détourage IA, plus besoin du hack mix-blend-multiply ! */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img 
-                    src={uploadedImage} 
+                    src={currentImage.previewUrl} 
                     alt="Produit" 
-                    className={`w-full h-full object-contain relative z-0 transition-all duration-700 ${hasBgRemoved ? "scale-90" : "scale-100"}`} 
+                    className={`w-full h-full object-contain relative z-0 transition-all duration-700 ${currentImage.hasBgRemoved ? "scale-90" : "scale-100"}`} 
                   />
                   
-                  {hasBgRemoved && (
+                  {currentImage.hasBgRemoved && (
                     <div className="absolute top-4 right-4 bg-success text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center gap-1 z-20 animate-fade-in">
-                      <CheckCircle size={14} /> Fond supprimé
+                      <CheckCircle size={14} /> Fond détouré par IA
                     </div>
                   )}
                 </div>
 
-                {/* Barre d'outils d'édition */}
+                {/* Barre d'outils d'édition Studio */}
                 <div className="bg-bg-app rounded-2xl p-5 flex flex-col sm:flex-row gap-6 justify-between items-center border border-gray-100">
                   
                   <div className="flex flex-col gap-3 w-full sm:w-auto">
-                    <span className="text-sm font-bold text-gray-700">Outil Magique (IA)</span>
+                    <span className="text-sm font-bold text-gray-700">Studio Magique (IA)</span>
                     <button 
                       onClick={handleRemoveBg}
-                      disabled={hasBgRemoved || isRemovingBg}
+                      disabled={currentImage.hasBgRemoved || isRemovingBg}
                       className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        hasBgRemoved 
+                        currentImage.hasBgRemoved 
                           ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
                           : "bg-linear-to-r from-purple-500 to-indigo-500 text-white shadow-lg shadow-purple-500/30 hover:scale-105"
                       }`}
                     >
                       <Wand2 size={18} />
-                      {hasBgRemoved ? "Détourage terminé" : "Supprimer le fond"}
+                      {currentImage.hasBgRemoved ? "Fond détouré avec succès" : "Détourer le fond (IA)"}
                     </button>
                   </div>
 
                   <div className="hidden sm:block w-px h-12 bg-gray-200"></div>
 
                   <div className="flex flex-col gap-3 w-full sm:w-auto">
-                    <span className="text-sm font-bold text-gray-700">Couleur d&apos;arrière-plan</span>
-                    <div className={`flex gap-3 flex-wrap ${!hasBgRemoved ? 'opacity-40 grayscale pointer-events-none' : 'transition-opacity duration-300'}`}>
+                    <span className="text-sm font-bold text-gray-700">Arrière-plan Studio</span>
+                    <div className={`flex gap-3 flex-wrap ${!currentImage.hasBgRemoved ? 'opacity-40 grayscale pointer-events-none' : 'transition-opacity duration-300'}`}>
                       {bgColors.map(color => (
                         <button
                           key={color.name}
-                          onClick={() => setSelectedBgColor(color.value)}
+                          onClick={() => handleSetBgColor(color.value)}
                           title={color.name}
-                          className={`w-10 h-10 rounded-full border transition-transform hover:scale-110 shadow-sm flex items-center justify-center ${color.border} ${selectedBgColor === color.value ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+                          className={`w-10 h-10 rounded-full border transition-transform hover:scale-110 shadow-sm flex items-center justify-center ${color.border} ${currentImage.bgColor === color.value ? 'ring-2 ring-primary ring-offset-2' : ''}`}
                           style={{ 
                             backgroundColor: color.value !== "transparent" ? color.value : "#f8fafc", 
                             backgroundImage: color.value === "transparent" ? 'repeating-conic-gradient(#e5e7eb 0% 25%, white 0% 50%)' : 'none', 
                             backgroundSize: '10px 10px' 
                           }}
                         >
-                          {selectedBgColor === color.value && <CheckCircle size={16} className={color.value === '#ffffff' || color.value === 'transparent' ? 'text-primary' : 'text-black/50'} />}
+                          {currentImage.bgColor === color.value && <CheckCircle size={16} className={color.value === '#ffffff' || color.value === 'transparent' ? 'text-primary' : 'text-black/50'} />}
                         </button>
                       ))}
                     </div>
                   </div>
 
+                </div>
+              </div>
+            ) : (
+              <div 
+                onClick={handleUploadClick}
+                className="border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 hover:bg-bg-app hover:border-primary/50 transition-all cursor-pointer group"
+              >
+                <div className="w-14 h-14 bg-white rounded-full shadow-sm flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                  <UploadCloud size={28} />
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-text-main">Cliquez pour importer des photos</p>
+                  <p className="text-xs text-text-muted mt-1">Sélectionnez jusqu&apos;à 5 photos en une seule fois (PNG, JPG, max 5Mo)</p>
                 </div>
               </div>
             )}
@@ -385,113 +525,67 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* Variantes (Tailles, Couleurs) */}
-          <div className="bg-surface rounded-card p-6 shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-text-main">Variantes (Options)</h2>
-              <button className="text-sm font-bold text-primary hover:underline">
-                + Ajouter une option
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-5 border border-gray-100 rounded-xl p-4 bg-bg-app">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <label className="text-sm font-bold text-gray-700">Nom de l&apos;option</label>
-                  <input 
-                    type="text" 
-                    defaultValue="Taille"
-                    className="w-32 bg-white border border-gray-200 text-gray-900 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm font-medium"
-                  />
-                </div>
-                <button className="text-danger hover:text-danger/70 text-sm font-bold">Retirer</button>
-              </div>
-              
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-700">Valeurs de l&apos;option</label>
-                <input 
-                  type="text" 
-                  placeholder="Ex: S, M, L, XL (séparées par des virgules)" 
-                  className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                />
-              </div>
-            </div>
-            
-            <p className="text-xs text-text-muted mt-4">
-              Ajoutez des variantes si ce produit possède plusieurs options, comme des tailles ou des couleurs différentes.
-            </p>
-          </div>
-
         </div>
 
         {/* Sidebar Column */}
         <div className="flex flex-col gap-6">
           
-          {/* Statut */}
-          <div className="bg-surface rounded-card p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-text-main mb-4">Statut</h2>
-            <select className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-bold">
-              <option value="active">Actif</option>
-              <option value="draft">Brouillon</option>
-            </select>
-          </div>
-
           {/* Organisation */}
           <div className="bg-surface rounded-card p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-text-main mb-4">Organisation</h2>
-            <div className="flex flex-col gap-5">
+            <h2 className="text-lg font-bold text-text-main mb-4">Organisation</h2>
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-gray-700">Catégorie</label>
                 <select 
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all font-medium"
+                  className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 >
-                  <option value="">Sélectionner une catégorie...</option>
+                  <option value="">Sélectionnez une catégorie</option>
                   {PRODUCT_CATEGORIES.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                    <option key={cat.id} value={cat.id}>
+                      {cat.label}
+                    </option>
                   ))}
+                  <option value="autre">Autre (préciser)</option>
                 </select>
-                {category === "autre" && (
+              </div>
+
+              {category === "autre" && (
+                <div className="flex flex-col gap-2 animate-fade-in">
+                  <label className="text-sm font-bold text-gray-700">Précisez la catégorie</label>
                   <input 
                     type="text" 
                     value={customCategory}
                     onChange={(e) => setCustomCategory(e.target.value)}
-                    placeholder="Préciser la catégorie..." 
-                    className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all mt-2"
+                    placeholder="Ex: Chaussures de sport" 
+                    className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                   />
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-700">Tags</label>
-                <input 
-                  type="text" 
-                  placeholder="Séparés par une virgule" 
-                  className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                />
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Inventaire */}
           <div className="bg-surface rounded-card p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-text-main mb-4">Inventaire</h2>
-            <div className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-700">SKU (Référence)</label>
-                <input 
-                  type="text" 
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value)}
-                  className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all uppercase"
-                />
-              </div>
+            <h2 className="text-lg font-bold text-text-main mb-4">Inventaire</h2>
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-bold text-gray-700">Quantité en stock</label>
                 <input 
                   type="number" 
                   value={stock}
                   onChange={(e) => setStock(e.target.value)}
+                  className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-bold text-gray-700">SKU (Code de référence)</label>
+                <input 
+                  type="text" 
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  placeholder="Ex: POLO-BLK-001" 
                   className="w-full bg-bg-app border border-gray-200 text-gray-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 />
               </div>
@@ -502,49 +596,44 @@ export default function NewProductPage() {
 
       </div>
 
-      {/* Confirmation Modal: Produit soumis avec succès */}
+      {/* Modal de Confirmation de Soumission en Modération */}
       {submittedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col items-center text-center animate-scale-up">
-            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6 text-amber-500 ring-8 ring-amber-50/50">
-              <Clock size={40} className="animate-pulse" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-surface rounded-3xl p-6 sm:p-8 max-w-md w-full border border-gray-100 shadow-2xl flex flex-col items-center text-center gap-5">
+            
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              <Clock size={36} />
             </div>
-            
-            <h3 className="text-2xl font-black text-gray-900 mb-2">
-              Produit Soumis pour Validation ! 🎉
-            </h3>
-            
-            <p className="text-gray-600 text-sm leading-relaxed mb-6">
-              Votre article <span className="font-bold text-gray-800">« {title || "Sans titre"} »</span> a été transmis avec succès à l&apos;équipe de modération de Kalagban. Il sera examiné avant d&apos;apparaître en ligne.
-            </p>
 
-            <div className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 mb-6 text-left flex items-start gap-3">
-              <ShieldCheck size={20} className="text-primary shrink-0 mt-0.5" />
-              <div className="text-xs text-gray-600">
-                <span className="font-bold text-gray-800">Délai estimé :</span> Validation rapide (habituellement sous 1h à 24h). Vous recevrez une notification instantanée.
+            <div className="flex flex-col gap-2">
+              <h3 className="text-2xl font-black text-text-main">Produit soumis pour modération !</h3>
+              <p className="text-sm text-text-muted leading-relaxed">
+                Votre article <span className="font-bold text-text-main">« {title} »</span> a été enregistré et {images.length} photo(s) ont été téléversées.
+                Il sera examiné très rapidement par l&apos;équipe Kalagban avant sa mise en ligne.
+              </p>
+            </div>
+
+            <div className="w-full bg-bg-app rounded-2xl p-4 border border-gray-100 flex flex-col gap-2 text-left text-xs text-gray-600">
+              <div className="flex items-center gap-2 font-bold text-gray-800">
+                <ShieldCheck size={16} className="text-primary" /> Contrôle qualité en cours :
               </div>
+              <p>• Conformité de la description et des photos</p>
+              <p>• Respect des règles de tarification de la plateforme</p>
             </div>
 
-            <div className="flex gap-3 w-full">
-              <button
-                onClick={() => {
-                  setSubmittedModal(false);
-                  setTitle(""); setPrice(""); setOldPrice(""); setUploadedImage(null); setImageFile(null);
-                }}
-                className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 text-sm transition-all"
-              >
-                Ajouter un autre
-              </button>
-              <Link
-                href="/products"
-                className="flex-1 py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-indigo-600 text-sm transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-primary/20"
+            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+              <Link 
+                href="/products" 
+                className="flex-1 bg-primary text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 text-sm"
               >
                 Voir mes produits <ArrowRight size={16} />
               </Link>
             </div>
+
           </div>
         </div>
       )}
+
     </div>
   );
 }
