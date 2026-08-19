@@ -975,7 +975,7 @@ export default function AdminRelaysPage() {
           {activeTab === "map" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left 7 Cols: Stylized Interactive Map of Abidjan */}
-              <div className="lg:col-span-7 bg-slate-950 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-between min-h-[460px] relative overflow-hidden border border-slate-800">
+              <div className="lg:col-span-7 bg-slate-950 rounded-3xl p-6 text-white shadow-xl flex flex-col justify-between min-h-115 relative overflow-hidden border border-slate-800">
                 {/* Map Header */}
                 <div className="relative z-10 flex items-center justify-between pb-3 border-b border-slate-800/80">
                   <div className="flex items-center gap-2.5">
@@ -991,9 +991,9 @@ export default function AdminRelaysPage() {
                 </div>
 
                 {/* Stylized Vector Grid of Abidjan Lagoon & Zones */}
-                <div className="relative w-full h-[340px] my-3 rounded-2xl bg-radial from-slate-900 to-slate-950 border border-slate-800/60 overflow-hidden flex items-center justify-center">
+                <div className="relative w-full h-85 my-3 rounded-2xl bg-radial from-slate-900 to-slate-950 border border-slate-800/60 overflow-hidden flex items-center justify-center">
                   {/* Subtle Grid Lines */}
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:24px_24px]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-size-[24px_24px]" />
                   
                   {/* Stylized Lagoon Shape (Ébrié Lagoon) */}
                   <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 800 400" preserveAspectRatio="none">
