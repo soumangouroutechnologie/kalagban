@@ -52,6 +52,7 @@ export default function DedicatedWebCategoryPage() {
             old_price,
             stock_quantity,
             status,
+            moderation_status,
             product_media (url)
           `)
           .eq("status", "active")
@@ -60,7 +61,17 @@ export default function DedicatedWebCategoryPage() {
         if (!isMounted) return;
 
         if (!error && data) {
-          const formatted: ProductType[] = data.map((item: {
+          const approvedOnly = data.filter((item: {
+            status: string;
+            moderation_status?: string | null;
+          }) => {
+            const isPending = item.moderation_status === "pending_review" || item.moderation_status === "pending";
+            const isRejected = item.moderation_status === "rejected";
+            const isApproved = item.moderation_status === "approved" || (!item.moderation_status && item.status === "active");
+            return item.status === "active" && isApproved && !isPending && !isRejected;
+          });
+
+          const formatted: ProductType[] = approvedOnly.map((item: {
             id: string;
             shop_id: string;
             title: string;

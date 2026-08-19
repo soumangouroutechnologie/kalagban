@@ -106,7 +106,6 @@ export default function ExploreScreen() {
         setShops(shopsData);
       }
 
-      // 2. Fetch Products with relations (media + shops)
       const { data: productsData, error: prodErr } = await supabase
         .from('products')
         .select(`
@@ -117,6 +116,8 @@ export default function ExploreScreen() {
           price,
           old_price,
           shop_id,
+          status,
+          moderation_status,
           shops ( id, name ),
           product_media ( url )
         `)
@@ -124,7 +125,14 @@ export default function ExploreScreen() {
         .order('created_at', { ascending: false });
 
       if (!prodErr && productsData) {
-        const formatted: Product[] = productsData.map((p: any) => ({
+        const approvedOnly = productsData.filter((p: any) => {
+          const isPending = p.moderation_status === "pending_review" || p.moderation_status === "pending";
+          const isRejected = p.moderation_status === "rejected";
+          const isApproved = p.moderation_status === "approved" || (!p.moderation_status && p.status === "active");
+          return p.status === "active" && isApproved && !isPending && !isRejected;
+        });
+
+        const formatted: Product[] = approvedOnly.map((p: any) => ({
           id: p.id,
           title: p.title,
           description: p.description,

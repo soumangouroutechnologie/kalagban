@@ -265,7 +265,17 @@ export default function BuyerHomePage() {
         .order("created_at", { ascending: false });
 
       if (!prodErr && prodData) {
-        const formatted: ProductType[] = prodData.map((item: {
+        const approvedOnly = prodData.filter((item: {
+          status: string;
+          moderation_status?: string | null;
+        }) => {
+          const isPending = item.moderation_status === "pending_review" || item.moderation_status === "pending";
+          const isRejected = item.moderation_status === "rejected";
+          const isApproved = item.moderation_status === "approved" || (!item.moderation_status && item.status === "active");
+          return item.status === "active" && isApproved && !isPending && !isRejected;
+        });
+
+        const formatted: ProductType[] = approvedOnly.map((item: {
           id: string;
           shop_id: string;
           title: string;

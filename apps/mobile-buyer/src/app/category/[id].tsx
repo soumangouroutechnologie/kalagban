@@ -150,6 +150,7 @@ export default function CategoryJumiaStyleScreen() {
           old_price,
           stock_quantity,
           status,
+          moderation_status,
           shop_id,
           product_media (url),
           shops (name)
@@ -158,7 +159,14 @@ export default function CategoryJumiaStyleScreen() {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        const formatted: ProductItem[] = data.map((item: any) => ({
+        const approvedOnly = data.filter((p: any) => {
+          const isPending = p.moderation_status === "pending_review" || p.moderation_status === "pending";
+          const isRejected = p.moderation_status === "rejected";
+          const isApproved = p.moderation_status === "approved" || (!p.moderation_status && p.status === "active");
+          return p.status === "active" && isApproved && !isPending && !isRejected;
+        });
+
+        const formatted: ProductItem[] = approvedOnly.map((item: any) => ({
           id: item.id,
           title: item.title,
           description: item.description,

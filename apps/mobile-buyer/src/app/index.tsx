@@ -235,13 +235,22 @@ export default function MarketplaceHomeScreen() {
           price,
           old_price,
           stock_quantity,
+          status,
+          moderation_status,
           shops ( name ),
           product_media ( url )
         `)
         .eq('status', 'active');
 
       if (!error && dbProducts) {
-        const formatted: ProductItem[] = dbProducts.map((p: any) => ({
+        const approvedOnly = dbProducts.filter((p: any) => {
+          const isPending = p.moderation_status === "pending_review" || p.moderation_status === "pending";
+          const isRejected = p.moderation_status === "rejected";
+          const isApproved = p.moderation_status === "approved" || (!p.moderation_status && p.status === "active");
+          return p.status === "active" && isApproved && !isPending && !isRejected;
+        });
+
+        const formatted: ProductItem[] = approvedOnly.map((p: any) => ({
           id: p.id,
           shop_id: p.shop_id,
           shop_name: p.shops?.name || 'Boutique Partenaire',
