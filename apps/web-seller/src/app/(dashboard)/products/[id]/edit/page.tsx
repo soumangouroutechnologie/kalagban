@@ -12,9 +12,6 @@ import {
   Wand2, 
   Loader2, 
   ShieldCheck,
-  Package,
-  Layers,
-  Sparkles,
   Plus,
   Trash2,
   Star

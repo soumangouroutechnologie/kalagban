@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Plus,
   Trash2,
-  Image as ImageIcon,
   Star
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
