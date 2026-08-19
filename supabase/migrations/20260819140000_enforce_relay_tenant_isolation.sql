@@ -13,7 +13,13 @@ CREATE INDEX IF NOT EXISTS idx_orders_pickup_point_id ON public.orders(pickup_po
 CREATE INDEX IF NOT EXISTS idx_relay_notifications_pickup_point_id ON public.relay_notifications(pickup_point_id);
 CREATE INDEX IF NOT EXISTS idx_relay_payouts_pickup_point_id ON public.relay_payouts(pickup_point_id);
 
--- 3. Fonction RPC: Réception de Colis avec Contrôle d'Isolation par Point Relais
+-- 3. Supprimer les anciennes signatures de fonctions pour éviter l'erreur PostgreSQL 42P13
+DROP FUNCTION IF EXISTS public.relay_receive_package(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.relay_receive_package(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.relay_verify_otp(TEXT);
+DROP FUNCTION IF EXISTS public.relay_verify_otp(TEXT, TEXT);
+
+-- 4. Fonction RPC: Réception de Colis avec Contrôle d'Isolation par Point Relais
 CREATE OR REPLACE FUNCTION public.relay_receive_package(
     p_order_id UUID,
     p_pickup_code TEXT,
