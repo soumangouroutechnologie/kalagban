@@ -192,7 +192,7 @@ export default function CheckoutPage() {
           return;
         }
 
-        // Notify Point Relais in real-time
+        // 1. Notify Point Relais in real-time
         if (deliveryType === "pickup_point" && selectedRelay) {
           await supabase.from("relay_notifications").insert({
             title: "Nouvelle Commande Client à Réceptionner",
@@ -200,6 +200,33 @@ export default function CheckoutPage() {
             type: "pickup"
           });
         }
+
+        // 2. Notify Seller (Boutique)
+        await supabase.from("seller_notifications").insert({
+          shop_id: shopId,
+          title: "Nouvelle Commande Reçue 🛍️",
+          message: `Nouvelle commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${groupSubtotal.toLocaleString("fr-FR")} FCFA). En attente de votre confirmation.`,
+          type: "order",
+          reference_id: orderData.id,
+        });
+
+        // 3. Notify Customer (In-App)
+        await supabase.from("customer_notifications").insert({
+          customer_id: session.user.id,
+          order_id: orderData.id,
+          title: "Commande Effectuée avec Succès 🎉",
+          message: `Votre commande #${orderData.id.slice(0, 8).toUpperCase()} a été enregistrée avec succès. Nous attendons la confirmation du vendeur.`,
+          type: "order",
+        });
+
+        // 4. Notify Super-Admin
+        await supabase.from("admin_notifications").insert({
+          title: "Nouvelle Commande Marketplace",
+          message: `Commande #${orderData.id.slice(0, 8).toUpperCase()} passée par ${customerName} (${feeCalc.total.toLocaleString("fr-FR")} FCFA).`,
+          notification_type: "info",
+          target_role: "all",
+          is_broadcast: true,
+        });
 
         lastOrderId = orderData.id;
 

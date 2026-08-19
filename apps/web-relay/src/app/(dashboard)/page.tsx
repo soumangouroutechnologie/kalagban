@@ -178,12 +178,62 @@ export default function RelayDashboardHome() {
         commission_earned: 300
       });
 
-      // 4. Insert Notification
+      // 4. Insert Relay Internal Notification
       await supabase.from("relay_notifications").insert({
         title: "Colis Réceptionné en Étagère",
         message: `La commande #${orderCode} de ${order.customer_name} a été réceptionnée du coursier et placée en étagère.`,
         type: "deposit"
       });
+
+      // 5. Notify Seller (Boutique)
+      if ((order as any).shop_id) {
+        await supabase.from("seller_notifications").insert({
+          shop_id: (order as any).shop_id,
+          title: "Colis Réceptionné au Point Relais 📍",
+          message: `Le colis de la commande #${orderCode} est bien arrivé au Point Relais (${relayCode || "Relais Kalagban"}) et attend le client.`,
+          type: "order",
+          reference_id: order.id,
+        });
+      }
+
+      // 6. Notify Customer (In-App)
+      if ((order as any).customer_id) {
+        await supabase.from("customer_notifications").insert({
+          customer_id: (order as any).customer_id,
+          order_id: order.id,
+          title: "Votre colis est disponible au Point Relais ! 📍",
+          message: `Votre commande #${orderCode} vous attend. Code secret de retrait OTP : ${generatedOtp}`,
+          type: "pickup",
+        });
+      }
+
+      // 7. Notify Super-Admin
+      await supabase.from("admin_notifications").insert({
+        title: "Colis en Stock Relais",
+        message: `La commande #${orderCode} (${order.customer_name}) a été réceptionnée au Point Relais ${relayCode || ""}.`,
+        notification_type: "info",
+        target_role: "all",
+        is_broadcast: true,
+      });
+
+      // 8. Trigger Email 2 (READY_FOR_PICKUP with OTP)
+      try {
+        await fetch("/api/notifications/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "READY_FOR_PICKUP",
+            orderId: order.id,
+            orderCode: orderCode,
+            recipientName: order.customer_name,
+            pickupCode: generatedOtp,
+            relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+            trackingUrl: "https://kalagban.com/account",
+          }),
+        });
+      } catch (mailErr) {
+        console.error("Error triggering ready_for_pickup email:", mailErr);
+      }
 
       setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
       setDepositSuccess(`Colis #${orderCode} (${order.customer_name}) réceptionné avec succès et placé en étagère.`);
@@ -364,6 +414,37 @@ export default function RelayDashboardHome() {
           title: "Remise Client Confirmée",
           message: `Le colis #${displayCode} a été remis au client ${customerName}. Commission de +300 FCFA créditée !`,
           type: "pickup"
+        });
+
+        // Notify Seller (Paiement débloqué)
+        if (dbOrder?.shop_id) {
+          await supabase.from("seller_notifications").insert({
+            shop_id: dbOrder.shop_id,
+            title: "Commande Livrée avec Succès 🎉",
+            message: `La commande #${displayCode} a été remise au client avec validation du Code OTP. Vos fonds sont disponibles.`,
+            type: "order",
+            reference_id: dbOrder.id,
+          });
+        }
+
+        // Notify Customer (In-App)
+        if (dbOrder?.customer_id) {
+          await supabase.from("customer_notifications").insert({
+            customer_id: dbOrder.customer_id,
+            order_id: dbOrder.id,
+            title: "Commande Récupérée avec Succès ! 🎉",
+            message: `Votre commande #${displayCode} a bien été retirée au ${relayCode ? `Point Relais ${relayCode}` : "Point Relais"}. Merci de votre fidélité !`,
+            type: "delivery",
+          });
+        }
+
+        // Notify Super-Admin
+        await supabase.from("admin_notifications").insert({
+          title: "Retrait Colis Confirmé (OTP)",
+          message: `La commande #${displayCode} a été remise à ${customerName} au Point Relais ${relayCode || ""}.`,
+          notification_type: "info",
+          target_role: "all",
+          is_broadcast: true,
         });
 
         setOtpSuccess(`Code OTP Valide ! Colis #${displayCode} remis à ${customerName}. Commission de +300 FCFA créditée !`);

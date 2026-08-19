@@ -61,8 +61,27 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         setShopName(sData.name || "Nouvelle Boutique");
       }
 
-      // 3. Notifications réelles (Commandes en attente & Ruptures de stock)
+      // 3. Notifications réelles (Table seller_notifications + Commandes en attente)
       const realNotifs: NotificationItem[] = [];
+
+      const { data: dbSellerNotifs } = await supabase
+        .from("seller_notifications")
+        .select("*")
+        .eq("shop_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (dbSellerNotifs && dbSellerNotifs.length > 0) {
+        dbSellerNotifs.forEach((n) => {
+          realNotifs.push({
+            id: n.id,
+            type: n.type === "alert" ? "alert" : "order",
+            title: `${n.title} - ${n.message}`,
+            time: new Date(n.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+            unread: !n.is_read
+          });
+        });
+      }
 
       const { data: pendingOrders } = await supabase
         .from('orders')
@@ -74,13 +93,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
       if (pendingOrders && pendingOrders.length > 0) {
         pendingOrders.forEach((o) => {
-          realNotifs.push({
-            id: `order_${o.id}`,
-            type: 'order',
-            title: `Nouvelle commande de ${o.customer_name.split('(')[0].trim()}`,
-            time: new Date(o.created_at).toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' }),
-            unread: true
-          });
+          if (!realNotifs.some(r => r.id.includes(o.id))) {
+            realNotifs.push({
+              id: `order_${o.id}`,
+              type: 'order',
+              title: `Nouvelle commande de ${o.customer_name.split('(')[0].trim()}`,
+              time: new Date(o.created_at).toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' }),
+              unread: true
+            });
+          }
         });
       }
 
@@ -108,8 +129,16 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     
     loadHeaderData();
 
+    // Supabase Realtime for seller notifications
+    const channel = supabase
+      .channel("seller_header_notifs_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "seller_notifications" }, () => loadHeaderData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadHeaderData())
+      .subscribe();
+
     window.addEventListener("kalagban_profile_updated", loadHeaderData);
     return () => {
+      supabase.removeChannel(channel);
       window.removeEventListener("kalagban_profile_updated", loadHeaderData);
     };
   }, [router]);

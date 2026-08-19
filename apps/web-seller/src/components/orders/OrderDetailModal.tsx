@@ -31,6 +31,8 @@ export interface OrderItemDetail {
 export interface SellerOrder {
   id: string;
   shop_id: string;
+  customer_id?: string;
+  customer_email?: string;
   customer_name: string;
   total_amount: number;
   subtotal?: number;
@@ -96,6 +98,60 @@ export default function OrderDetailModal({
       } else {
         setCurrentStatus(newStatus);
         if (onStatusUpdated) onStatusUpdated();
+
+        // Dispatch In-App & Email Notifications
+        const orderCode = order.id.slice(0, 8).toUpperCase();
+        let notifTitle = "";
+        let notifMsg = "";
+
+        if (newStatus === "confirmed") {
+          notifTitle = "Commande Confirmée ✅";
+          notifMsg = `Votre commande #${orderCode} a été confirmée par le vendeur.`;
+        } else if (newStatus === "processing" || newStatus === "preparing") {
+          notifTitle = "Commande en Préparation 📦";
+          notifMsg = `Le vendeur prépare soigneusement votre commande #${orderCode}.`;
+        } else if (newStatus === "shipped" || newStatus === "in_transit") {
+          notifTitle = "Commande en Cours d'Expédition 🚚";
+          notifMsg = `Votre commande #${orderCode} est en route vers votre point de livraison.`;
+
+          // Trigger Email 1 (SHIPPED)
+          try {
+            await fetch("/api/notifications/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "SHIPPED",
+                orderId: order.id,
+                orderCode: orderCode,
+                recipientName: order.customer_name,
+                deliveryType: order.delivery_type === "pickup_point" ? "Point Relais" : "Livraison à Domicile",
+                shopName: "Boutique Partenaire",
+                trackingUrl: "https://kalagban.com/account",
+              }),
+            });
+          } catch (mailErr) {
+            console.error("Error triggering shipped email:", mailErr);
+          }
+
+          // Admin notification
+          await supabase.from("admin_notifications").insert({
+            title: "Colis Expédié",
+            message: `La commande #${orderCode} a été remise au transporteur (${order.customer_name}).`,
+            notification_type: "info",
+            target_role: "all",
+            is_broadcast: true,
+          });
+        }
+
+        if (notifTitle && order.customer_id) {
+          await supabase.from("customer_notifications").insert({
+            customer_id: order.customer_id,
+            order_id: order.id,
+            title: notifTitle,
+            message: notifMsg,
+            type: "order",
+          });
+        }
       }
     } catch (err) {
       console.error("Erreur update status:", err);

@@ -1,11 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Search, User, UserCheck, Home, Heart, X } from "lucide-react";
+import { ShoppingBag, Search, User, UserCheck, Home, Heart, X, Bell, Truck, Package } from "lucide-react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useCart } from "@/context/CartContext";
 import { supabase } from "@/lib/supabase";
+
+interface CustomerNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  order_id?: string;
+}
 
 export default function Header({ 
   searchTerm, 
@@ -16,20 +27,88 @@ export default function Header({
 }) {
   const pathname = usePathname();
   const { totalItems, setIsCartOpen } = useCart();
-  const [user, setUser] = useState<unknown | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  
+  // Notification State
+  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from("customer_notifications")
+        .select("*")
+        .eq("customer_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (data) {
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error("Error fetching customer notifications:", err);
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
+      const u = session?.user || null;
+      setUser(u);
+      if (u) fetchNotifications(u.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      const u = session?.user || null;
+      setUser(u);
+      if (u) fetchNotifications(u.id);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Supabase Realtime Listener for Customer Notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channelId = `customer_notifs_${user.id}_${Math.random().toString(36).substring(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "customer_notifications", filter: `customer_id=eq.${user.id}` }, (payload) => {
+        setNotifications(prev => [payload.new as CustomerNotification, ...prev]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifs(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const markAllAsRead = async () => {
+    if (!user?.id) return;
+    try {
+      await supabase
+        .from("customer_notifications")
+        .update({ is_read: true })
+        .eq("customer_id", user.id);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error("Error marking notifs read:", err);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
   const isAccountPage = pathname === "/account";
 
   return (
@@ -76,8 +155,79 @@ export default function Header({
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           
+          {/* Notification Bell (If logged in) */}
+          {user && (
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => {
+                  setShowNotifs(!showNotifs);
+                  if (!showNotifs && unreadCount > 0) markAllAsRead();
+                }}
+                className="relative p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl transition-all cursor-pointer flex items-center justify-center"
+                title="Notifications de suivi"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white font-black text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown */}
+              {showNotifs && (
+                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <Bell size={16} className="text-indigo-600" />
+                      <h4 className="font-extrabold text-sm text-gray-900">Notifications &amp; Suivi</h4>
+                    </div>
+                    {notifications.length > 0 && (
+                      <span className="text-[10px] font-bold text-gray-400">{notifications.length} message(s)</span>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto py-2 space-y-2 divide-y divide-gray-50 custom-scrollbar">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-gray-400 font-medium">
+                        Aucune nouvelle notification pour le moment.
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div key={n.id} className={`p-3 rounded-2xl transition-colors ${!n.is_read ? 'bg-indigo-50/40' : 'bg-gray-50/60'}`}>
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center shrink-0 mt-0.5 text-indigo-600">
+                              {n.type === "pickup" ? <Package size={15} className="text-emerald-600" /> : <Truck size={15} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-extrabold text-xs text-gray-900 leading-snug">{n.title}</h5>
+                              <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed">{n.message}</p>
+                              <span className="text-[9px] text-gray-400 font-medium mt-1 block">
+                                {new Date(n.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 text-center">
+                    <Link
+                      href="/account?tab=orders"
+                      onClick={() => setShowNotifs(false)}
+                      className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 block py-1"
+                    >
+                      Voir toutes mes commandes →
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Navigation Button: Aller sur Kalagban / Mon Compte */}
           {user ? (
             isAccountPage ? (

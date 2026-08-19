@@ -154,12 +154,49 @@ export default function MobileCheckoutScreen() {
         .select('id')
         .single();
 
-      if (!orderError && orderData && deliveryType === 'pickup_point' && selectedRelay) {
-        await supabase.from('relay_notifications').insert({
-          pickup_point_id: selectedRelay.id,
-          title: 'Nouvelle Commande Client à Réceptionner',
-          message: `La commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
-          type: 'pickup'
+      if (!orderError && orderData) {
+        const orderCode = orderData.id.slice(0, 8).toUpperCase();
+
+        if (deliveryType === 'pickup_point' && selectedRelay) {
+          await supabase.from('relay_notifications').insert({
+            pickup_point_id: selectedRelay.id,
+            title: 'Nouvelle Commande Client à Réceptionner',
+            message: `La commande #${orderCode} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
+            type: 'pickup'
+          });
+        }
+
+        // 2. Notify Seller (Boutique)
+        const primaryShopId = items.length > 0 && items[0].shop_id ? items[0].shop_id : null;
+        if (primaryShopId) {
+          await supabase.from('seller_notifications').insert({
+            shop_id: primaryShopId,
+            title: 'Nouvelle Commande Reçue 🛍️',
+            message: `Nouvelle commande #${orderCode} de ${customerName} (${feeCalc.total.toLocaleString()} FCFA).`,
+            type: 'order',
+            reference_id: orderData.id,
+          });
+        }
+
+        // 3. Notify Customer (In-App)
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser?.user?.id) {
+          await supabase.from('customer_notifications').insert({
+            customer_id: authUser.user.id,
+            order_id: orderData.id,
+            title: 'Commande Effectuée avec Succès 🎉',
+            message: `Votre commande #${orderCode} a été enregistrée avec succès.`,
+            type: 'order',
+          });
+        }
+
+        // 4. Notify Super-Admin
+        await supabase.from('admin_notifications').insert({
+          title: 'Nouvelle Commande Mobile',
+          message: `Commande #${orderCode} passée par ${customerName} (${feeCalc.total.toLocaleString()} FCFA).`,
+          notification_type: 'info',
+          target_role: 'all',
+          is_broadcast: true,
         });
       }
 
