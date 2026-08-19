@@ -23,6 +23,8 @@ import {
   ExternalLink,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
+  X,
   Filter
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -73,7 +75,11 @@ export default function ProductsModerationPage() {
   const [rejectModalProduct, setRejectModalProduct] = useState<ProductItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [customReason, setCustomReason] = useState("");
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [galleryModal, setGalleryModal] = useState<{
+    images: string[];
+    activeIndex: number;
+    title: string;
+  } | null>(null);
 
   const fetchModerationData = async () => {
     try {
@@ -421,32 +427,63 @@ export default function ProductsModerationPage() {
                       {/* Product Header Card with Image & Core details */}
                       <div className="p-5 flex gap-4">
                         {/* Image Preview Thumbnail */}
-                        <div
-                          onClick={() => {
-                            if (mediaUrls.length > 0) setPreviewImage(mediaUrls[0]);
-                          }}
-                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-slate-100 overflow-hidden shrink-0 relative group cursor-pointer border border-gray-200 flex items-center justify-center shadow-inner"
-                        >
-                          {mediaUrls.length > 0 ? (
-                            <>
-                              <img
-                                src={mediaUrls[0]}
-                                alt={product.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                <Eye size={20} />
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <div
+                            onClick={() => {
+                              if (mediaUrls.length > 0) {
+                                setGalleryModal({
+                                  images: mediaUrls,
+                                  activeIndex: 0,
+                                  title: product.title,
+                                });
+                              }
+                            }}
+                            className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-slate-100 overflow-hidden relative group cursor-pointer border border-gray-200 flex items-center justify-center shadow-inner"
+                          >
+                            {mediaUrls.length > 0 ? (
+                              <>
+                                <img
+                                  src={mediaUrls[0]}
+                                  alt={product.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <Eye size={20} />
+                                </div>
+                                {mediaUrls.length > 1 && (
+                                  <span className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md shadow">
+                                    1 / {mediaUrls.length} photos
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
+                                <Package size={28} />
+                                <span className="text-[10px] font-bold">Sans photo</span>
                               </div>
-                              {mediaUrls.length > 1 && (
-                                <span className="absolute bottom-1.5 right-1.5 bg-black/75 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow">
-                                  +{mediaUrls.length - 1} photos
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
-                              <Package size={28} />
-                              <span className="text-[10px] font-bold">Sans photo</span>
+                            )}
+                          </div>
+
+                          {/* Mini Thumbnails Strip on Card */}
+                          {mediaUrls.length > 1 && (
+                            <div className="flex items-center gap-1 max-w-32 overflow-x-auto pb-0.5 custom-scrollbar">
+                              {mediaUrls.map((url, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setGalleryModal({
+                                      images: mediaUrls,
+                                      activeIndex: idx,
+                                      title: product.title,
+                                    });
+                                  }}
+                                  className="w-7 h-7 rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-600 hover:scale-110 transition-all shrink-0 cursor-pointer shadow-2xs"
+                                  title={`Voir photo ${idx + 1}`}
+                                >
+                                  <img src={url} alt={`Angle ${idx + 1}`} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -764,21 +801,111 @@ export default function ProductsModerationPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2 : APERÇU PHOTO GRAND FORMAT                                      */}
+      {/* MODAL 2 : GALERIE D'INSPECTION PHOTO GRAND FORMAT (MULTI-IMAGES)           */}
       {/* ========================================================================= */}
-      {previewImage && (
+      {galleryModal && galleryModal.images.length > 0 && (
         <div 
-          onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in cursor-zoom-out"
+          onClick={() => setGalleryModal(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in"
         >
-          <div className="relative max-w-2xl max-h-[85vh] rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-slate-900">
-            <img src={previewImage} alt="Aperçu Grand Format" className="w-full h-full object-contain" />
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-4 right-4 bg-black/60 text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-black font-bold text-sm cursor-pointer"
-            >
-              ✕
-            </button>
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl w-full max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-slate-950 flex flex-col items-center p-6 gap-4"
+          >
+            {/* Header Modal */}
+            <div className="w-full flex items-center justify-between text-white border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-base font-black truncate max-w-md">{galleryModal.title}</h3>
+                <span className="text-xs text-white/60 font-bold">
+                  Photo {galleryModal.activeIndex + 1} sur {galleryModal.images.length}
+                  {galleryModal.activeIndex === 0 ? " (Photo de Couverture ⭐)" : ` (Vue secondaire ${galleryModal.activeIndex + 1})`}
+                </span>
+              </div>
+              <button
+                onClick={() => setGalleryModal(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm cursor-pointer transition-colors"
+                title="Fermer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Main Stage with Navigation */}
+            <div className="relative w-full h-[55vh] flex items-center justify-center overflow-hidden rounded-2xl bg-black/40">
+              {/* Prev Arrow */}
+              {galleryModal.images.length > 1 && (
+                <button
+                  onClick={() =>
+                    setGalleryModal((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeIndex:
+                              (prev.activeIndex - 1 + prev.images.length) % prev.images.length,
+                          }
+                        : null
+                    )
+                  }
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-all z-20 cursor-pointer shadow-lg hover:scale-105"
+                  title="Photo précédente"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+              )}
+
+              {/* HD Image */}
+              <img
+                src={galleryModal.images[galleryModal.activeIndex]}
+                alt={`Photo ${galleryModal.activeIndex + 1}`}
+                className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
+              />
+
+              {/* Next Arrow */}
+              {galleryModal.images.length > 1 && (
+                <button
+                  onClick={() =>
+                    setGalleryModal((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeIndex: (prev.activeIndex + 1) % prev.images.length,
+                          }
+                        : null
+                    )
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-all z-20 cursor-pointer shadow-lg hover:scale-105"
+                  title="Photo suivante"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              )}
+            </div>
+
+            {/* Thumbnails strip */}
+            {galleryModal.images.length > 1 && (
+              <div className="flex items-center gap-3 overflow-x-auto max-w-full p-1 custom-scrollbar">
+                {galleryModal.images.map((url, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() =>
+                      setGalleryModal((prev) => (prev ? { ...prev, activeIndex: idx } : null))
+                    }
+                    className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                      galleryModal.activeIndex === idx
+                        ? "border-amber-400 ring-2 ring-amber-400/40 scale-105 shadow-md"
+                        : "border-white/20 opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <img src={url} alt={`Miniature ${idx + 1}`} className="w-full h-full object-cover" />
+                    {idx === 0 && (
+                      <span className="absolute top-0.5 left-0.5 bg-amber-500 text-black text-[8px] font-black px-1 rounded">
+                        ⭐
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
