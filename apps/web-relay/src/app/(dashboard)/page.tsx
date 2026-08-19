@@ -40,6 +40,7 @@ interface ExpectedOrder {
 
 export default function RelayDashboardHome() {
   const [relayCode, setRelayCode] = useState("");
+  const [relayId, setRelayId] = useState("");
   const [depositCode, setDepositCode] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
@@ -74,7 +75,18 @@ export default function RelayDashboardHome() {
   // Initial load from Supabase PostgreSQL
   useEffect(() => {
     const code = localStorage.getItem("kalagban_relay_code");
+    const storedId = localStorage.getItem("kalagban_relay_id");
     if (code) setRelayCode(code);
+    if (storedId) setRelayId(storedId);
+
+    if (code && !storedId) {
+      supabase.from("pickup_points").select("id").eq("code", code).maybeSingle().then(({ data }) => {
+        if (data?.id) {
+          setRelayId(data.id);
+          localStorage.setItem("kalagban_relay_id", data.id);
+        }
+      });
+    }
 
     const loadRealData = async () => {
       // 1. Load Expected Orders (Pending Deposit from Seller/Courier)
@@ -156,6 +168,7 @@ export default function RelayDashboardHome() {
 
       // 3. Insert Relay Log
       await supabase.from("relay_logs").insert({
+        pickup_point_id: relayId || (order as any).pickup_point_id || null,
         order_id: order.id,
         order_code: orderCode,
         customer_name: order.customer_name,
@@ -206,6 +219,7 @@ export default function RelayDashboardHome() {
 
     // Insert log in Database
     await supabase.from("relay_logs").insert({
+      pickup_point_id: relayId || null,
       order_code: formattedCode,
       customer_name: "Client Kalagban",
       customer_phone: "+225 0700000000",
@@ -335,6 +349,7 @@ export default function RelayDashboardHome() {
 
         // Insert Pickup Log into DB
         await supabase.from("relay_logs").insert({
+          pickup_point_id: relayId || dbOrder?.pickup_point_id || null,
           order_id: dbOrder?.id || null,
           order_code: displayCode,
           customer_name: customerName,

@@ -49,6 +49,8 @@ export default function RelayLoginPage() {
 
       if (expectedPin && pinCode.trim() === expectedPin) {
         localStorage.setItem("kalagban_relay_code", formattedCode);
+        localStorage.setItem("kalagban_relay_id", relayPoint.id);
+        localStorage.setItem("kalagban_relay_name", relayPoint.name);
         router.push("/");
         return;
       } else {

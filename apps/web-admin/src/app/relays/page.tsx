@@ -120,22 +120,44 @@ export default function AdminRelaysPage() {
 
   const fetchRelays = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("pickup_points")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const [relaysRes, ordersRes, logsRes] = await Promise.all([
+        supabase.from("pickup_points").select("*").order("created_at", { ascending: false }),
+        supabase.from("orders").select("id, pickup_point_id, relay_status, status").eq("delivery_type", "pickup_point"),
+        supabase.from("relay_logs").select("pickup_point_id, action_type, commission_earned")
+      ]);
 
-    if (!error && data) {
-      const formatted: PickupPoint[] = data.map((p: any) => ({
-        ...p,
-        pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : "123456"),
-      }));
-      setPoints(formatted);
-      if (!selectedRelay && formatted.length > 0) {
-        setSelectedRelay(formatted[0]);
+      const allOrders = ordersRes.data || [];
+      const allLogs = logsRes.data || [];
+
+      if (!relaysRes.error && relaysRes.data) {
+        const formatted: PickupPoint[] = relaysRes.data.map((p: any) => {
+          const pointOrders = allOrders.filter((o) => o.pickup_point_id === p.id);
+          const inStock = pointOrders.filter((o) => o.relay_status === "ready_for_pickup" || (o.relay_status === "deposited" && o.status !== "delivered")).length;
+          
+          const pointLogs = allLogs.filter((l) => l.pickup_point_id === p.id);
+          const earnedFromLogs = pointLogs.filter((l) => l.action_type === "pickup").reduce((sum, l) => sum + (l.commission_earned || 300), 0);
+          const earnedFromOrders = pointOrders.filter((o) => o.relay_status === "picked_up" || o.status === "delivered").length * (p.commission_per_package || 300);
+          const totalEarned = Math.max(earnedFromLogs, earnedFromOrders, p.total_commissions_earned || 0);
+
+          return {
+            ...p,
+            current_packages_count: inStock,
+            total_commissions_earned: totalEarned,
+            pin_code: p.pin_code || (p.email && p.email.startsWith("pin:") ? p.email.replace("pin:", "") : "123456"),
+          };
+        });
+
+        setPoints(formatted);
+        if (!selectedRelay && formatted.length > 0) {
+          setSelectedRelay(formatted[0]);
+        }
       }
+    } catch (err) {
+      console.error("Error fetching relays:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -145,6 +167,8 @@ export default function AdminRelaysPage() {
     const channel = supabase
       .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "pickup_points" }, () => fetchRelays())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchRelays())
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => fetchRelays())
       .subscribe();
 
     return () => {
@@ -152,36 +176,106 @@ export default function AdminRelaysPage() {
     };
   }, []);
 
-  // Fetch Inventory and Logs when entering a Relay
-  const handleEnterRelay = async (relay: PickupPoint) => {
-    setImmersiveRelay(relay);
+  const loadRelayCockpitData = async (relay: PickupPoint) => {
     setLoadingInventory(true);
-
     try {
-      // 1. Fetch live inventory
-      const { data: invData } = await supabase
-        .from("relay_inventory")
-        .select("*")
+      // 1. Fetch live orders assigned to this point relais with shop information
+      const { data: ordersData } = await supabase
+        .from("orders")
+        .select("id, customer_name, customer_phone, relay_status, status, deposited_at, pickup_code, created_at, shop_id, shops(name)")
         .eq("pickup_point_id", relay.id)
-        .order("deposited_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
-      setRelayInventory(invData || []);
+      const allOrders = ordersData || [];
 
-      // 2. Fetch live logs
-      const { data: logData } = await supabase
+      // 2. Fetch live logs for this relay
+      const orderIds = allOrders.map(o => o.id);
+      let logsQuery = supabase
         .from("relay_logs")
         .select("*")
-        .eq("pickup_point_id", relay.id)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
 
-      setRelayLogs(logData || []);
+      if (orderIds.length > 0) {
+        logsQuery = logsQuery.or(`pickup_point_id.eq.${relay.id},order_id.in.(${orderIds.join(',')})`);
+      } else {
+        logsQuery = logsQuery.eq("pickup_point_id", relay.id);
+      }
+
+      const { data: logData } = await logsQuery;
+      const logs = logData || [];
+
+      // 3. Populate Virtual Locker (Colis en étagère actuellement en stock)
+      const inStockOrders = allOrders.filter(
+        (o: any) => o.relay_status === "ready_for_pickup" || (o.relay_status === "deposited" && o.status !== "delivered")
+      );
+
+      const inventoryItems: RelayInventoryItem[] = inStockOrders.map((o: any) => {
+        const depDate = o.deposited_at ? new Date(o.deposited_at) : new Date(o.created_at);
+        const diffDays = Math.floor((Date.now() - depDate.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          id: o.id,
+          order_code: o.id.slice(0, 8).toUpperCase(),
+          customer_name: o.customer_name || "Client",
+          customer_phone: o.customer_phone || "+225 --",
+          seller_name: o.shops?.name || "Boutique Kalagban",
+          seller_phone: "+225 --",
+          deposited_at: o.deposited_at || o.created_at,
+          status: "in_stock",
+          max_retention_days: 5,
+          is_overdue: diffDays > 5,
+          otp_code: o.pickup_code || "------"
+        };
+      });
+
+      setRelayInventory(inventoryItems);
+      setRelayLogs(logs as RelayLog[]);
+
+      // 4. Calculate live metrics for the cockpit
+      const pickedUpCount = allOrders.filter((o: any) => o.relay_status === "picked_up" || o.status === "delivered").length;
+      const earnedFromLogs = logs.filter((l: any) => l.action_type === "pickup").reduce((sum: number, l: any) => sum + (l.commission_earned || 300), 0);
+      const liveEarned = Math.max(earnedFromLogs, pickedUpCount * (relay.commission_per_package || 300));
+
+      setImmersiveRelay(prev => prev ? ({
+        ...prev,
+        current_packages_count: inventoryItems.length,
+        total_commissions_earned: liveEarned,
+      }) : {
+        ...relay,
+        current_packages_count: inventoryItems.length,
+        total_commissions_earned: liveEarned,
+      });
     } catch (err) {
       console.error("Error loading relay cockpit:", err);
     } finally {
       setLoadingInventory(false);
     }
   };
+
+  // Fetch Inventory and Logs when entering a Relay
+  const handleEnterRelay = async (relay: PickupPoint) => {
+    setImmersiveRelay(relay);
+    await loadRelayCockpitData(relay);
+  };
+
+  useEffect(() => {
+    if (!immersiveRelay) return;
+
+    const cockpitChannelId = `cockpit_rt_${immersiveRelay.id}_${Math.random().toString(36).substring(2, 8)}`;
+    const cockpitChannel = supabase
+      .channel(cockpitChannelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => {
+        loadRelayCockpitData(immersiveRelay);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        loadRelayCockpitData(immersiveRelay);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(cockpitChannel);
+    };
+  }, [immersiveRelay?.id]);
 
   const handleCreateRelay = async (e: React.FormEvent) => {
     e.preventDefault();
