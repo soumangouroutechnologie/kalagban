@@ -71,3 +71,5 @@ current_auth.json
 patch*.json
 test_storage.js
 
+.vercel
+.env*

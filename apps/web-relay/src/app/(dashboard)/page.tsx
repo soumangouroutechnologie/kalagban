@@ -136,39 +136,63 @@ export default function RelayDashboardHome() {
     const orderCode = order.id.slice(0, 8).toUpperCase();
     const generatedOtp = order.pickup_code || Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Update order in Supabase
-    await supabase
-      .from("orders")
-      .update({
-        relay_status: "ready_for_pickup",
-        deposited_at: new Date().toISOString(),
-        pickup_code: generatedOtp,
-      })
-      .eq("id", order.id);
+    try {
+      // 1. Try Calling Dedicated RPC function
+      await supabase.rpc("relay_receive_package", {
+        p_order_id: order.id,
+        p_pickup_code: generatedOtp,
+        p_relay_code: relayCode || null
+      });
 
-    // Insert Relay Log
-    await supabase.from("relay_logs").insert({
-      order_id: order.id,
-      order_code: orderCode,
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      action_type: "deposit",
-      otp_code: generatedOtp,
-      commission_earned: 300
-    });
+      // 2. Also execute direct update as fallback/sync
+      await supabase
+        .from("orders")
+        .update({
+          relay_status: "ready_for_pickup",
+          deposited_at: new Date().toISOString(),
+          pickup_code: generatedOtp,
+        })
+        .eq("id", order.id);
 
-    // Insert Notification
-    await supabase.from("relay_notifications").insert({
-      title: "Colis Réceptionné en Étagère",
-      message: `La commande #${orderCode} de ${order.customer_name} a été réceptionnée du coursier et placée en étagère.`,
-      type: "deposit"
-    });
+      // 3. Insert Relay Log
+      await supabase.from("relay_logs").insert({
+        order_id: order.id,
+        order_code: orderCode,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        action_type: "deposit",
+        otp_code: generatedOtp,
+        commission_earned: 300
+      });
 
-    setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
-    setDepositSuccess(`Colis #${orderCode} (${order.customer_name}) réceptionné avec succès et placé en étagère.`);
-    setCapacity(prev => ({ ...prev, current: prev.current + 1 }));
-    setIsDepositing(false);
-    setTimeout(() => setDepositSuccess(null), 6000);
+      // 4. Insert Notification
+      await supabase.from("relay_notifications").insert({
+        title: "Colis Réceptionné en Étagère",
+        message: `La commande #${orderCode} de ${order.customer_name} a été réceptionnée du coursier et placée en étagère.`,
+        type: "deposit"
+      });
+
+      setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
+      setDepositSuccess(`Colis #${orderCode} (${order.customer_name}) réceptionné avec succès et placé en étagère.`);
+      setCapacity(prev => ({ ...prev, current: prev.current + 1 }));
+      setPackageLogs(prev => [
+        {
+          id: orderCode,
+          client: order.customer_name,
+          phone: order.customer_phone,
+          status: "ready_for_pickup",
+          code: generatedOtp,
+          time: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          amount: "En étagère"
+        },
+        ...prev
+      ]);
+    } catch (err) {
+      console.error("Error receiving package:", err);
+    } finally {
+      setIsDepositing(false);
+      setTimeout(() => setDepositSuccess(null), 6000);
+    }
   };
 
   // Handle Courier Package Deposit
@@ -225,70 +249,131 @@ export default function RelayDashboardHome() {
     setIsVerifyingOtp(true);
 
     const targetCode = otpCode.trim();
-
-    // First check local logs or Database orders
-    const foundLocal = packageLogs.find(p => p.code === targetCode || p.id === targetCode.toUpperCase());
-
-    // Also check Supabase orders
-    const { data: dbOrder } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("pickup_code", targetCode)
-      .maybeSingle();
-
-    if (foundLocal || dbOrder) {
-      const orderId = dbOrder?.id || foundLocal?.id || targetCode.toUpperCase();
-      const customerName = dbOrder?.customer_name || foundLocal?.client || "Client Kalagban";
-
-      // Update Order Status in Supabase DB if exists
-      if (dbOrder) {
-        await supabase
-          .from("orders")
-          .update({ 
-            relay_status: "picked_up", 
-            status: "delivered", 
-            picked_up_at: new Date().toISOString() 
-          })
-          .eq("id", dbOrder.id);
-      }
-
-      // Insert Pickup Log into DB
-      await supabase.from("relay_logs").insert({
-        order_id: dbOrder?.id || null,
-        order_code: orderId,
-        customer_name: customerName,
-        customer_phone: dbOrder?.customer_phone || "+225 --",
-        action_type: "pickup",
-        otp_code: targetCode,
-        commission_earned: 300
-      });
-
-      // Insert Notification in DB
-      await supabase.from("relay_notifications").insert({
-        title: "Remise Client Confirmée",
-        message: `Le colis #${orderId} a été remis au client ${customerName}. Commission de +300 FCFA créditée !`,
-        type: "pickup"
-      });
-
-      setOtpSuccess(`Code OTP Valide ! Colis #${orderId} remis à ${customerName}. Commission de +300 FCFA créditée !`);
-      setReceiptModalData({
-        orderCode: orderId,
-        customerName: customerName,
-        customerPhone: dbOrder?.customer_phone || "+225 --",
-        date: new Date().toLocaleString("fr-FR"),
-        relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
-        amount: "Retrait Confirmé"
-      });
-      setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
-      setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
-      setTodayPickups(prev => prev + 1);
-      setTotalCommissions(prev => prev + 300);
-      setOtpCode("");
-    } else {
-      setOtpError("Code OTP ou Numéro de colis invalide. Veuillez vérifier le SMS du client.");
+    if (!targetCode) {
+      setIsVerifyingOtp(false);
+      return;
     }
 
-    setIsVerifyingOtp(false);
+    try {
+      // 1. First try universal RPC verify
+      const { data: universalRpcData } = await supabase.rpc("relay_verify_otp", {
+        p_code: targetCode,
+        p_relay_code: relayCode || null
+      });
+
+      if (universalRpcData && universalRpcData.success) {
+        const orderId = universalRpcData.order_id || universalRpcData.order_code || targetCode.toUpperCase();
+        const displayCode = universalRpcData.order_code || orderId.slice(0, 8).toUpperCase();
+        const customerName = universalRpcData.customer_name || "Client Kalagban";
+        const customerPhone = universalRpcData.customer_phone || "+225 --";
+
+        setOtpSuccess(`Code OTP Valide ! Colis #${displayCode} remis à ${customerName}. Commission de +300 FCFA créditée !`);
+        setReceiptModalData({
+          orderCode: displayCode,
+          customerName: customerName,
+          customerPhone: customerPhone,
+          date: new Date().toLocaleString("fr-FR"),
+          relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+          amount: "Retrait Confirmé"
+        });
+        setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === displayCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
+        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
+        setTodayPickups(prev => prev + 1);
+        setTotalCommissions(prev => prev + 300);
+        setOtpCode("");
+        setIsVerifyingOtp(false);
+        return;
+      }
+
+      // 2. Search order in Supabase by pickup_code or ID
+      let { data: dbOrder } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("pickup_code", targetCode)
+        .maybeSingle();
+
+      if (!dbOrder) {
+        // Also try by full or partial ID
+        const cleanId = targetCode.replace("#", "").toLowerCase();
+        const { data: orderById } = await supabase
+          .from("orders")
+          .select("*")
+          .ilike("id", `${cleanId}%`)
+          .maybeSingle();
+
+        if (orderById) {
+          dbOrder = orderById;
+        }
+      }
+
+      const foundLocal = packageLogs.find(p => p.code === targetCode || p.id.toLowerCase() === targetCode.toLowerCase().replace("#", ""));
+
+      if (dbOrder || foundLocal) {
+        const orderId = dbOrder?.id || foundLocal?.id || targetCode.toUpperCase();
+        const displayCode = orderId.slice(0, 8).toUpperCase();
+        const customerName = dbOrder?.customer_name || foundLocal?.client || "Client Kalagban";
+        const customerPhone = dbOrder?.customer_phone || foundLocal?.phone || "+225 --";
+        const otpToVerify = dbOrder?.pickup_code || targetCode;
+
+        // Try verify_order_pickup_otp RPC
+        if (dbOrder?.id) {
+          await supabase.rpc("verify_order_pickup_otp", {
+            p_order_id: dbOrder.id,
+            p_input_code: otpToVerify
+          });
+
+          // Also execute direct update as fallback
+          await supabase
+            .from("orders")
+            .update({ 
+              relay_status: "picked_up", 
+              status: "delivered", 
+              picked_up_at: new Date().toISOString() 
+            })
+            .eq("id", dbOrder.id);
+        }
+
+        // Insert Pickup Log into DB
+        await supabase.from("relay_logs").insert({
+          order_id: dbOrder?.id || null,
+          order_code: displayCode,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          action_type: "pickup",
+          otp_code: otpToVerify,
+          commission_earned: 300
+        });
+
+        // Insert Notification in DB
+        await supabase.from("relay_notifications").insert({
+          title: "Remise Client Confirmée",
+          message: `Le colis #${displayCode} a été remis au client ${customerName}. Commission de +300 FCFA créditée !`,
+          type: "pickup"
+        });
+
+        setOtpSuccess(`Code OTP Valide ! Colis #${displayCode} remis à ${customerName}. Commission de +300 FCFA créditée !`);
+        setReceiptModalData({
+          orderCode: displayCode,
+          customerName: customerName,
+          customerPhone: customerPhone,
+          date: new Date().toLocaleString("fr-FR"),
+          relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+          amount: "Retrait Confirmé"
+        });
+        setPackageLogs(prev => prev.map(p => (p.code === targetCode || p.id === displayCode || p.id === orderId) ? { ...p, status: "picked_up" } : p));
+        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - 1) }));
+        setTodayPickups(prev => prev + 1);
+        setTotalCommissions(prev => prev + 300);
+        setOtpCode("");
+      } else {
+        setOtpError("Code OTP ou Numéro de colis invalide. Veuillez vérifier le SMS du client.");
+      }
+    } catch (err) {
+      console.error("Error verifying OTP:", err);
+      setOtpError("Une erreur est survenue lors de la validation du code.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
   return (

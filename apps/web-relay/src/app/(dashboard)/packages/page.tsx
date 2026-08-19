@@ -139,7 +139,12 @@ export default function RelayPackagesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      {pkg.status === "ready_for_pickup" && (
+                      {pkg.status === "pending_deposit" && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                          Attendu
+                        </span>
+                      )}
+                      {(pkg.status === "ready_for_pickup" || pkg.status === "deposited") && (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
                           En Stock
                         </span>

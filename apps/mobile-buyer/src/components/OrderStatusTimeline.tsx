@@ -21,11 +21,11 @@ export default function OrderStatusTimeline({
 
   if (orderStatus === 'delivered' || relayStatus === 'picked_up') {
     currentStep = 6;
-  } else if (relayStatus === 'deposited') {
+  } else if (relayStatus === 'ready_for_pickup' || relayStatus === 'deposited') {
     currentStep = 5;
-  } else if (orderStatus === 'in_transit') {
+  } else if (orderStatus === 'in_transit' || orderStatus === 'shipped') {
     currentStep = 4;
-  } else if (orderStatus === 'preparing') {
+  } else if (orderStatus === 'preparing' || orderStatus === 'processing') {
     currentStep = 3;
   } else if (orderStatus === 'confirmed') {
     currentStep = 2;

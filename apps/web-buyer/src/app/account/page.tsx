@@ -260,16 +260,20 @@ export default function CustomerAccountPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, relayStatus?: string | null) => {
+    if (status === "delivered" || relayStatus === "picked_up") {
+      return <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5"><CheckCircle2 size={14} /> Commande Livrée 🎉</span>;
+    }
+    if (relayStatus === "ready_for_pickup" || relayStatus === "deposited") {
+      return <span className="bg-amber-50 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-300 flex items-center gap-1.5"><MapPin size={14} /> Disponible au Point Relais 📍</span>;
+    }
     switch (status) {
       case "pending":
         return <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200 flex items-center gap-1.5"><Clock size={14} /> En attente de préparation</span>;
       case "processing":
         return <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full border border-indigo-200 flex items-center gap-1.5"><Package size={14} /> En préparation par le vendeur</span>;
       case "shipped":
-        return <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full border border-blue-200 flex items-center gap-1.5"><Truck size={14} /> En cours de livraison 🚚</span>;
-      case "delivered":
-        return <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5"><CheckCircle2 size={14} /> Commande Livrée 🎉</span>;
+        return <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full border border-blue-200 flex items-center gap-1.5"><Truck size={14} /> En cours d&apos;acheminement 🚚</span>;
       case "cancelled":
         return <span className="bg-red-50 text-red-700 text-xs font-bold px-3 py-1.5 rounded-full border border-red-200 flex items-center gap-1.5"><XCircle size={14} /> Commande Annulée</span>;
       default:
@@ -404,7 +408,7 @@ export default function CustomerAccountPage() {
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-4">
-                      {getStatusBadge(ord.status)}
+                      {getStatusBadge(ord.status, ord.relay_status)}
                       <span className="text-xl font-black text-indigo-600">{Number(ord.total_amount).toLocaleString("fr-FR")} FCFA</span>
                     </div>
                   </div>
