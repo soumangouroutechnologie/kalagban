@@ -141,12 +141,16 @@ export default function MobileCheckoutScreen() {
         ? `Point Relais: ${selectedRelay?.name || 'Sélectionné'} (${selectedCommune}) - ${selectedRelay?.address || ''}`
         : `${selectedCommune} - ${addressLine}`;
 
+      const { data: authUser } = await supabase.auth.getUser();
+
       // Insert Order into Supabase
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
+          customer_id: authUser?.user?.id || null,
           customer_name: customerName,
           customer_phone: customerPhone,
+          customer_email: authUser?.user?.email || null,
           subtotal: feeCalc.subtotal,
           application_fee: feeCalc.applicationFee,
           application_fee_rate: feeCalc.rate,

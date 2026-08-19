@@ -190,6 +190,7 @@ export default function CheckoutPage() {
             customer_id: session.user.id,
             customer_name: `${customerName}`,
             customer_phone: customerPhone,
+            customer_email: session.user.email || null,
             shipping_address: deliveryType === "pickup_point" 
               ? `Point Relais: ${selectedRelay?.name || 'Sélectionné'} (${selectedCommune}) - ${selectedRelay?.address || ''}`
               : `${city} - ${district}${notes ? ` (${notes})` : ""}`,

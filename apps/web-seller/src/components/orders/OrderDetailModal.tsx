@@ -117,6 +117,16 @@ export default function OrderDetailModal({
 
           // Trigger Email 1 (SHIPPED)
           try {
+            let recipientEmail = order.customer_email;
+            if (!recipientEmail && order.customer_id) {
+              const { data: prof } = await supabase
+                .from("profiles")
+                .select("email")
+                .eq("id", order.customer_id)
+                .maybeSingle();
+              if (prof?.email) recipientEmail = prof.email;
+            }
+
             await fetch("/api/notifications/send-email", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -124,7 +134,7 @@ export default function OrderDetailModal({
                 type: "SHIPPED",
                 orderId: order.id,
                 orderCode: orderCode,
-                recipientEmail: order.customer_email,
+                recipientEmail: recipientEmail,
                 recipientName: order.customer_name,
                 deliveryType: order.delivery_type === "pickup_point" ? "Point Relais" : "Livraison à Domicile",
                 shopName: "Boutique Partenaire",
