@@ -33,6 +33,8 @@ interface ExpectedOrder {
   id: string;
   customer_name: string;
   customer_phone: string;
+  customer_email?: string;
+  customer_id?: string;
   total_amount: number;
   created_at: string;
   pickup_code?: string;
@@ -115,7 +117,7 @@ export default function RelayDashboardHome() {
       // 1. Load Expected Orders ONLY for THIS point relais
       const { data: pendingOrders } = await supabase
         .from("orders")
-        .select("id, customer_name, customer_phone, total_amount, created_at, pickup_code, status, relay_status, shop_id, shops(name)")
+        .select("id, customer_name, customer_phone, customer_email, customer_id, total_amount, created_at, pickup_code, status, relay_status, shop_id, shops(name)")
         .eq("pickup_point_id", currentId)
         .eq("delivery_type", "pickup_point")
         .eq("relay_status", "pending_deposit")
@@ -125,6 +127,8 @@ export default function RelayDashboardHome() {
         id: o.id,
         customer_name: o.customer_name || "Client Kalagban",
         customer_phone: o.customer_phone || "+225 --",
+        customer_email: o.customer_email,
+        customer_id: o.customer_id,
         total_amount: Number(o.total_amount || 0),
         created_at: o.created_at,
         pickup_code: o.pickup_code,
@@ -239,6 +243,7 @@ export default function RelayDashboardHome() {
             type: "READY_FOR_PICKUP",
             orderId: order.id,
             orderCode: orderCode,
+            recipientEmail: order.customer_email,
             recipientName: order.customer_name,
             pickupCode: generatedOtp,
             relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",

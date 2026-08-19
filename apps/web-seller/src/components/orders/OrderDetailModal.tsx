@@ -124,6 +124,7 @@ export default function OrderDetailModal({
                 type: "SHIPPED",
                 orderId: order.id,
                 orderCode: orderCode,
+                recipientEmail: order.customer_email,
                 recipientName: order.customer_name,
                 deliveryType: order.delivery_type === "pickup_point" ? "Point Relais" : "Livraison à Domicile",
                 shopName: "Boutique Partenaire",
