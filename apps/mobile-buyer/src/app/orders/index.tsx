@@ -58,7 +58,7 @@ export default function OrderHistoryScreen() {
       let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
 
       if (session?.user) {
-        query = query.eq('user_id', session.user.id);
+        query = query.or(`customer_id.eq.${session.user.id},customer_email.eq.${session.user.email}`);
       } else {
         // If not logged in, limit 5 recent
         query = query.limit(5);
@@ -66,7 +66,11 @@ export default function OrderHistoryScreen() {
 
       const { data, error } = await query;
       if (!error && data) {
-        setOrders(data as OrderItem[]);
+        const formatted: OrderItem[] = data.map((o: any) => ({
+          ...o,
+          pickup_otp: o.pickup_code || o.pickup_otp,
+        }));
+        setOrders(formatted);
       } else {
         setOrders([]);
       }

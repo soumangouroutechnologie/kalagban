@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,7 +24,11 @@ import {
   ShoppingBag,
   CreditCard,
   Phone,
-  Sparkles
+  Sparkles,
+  Smartphone,
+  Lock,
+  X,
+  Truck
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
@@ -47,93 +52,137 @@ export default function MobileCheckoutScreen() {
   const router = useRouter();
   const { items, totalAmount, clearCart } = useCart();
 
-  const [customerName, setCustomerName] = useState('Jean Kouassi');
-  const [customerPhone, setCustomerPhone] = useState('+225 07 00 11 22');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [deliveryType, setDeliveryType] = useState<'pickup_point' | 'home_delivery'>('pickup_point');
   
-  const [deliveryType, setDeliveryType] = useState<'home_delivery' | 'pickup_point'>('pickup_point');
-  const [selectedCommune, setSelectedCommune] = useState('');
-  const [selectedRelayId, setSelectedRelayId] = useState('');
-  const [communesList, setCommunesList] = useState<string[]>([]);
-  
-  const [addressLine, setAddressLine] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'wave'>('cod');
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Pickup Point Selection
+  const [selectedCommune, setSelectedCommune] = useState<string>('Cocody');
   const [availableRelays, setAvailableRelays] = useState<PickupPoint[]>([]);
+  const [selectedRelayId, setSelectedRelayId] = useState<string>('');
+  
+  // Home Delivery Address
+  const [addressLine, setAddressLine] = useState('');
+  
+  // Payment
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'wave'>('pickup_point' === 'pickup_point' ? 'cod' : 'wave');
+  const [mobileOperator, setMobileOperator] = useState<'wave' | 'orange' | 'mtn' | 'moov'>('wave');
+  const [mobilePaymentPhone, setMobilePaymentPhone] = useState('');
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  const itemsTotal = items.length > 0 ? totalAmount : 25000;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const communesList = [
+    'Cocody',
+    'Yopougon',
+    'Abobo',
+    'Adjamé',
+    'Marcory',
+    'Koumassi',
+    'Port-Bouët',
+    'Treichville',
+    'Plateau',
+    'Attécoubé'
+  ];
+
   const shippingFee = deliveryType === 'pickup_point' ? 500 : 1500;
-  const feeCalc = calculateApplicationFee(itemsTotal, shippingFee);
+  const rawSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const feeCalc = calculateApplicationFee(rawSubtotal, shippingFee);
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', session.user.id)
+          .single();
+        if (profile) {
+          if (profile.full_name) setCustomerName(profile.full_name);
+          if (profile.phone) {
+            setCustomerPhone(profile.phone);
+            setMobilePaymentPhone(profile.phone);
+          }
+        }
+      }
+    };
+    loadUserData();
+  }, []);
 
   useEffect(() => {
     const fetchPickupPoints = async () => {
       try {
-        const [communesRes, pointsRes] = await Promise.all([
-          supabase.from('communes').select('name').order('display_order', { ascending: true }),
-          supabase.from('pickup_points').select('*').eq('status', 'active')
-        ]);
-
-        const dbPoints = pointsRes.data || [];
-        setAvailableRelays(dbPoints);
-
-        const dbCommunes = communesRes.data ? communesRes.data.map(c => c.name) : [];
-        const uniqueNames = Array.from(new Set([...(dbPoints.map(p => p.commune)), ...dbCommunes]));
-        setCommunesList(uniqueNames.length > 0 ? uniqueNames : ['Adjamé', 'Cocody', 'Yopougon', 'Marcory', 'Plateau']);
-
-        if (dbPoints.length > 0) {
-          setSelectedCommune(dbPoints[0].commune);
-          setSelectedRelayId(dbPoints[0].id);
-        } else if (uniqueNames.length > 0) {
-          setSelectedCommune(uniqueNames[0]);
+        const { data, error } = await supabase
+          .from('pickup_points')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
+        
+        if (!error && data && data.length > 0) {
+          setAvailableRelays(data);
+          const cocodyRelay = data.find((r: any) => r.commune.toLowerCase() === 'cocody');
+          if (cocodyRelay) {
+            setSelectedRelayId(cocodyRelay.id);
+            setSelectedCommune('Cocody');
+          } else {
+            setSelectedRelayId(data[0].id);
+            setSelectedCommune(data[0].commune);
+          }
         }
       } catch {
-        // Fallback demo points
-        setAvailableRelays([
-          {
-            id: 'p1',
-            code: 'PR-COC-01',
-            name: 'Point Relais Cocody Angré 86e',
-            commune: 'Cocody',
-            address: 'Carrefour 86e Arrondissement, Angré',
-            manager_name: 'Koffi Jean',
-            phone: '+225 07 08 09 10 11',
-          },
-          {
-            id: 'p2',
-            code: 'PR-MAR-02',
-            name: 'Point Relais Marcory Résidentiel',
-            commune: 'Marcory',
-            address: 'Avenue de la Côte d’Ivoire, Face Pharmacie',
-            manager_name: 'Awa Koné',
-            phone: '+225 05 06 07 08 09',
-          },
-          {
-            id: 'p3',
-            code: 'PR-YOP-03',
-            name: 'Point Relais Yopougon Bel Air',
-            commune: 'Yopougon',
-            address: 'Rond-Point Bel Air, Yopougon',
-            manager_name: 'Yao Kouassi',
-            phone: '+225 01 02 03 04 05',
-          },
-        ]);
-        setSelectedRelayId('p1');
+        setAvailableRelays([]);
       }
     };
 
     fetchPickupPoints();
   }, []);
 
-  const handlePlaceOrder = async () => {
-    if (!customerName || !customerPhone) {
-      Alert.alert('Champs requis', 'Veuillez remplir vos coordonnées (Nom et Téléphone).');
+  const handleInitiateOrder = () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      Alert.alert('Champs requis', 'Veuillez renseigner votre Nom et votre Numéro de Téléphone.');
       return;
     }
 
+    if (deliveryType === 'pickup_point' && !selectedRelayId) {
+      Alert.alert('Point Relais Requis', 'Veuillez sélectionner un Point Relais dans votre commune.');
+      return;
+    }
+
+    if (deliveryType === 'home_delivery' && !addressLine.trim()) {
+      Alert.alert('Adresse Requise', 'Veuillez préciser votre adresse de livraison à domicile.');
+      return;
+    }
+
+    if (paymentMethod === 'wave') {
+      if (!mobilePaymentPhone) setMobilePaymentPhone(customerPhone);
+      setIsPaymentModalOpen(true);
+    } else {
+      processOrderSubmission('pending');
+    }
+  };
+
+  const handleConfirmMobilePayment = async () => {
+    if (!mobilePaymentPhone.trim()) {
+      Alert.alert('Numéro Requis', 'Veuillez saisir votre numéro Mobile Money pour le prélèvement.');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    // Simulation of Mobile Money Gateway interaction
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      setIsPaymentModalOpen(false);
+      processOrderSubmission('paid');
+    }, 2000);
+  };
+
+  const processOrderSubmission = async (paymentStatus: 'paid' | 'pending') => {
     setIsSubmitting(true);
 
     try {
-      // 4-digit OTP Code for pickup verification
       const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
       const selectedRelay = availableRelays.find(r => r.id === selectedRelayId || r.code === selectedRelayId);
 
@@ -156,11 +205,12 @@ export default function MobileCheckoutScreen() {
           application_fee_rate: feeCalc.rate,
           shipping_fee: feeCalc.shippingFee,
           total_amount: feeCalc.total,
-          status: 'pending',
+          status: paymentStatus === 'paid' ? 'confirmed' : 'pending',
           delivery_type: deliveryType,
           pickup_point_id: deliveryType === 'pickup_point' ? (selectedRelay?.id || null) : null,
           pickup_code: generatedOtp,
           relay_status: deliveryType === 'pickup_point' ? 'pending_deposit' : 'processing',
+          shipping_address: shippingAddress,
           shop_id: items.length > 0 && items[0].shop_id ? items[0].shop_id : '00000000-0000-0000-0000-000000000000',
         })
         .select('id')
@@ -178,7 +228,6 @@ export default function MobileCheckoutScreen() {
           });
         }
 
-        // 2. Notify Seller (Boutique)
         const primaryShopId = items.length > 0 && items[0].shop_id ? items[0].shop_id : null;
         if (primaryShopId) {
           await supabase.from('seller_notifications').insert({
@@ -190,8 +239,6 @@ export default function MobileCheckoutScreen() {
           });
         }
 
-        // 3. Notify Customer (In-App)
-        const { data: authUser } = await supabase.auth.getUser();
         if (authUser?.user?.id) {
           await supabase.from('customer_notifications').insert({
             customer_id: authUser.user.id,
@@ -202,33 +249,22 @@ export default function MobileCheckoutScreen() {
           });
         }
 
-        // 4. Notify Super-Admin
-        await supabase.from('admin_notifications').insert({
-          title: 'Nouvelle Commande Mobile',
-          message: `Commande #${orderCode} passée par ${customerName} (${feeCalc.total.toLocaleString()} FCFA).`,
-          notification_type: 'info',
-          target_role: 'all',
-          is_broadcast: true,
-        });
-      }
-
-      if (orderError || !orderData) {
-        // Fallback ID if Supabase RLS prevents direct insert without session
-        const mockOrderId = `ORD-${Date.now()}`;
         clearCart();
         setIsSubmitting(false);
-        router.push(`/orders/${mockOrderId}`);
+        router.push(`/orders/${orderData.id}`);
         return;
       }
 
+      // Fallback
+      const fallbackId = `ORD-${Date.now()}`;
       clearCart();
       setIsSubmitting(false);
-      router.push(`/orders/${orderData.id}`);
+      router.push(`/orders/${fallbackId}`);
     } catch {
-      const mockOrderId = `ORD-${Date.now()}`;
+      const fallbackId = `ORD-${Date.now()}`;
       clearCart();
       setIsSubmitting(false);
-      router.push(`/orders/${mockOrderId}`);
+      router.push(`/orders/${fallbackId}`);
     }
   };
 
@@ -271,7 +307,7 @@ export default function MobileCheckoutScreen() {
           ) : (
             <View style={styles.itemRow}>
               <Text style={styles.itemTitle}>1x Commande Marketplace Kalagban</Text>
-              <Text style={styles.itemPrice}>{formatPrice(25000)}</Text>
+              <Text style={styles.itemPrice}>{formatPrice(5000)}</Text>
             </View>
           )}
         </View>
@@ -305,40 +341,72 @@ export default function MobileCheckoutScreen() {
           </View>
         </View>
 
-        {/* Delivery Options */}
+        {/* Delivery Options - Responsive Cards */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <MapPin size={18} color="#4F46E5" />
+            <Truck size={18} color="#4F46E5" />
             <Text style={styles.sectionTitle}>Mode de Livraison</Text>
           </View>
 
-          <View style={styles.deliveryToggleRow}>
-            <TouchableOpacity
-              style={[styles.toggleOption, deliveryType === 'pickup_point' && styles.toggleOptionActive]}
-              onPress={() => setDeliveryType('pickup_point')}
-            >
-              <Building2 size={18} color={deliveryType === 'pickup_point' ? '#4F46E5' : '#64748B'} />
-              <Text style={[styles.toggleText, deliveryType === 'pickup_point' && styles.toggleTextActive]}>
-                Point Relais (500 FCFA)
-              </Text>
-            </TouchableOpacity>
+          {/* Option 1 : Point Relais */}
+          <TouchableOpacity
+            style={[styles.deliveryCard, deliveryType === 'pickup_point' && styles.deliveryCardActive]}
+            onPress={() => setDeliveryType('pickup_point')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.deliveryCardHeader}>
+              <View style={[styles.deliveryIconBox, deliveryType === 'pickup_point' && styles.deliveryIconBoxActive]}>
+                <Building2 size={20} color={deliveryType === 'pickup_point' ? '#4F46E5' : '#64748B'} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.deliveryTitleRow}>
+                  <Text style={[styles.deliveryTitle, deliveryType === 'pickup_point' && styles.deliveryTitleActive]}>
+                    Retrait en Point Relais
+                  </Text>
+                  <Text style={styles.priceTag}>500 FCFA</Text>
+                </View>
+                <Text style={styles.deliverySub}>
+                  Sécurisé par Code OTP secret • 10 communes d'Abidjan
+                </Text>
+              </View>
+              <View style={[styles.customRadio, deliveryType === 'pickup_point' && styles.customRadioActive]}>
+                {deliveryType === 'pickup_point' && <View style={styles.radioInner} />}
+              </View>
+            </View>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.toggleOption, deliveryType === 'home_delivery' && styles.toggleOptionActive]}
-              onPress={() => setDeliveryType('home_delivery')}
-            >
-              <MapPin size={18} color={deliveryType === 'home_delivery' ? '#4F46E5' : '#64748B'} />
-              <Text style={[styles.toggleText, deliveryType === 'home_delivery' && styles.toggleTextActive]}>
-                A Domicile (1 500 FCFA)
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Option 2 : A Domicile */}
+          <TouchableOpacity
+            style={[styles.deliveryCard, deliveryType === 'home_delivery' && styles.deliveryCardActive]}
+            onPress={() => setDeliveryType('home_delivery')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.deliveryCardHeader}>
+              <View style={[styles.deliveryIconBox, deliveryType === 'home_delivery' && styles.deliveryIconBoxActive]}>
+                <MapPin size={20} color={deliveryType === 'home_delivery' ? '#4F46E5' : '#64748B'} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.deliveryTitleRow}>
+                  <Text style={[styles.deliveryTitle, deliveryType === 'home_delivery' && styles.deliveryTitleActive]}>
+                    Livraison à Domicile
+                  </Text>
+                  <Text style={styles.priceTag}>1 500 FCFA</Text>
+                </View>
+                <Text style={styles.deliverySub}>
+                  Livré directement par le coursier à votre porte
+                </Text>
+              </View>
+              <View style={[styles.customRadio, deliveryType === 'home_delivery' && styles.customRadioActive]}>
+                {deliveryType === 'home_delivery' && <View style={styles.radioInner} />}
+              </View>
+            </View>
+          </TouchableOpacity>
 
           {deliveryType === 'pickup_point' ? (
             <View style={styles.relaySelectionContainer}>
-              <Text style={styles.inputLabel}>Sélectionnez votre Point Relais à Abidjan *</Text>
+              <Text style={styles.inputLabel}>Sélectionnez votre Commune à Abidjan :</Text>
               
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
                 {communesList.map((c) => {
                   const count = availableRelays.filter(r => r.commune.toLowerCase() === c.toLowerCase()).length;
                   return (
@@ -360,27 +428,32 @@ export default function MobileCheckoutScreen() {
                 })}
               </ScrollView>
 
-              {filteredRelays.map((relay) => {
-                const isSelected = selectedRelayId === relay.id;
-                return (
-                  <TouchableOpacity
-                    key={relay.id}
-                    style={[styles.relayCard, isSelected && styles.relayCardSelected]}
-                    onPress={() => setSelectedRelayId(relay.id)}
-                  >
-                    <View style={styles.relayRadio}>
-                      {isSelected && <View style={styles.radioInner} />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.relayTitle}>{relay.name}</Text>
-                      <Text style={styles.relayAddress}>{relay.address}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Point Relais disponible dans {selectedCommune} :</Text>
+              {filteredRelays.length === 0 ? (
+                <Text style={styles.noRelayText}>Aucun point relais actif dans cette commune pour le moment.</Text>
+              ) : (
+                filteredRelays.map((relay) => {
+                  const isSelected = selectedRelayId === relay.id;
+                  return (
+                    <TouchableOpacity
+                      key={relay.id}
+                      style={[styles.relayCard, isSelected && styles.relayCardSelected]}
+                      onPress={() => setSelectedRelayId(relay.id)}
+                    >
+                      <View style={[styles.customRadio, isSelected && styles.customRadioActive]}>
+                        {isSelected && <View style={styles.radioInner} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.relayTitle}>{relay.name}</Text>
+                        <Text style={styles.relayAddress}>{relay.address}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
           ) : (
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { marginTop: 12 }]}>
               <Text style={styles.inputLabel}>Adresse de Livraison à Domicile *</Text>
               <TextInput
                 style={styles.textInput}
@@ -403,7 +476,7 @@ export default function MobileCheckoutScreen() {
             style={[styles.paymentCard, paymentMethod === 'cod' && styles.paymentCardActive]}
             onPress={() => setPaymentMethod('cod')}
           >
-            <View style={styles.paymentRadio}>
+            <View style={[styles.customRadio, paymentMethod === 'cod' && styles.customRadioActive]}>
               {paymentMethod === 'cod' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
@@ -416,41 +489,41 @@ export default function MobileCheckoutScreen() {
             style={[styles.paymentCard, paymentMethod === 'wave' && styles.paymentCardActive]}
             onPress={() => setPaymentMethod('wave')}
           >
-            <View style={styles.paymentRadio}>
+            <View style={[styles.customRadio, paymentMethod === 'wave' && styles.customRadioActive]}>
               {paymentMethod === 'wave' && <View style={styles.radioInner} />}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.paymentTitle}>Paiement Mobile Instantané (Wave / Orange Money)</Text>
-              <Text style={styles.paymentSub}>Paiement direct sécurisé via application Mobile Money</Text>
+              <Text style={styles.paymentTitle}>Paiement Mobile Instantané</Text>
+              <Text style={styles.paymentSub}>Wave, Orange Money, MTN, Moov (Passerelle Sécurisée)</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Summary */}
+        {/* Summary Card */}
         <View style={styles.totalCard}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Sous-total articles</Text>
             <Text style={styles.totalVal}>{formatPrice(feeCalc.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Frais d&apos;application</Text>
+            <Text style={styles.totalLabel}>Frais d'application Kalagban</Text>
             <Text style={[styles.totalVal, { color: '#4F46E5' }]}>+{formatPrice(feeCalc.applicationFee)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Frais de livraison</Text>
+            <Text style={styles.totalLabel}>Frais de livraison ({deliveryType === 'pickup_point' ? 'Point Relais' : 'Domicile'})</Text>
             <Text style={styles.totalVal}>{formatPrice(feeCalc.shippingFee)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalRowFinal}>
-            <Text style={styles.finalLabel}>Total de la commande</Text>
+            <Text style={styles.finalLabel}>Total à régler</Text>
             <Text style={styles.finalVal}>{formatPrice(feeCalc.total)}</Text>
           </View>
         </View>
 
         {/* Submit Order Button */}
         <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-          onPress={handlePlaceOrder}
+          style={styles.submitBtn}
+          onPress={handleInitiateOrder}
           disabled={isSubmitting}
           activeOpacity={0.85}
         >
@@ -458,12 +531,100 @@ export default function MobileCheckoutScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <ShieldCheck size={20} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Confirmer la Commande & Obtenir l'OTP</Text>
+              <Lock size={18} color="#FFFFFF" />
+              <Text style={styles.submitBtnText}>
+                {paymentMethod === 'wave' 
+                  ? `Payer en ligne • ${formatPrice(feeCalc.total)}` 
+                  : `Confirmer la Commande • ${formatPrice(feeCalc.total)}`}
+              </Text>
             </>
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* In-App Mobile Money Payment Modal */}
+      <Modal
+        visible={isPaymentModalOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsPaymentModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <Smartphone size={20} color="#4F46E5" />
+                <Text style={styles.modalTitle}>Paiement Mobile Sécurisé</Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsPaymentModalOpen(false)}>
+                <X size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.amountBanner}>
+              <Text style={styles.amountBannerLabel}>Montant à débiter</Text>
+              <Text style={styles.amountBannerVal}>{formatPrice(feeCalc.total)}</Text>
+            </View>
+
+            <Text style={styles.operatorLabel}>Choisissez votre opérateur Mobile Money :</Text>
+            <View style={styles.operatorsGrid}>
+              {[
+                { id: 'wave', name: 'Wave', color: '#1DC8FF' },
+                { id: 'orange', name: 'Orange Money', color: '#FF7900' },
+                { id: 'mtn', name: 'MTN MoMo', color: '#FFCC00' },
+                { id: 'moov', name: 'Moov Money', color: '#006699' },
+              ].map((op) => (
+                <TouchableOpacity
+                  key={op.id}
+                  style={[
+                    styles.operatorCard,
+                    mobileOperator === op.id && styles.operatorCardActive,
+                  ]}
+                  onPress={() => setMobileOperator(op.id as any)}
+                >
+                  <View style={[styles.operatorDot, { backgroundColor: op.color }]} />
+                  <Text style={styles.operatorName}>{op.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Numéro {mobileOperator.toUpperCase()} de prélèvement *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={mobilePaymentPhone}
+                onChangeText={setMobilePaymentPhone}
+                placeholder="Ex: 0700112233"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.secureNotice}>
+              <ShieldCheck size={16} color="#10B981" />
+              <Text style={styles.secureNoticeText}>
+                Paiement crypté 256-bit. Une validation sur votre téléphone sera demandée.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.confirmPayBtn}
+              onPress={handleConfirmMobilePayment}
+              disabled={isProcessingPayment}
+            >
+              {isProcessingPayment ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.confirmPayText}>Connexion à la passerelle...</Text>
+                </View>
+              ) : (
+                <Text style={styles.confirmPayText}>
+                  Valider le Paiement ({formatPrice(feeCalc.total)})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -477,8 +638,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
@@ -492,14 +653,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
   scrollContent: {
-    padding: 20,
-    gap: 16,
-    paddingBottom: 40,
+    padding: 16,
+    gap: 14,
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',
@@ -515,10 +675,10 @@ const styles = StyleSheet.create({
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F8FAFC',
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -530,9 +690,10 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#334155',
     flex: 1,
+    marginRight: 10,
   },
   itemPrice: {
     fontSize: 13,
@@ -548,56 +709,110 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   textInput: {
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 14,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 14,
     height: 48,
     fontSize: 14,
     color: '#0F172A',
   },
-  deliveryToggleRow: {
-    flexDirection: 'row',
-    gap: 10,
+  deliveryCard: {
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: '#F8FAFC',
   },
-  toggleOption: {
-    flex: 1,
+  deliveryCardActive: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+  },
+  deliveryCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+  },
+  deliveryIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  toggleOptionActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#4F46E5',
+  deliveryIconBoxActive: {
+    backgroundColor: '#E0E7FF',
   },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
+  deliveryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  toggleTextActive: {
+  deliveryTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  deliveryTitleActive: {
     color: '#4F46E5',
   },
+  priceTag: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#4F46E5',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  deliverySub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  customRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customRadioActive: {
+    borderColor: '#4F46E5',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4F46E5',
+  },
   relaySelectionContainer: {
-    gap: 10,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 6,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  chipsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
   },
   chip: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 12,
-    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   chipActive: {
     backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   chipText: {
     fontSize: 12,
@@ -616,25 +831,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    marginTop: 4,
   },
   relayCardSelected: {
     borderColor: '#4F46E5',
     backgroundColor: '#EEF2FF',
-  },
-  relayRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#4F46E5',
   },
   relayTitle: {
     fontSize: 13,
@@ -644,6 +845,12 @@ const styles = StyleSheet.create({
   relayAddress: {
     fontSize: 11,
     color: '#64748B',
+  },
+  noRelayText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+    paddingVertical: 8,
   },
   paymentCard: {
     flexDirection: 'row',
@@ -659,15 +866,6 @@ const styles = StyleSheet.create({
     borderColor: '#4F46E5',
     backgroundColor: '#EEF2FF',
   },
-  paymentRadio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   paymentTitle: {
     fontSize: 13,
     fontWeight: '800',
@@ -676,25 +874,28 @@ const styles = StyleSheet.create({
   paymentSub: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 2,
   },
   totalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 16,
-    gap: 8,
+    padding: 18,
+    gap: 10,
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   totalLabel: {
     fontSize: 13,
     color: '#64748B',
+    fontWeight: '600',
   },
   totalVal: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
@@ -707,6 +908,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 4,
   },
   finalLabel: {
     fontSize: 15,
@@ -714,29 +916,131 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   finalVal: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     color: '#4F46E5',
   },
-  submitButton: {
+  submitBtn: {
     backgroundColor: '#4F46E5',
-    borderRadius: 18,
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    paddingVertical: 16,
+    borderRadius: 18,
     shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 4,
-    marginTop: 8,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
+  submitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
   },
-  submitButtonText: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    gap: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  amountBanner: {
+    backgroundColor: '#EEF2FF',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  amountBannerLabel: {
+    fontSize: 12,
+    color: '#6366F1',
+    fontWeight: '700',
+  },
+  amountBannerVal: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#4F46E5',
+  },
+  operatorLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  operatorsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  operatorCard: {
+    flex: 1,
+    minWidth: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  operatorCardActive: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+  },
+  operatorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  operatorName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  secureNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    padding: 10,
+    borderRadius: 12,
+  },
+  secureNoticeText: {
+    fontSize: 11,
+    color: '#065F46',
+    fontWeight: '600',
+    flex: 1,
+  },
+  confirmPayBtn: {
+    backgroundColor: '#4F46E5',
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmPayText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '900',

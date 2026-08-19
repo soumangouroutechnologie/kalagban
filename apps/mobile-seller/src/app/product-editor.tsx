@@ -231,12 +231,12 @@ export default function ProductEditorScreen() {
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
             description: description.trim(),
-            status: 'pending_review',
+            status: 'pending',
             moderation_status: 'pending_review',
           })
           .eq('id', productId);
       } else {
-        // Insert new product in pending_review
+        // Insert new product in pending
         const { data: newProd, error: insertErr } = await supabase
           .from('products')
           .insert({
@@ -247,7 +247,7 @@ export default function ProductEditorScreen() {
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
             description: description.trim(),
-            status: 'pending_review',
+            status: 'pending',
             moderation_status: 'pending_review',
           })
           .select()
