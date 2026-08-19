@@ -88,39 +88,36 @@ export default function MobileCheckoutScreen() {
         }
       } catch {
         // Fallback demo points
-          setAvailableRelays([
-            {
-              id: 'p1',
-              code: 'PR-COC-01',
-              name: 'Point Relais Cocody Angré 86e',
-              commune: 'Cocody',
-              address: 'Carrefour 86e Arrondissement, Angré',
-              manager_name: 'Koffi Jean',
-              phone: '+225 07 08 09 10 11',
-            },
-            {
-              id: 'p2',
-              code: 'PR-MAR-02',
-              name: 'Point Relais Marcory Résidentiel',
-              commune: 'Marcory',
-              address: 'Avenue de la Côte d’Ivoire, Face Pharmacie',
-              manager_name: 'Awa Koné',
-              phone: '+225 05 06 07 08 09',
-            },
-            {
-              id: 'p3',
-              code: 'PR-YOP-03',
-              name: 'Point Relais Yopougon Bel Air',
-              commune: 'Yopougon',
-              address: 'Rond-Point Bel Air, Yopougon',
-              manager_name: 'Yao Kouassi',
-              phone: '+225 01 02 03 04 05',
-            },
-          ]);
-          setSelectedRelayId('p1');
-        }
-      } catch {
-        // Fallback demo points
+        setAvailableRelays([
+          {
+            id: 'p1',
+            code: 'PR-COC-01',
+            name: 'Point Relais Cocody Angré 86e',
+            commune: 'Cocody',
+            address: 'Carrefour 86e Arrondissement, Angré',
+            manager_name: 'Koffi Jean',
+            phone: '+225 07 08 09 10 11',
+          },
+          {
+            id: 'p2',
+            code: 'PR-MAR-02',
+            name: 'Point Relais Marcory Résidentiel',
+            commune: 'Marcory',
+            address: 'Avenue de la Côte d’Ivoire, Face Pharmacie',
+            manager_name: 'Awa Koné',
+            phone: '+225 05 06 07 08 09',
+          },
+          {
+            id: 'p3',
+            code: 'PR-YOP-03',
+            name: 'Point Relais Yopougon Bel Air',
+            commune: 'Yopougon',
+            address: 'Rond-Point Bel Air, Yopougon',
+            manager_name: 'Yao Kouassi',
+            phone: '+225 01 02 03 04 05',
+          },
+        ]);
+        setSelectedRelayId('p1');
       }
     };
 
