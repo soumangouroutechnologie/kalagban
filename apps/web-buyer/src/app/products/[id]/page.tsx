@@ -20,7 +20,12 @@ import {
   CheckCircle2,
   Loader2,
   Flame,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  X
 } from "lucide-react";
 
 interface ProductDetails {
@@ -55,6 +60,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Zoom Loupe & Lightbox states
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    setZoomPos({ x, y });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -181,33 +199,72 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         {/* PRODUCT SECTION GRID */}
         <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
           
-          {/* LEFT: GALLERY */}
+          {/* LEFT: GALLERY WITH HOVER ZOOM & LIGHTBOX */}
           <div className="flex flex-col gap-4">
-            <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex items-center justify-center relative">
+            <div 
+              className="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex items-center justify-center relative group cursor-crosshair select-none shadow-inner"
+              onMouseEnter={() => setIsZoomed(true)}
+              onMouseLeave={() => setIsZoomed(false)}
+              onMouseMove={handleMouseMove}
+            >
               {selectedImage ? (
-                <img src={selectedImage} alt={product.title} className="w-full h-full object-cover" />
+                <img 
+                  src={selectedImage} 
+                  alt={product.title} 
+                  className="w-full h-full object-cover transition-transform duration-100 ease-out" 
+                  style={{
+                    transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
+                    transform: isZoomed ? "scale(2.3)" : "scale(1)",
+                  }}
+                />
               ) : (
                 <ImageIcon size={64} className="text-gray-300" strokeWidth={1.5} />
               )}
+
               {discountPercent !== null && (
-                <span className="absolute top-4 left-4 bg-red-500 text-white font-black text-sm px-3 py-1 rounded-xl shadow-lg">
+                <span className="absolute top-4 left-4 bg-red-500 text-white font-black text-sm px-3 py-1 rounded-xl shadow-lg z-10 pointer-events-none">
                   -{discountPercent}%
                 </span>
               )}
+
+              {/* Fullscreen HD Button */}
+              {selectedImage && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const currentIdx = product.media.indexOf(selectedImage);
+                    setLightboxIndex(currentIdx >= 0 ? currentIdx : 0);
+                    setIsLightboxOpen(true);
+                  }}
+                  className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/90 backdrop-blur-sm text-gray-700 hover:text-indigo-600 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-105 z-10"
+                  title="Agrandir en plein écran"
+                >
+                  <Maximize2 size={18} />
+                </button>
+              )}
+
+              {/* Zoom hint badge */}
+              <div className={`absolute bottom-4 right-4 bg-black/65 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg transition-opacity duration-300 pointer-events-none ${isZoomed ? "opacity-0" : "opacity-90 group-hover:opacity-0"}`}>
+                <Search size={13} />
+                <span>Survolez pour zoomer</span>
+              </div>
             </div>
 
             {/* Thumbnails */}
             {product.media.length > 1 && (
-              <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 custom-scrollbar">
                 {product.media.map((url, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setSelectedImage(url)}
-                    className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
-                      selectedImage === url ? "border-indigo-600 scale-95" : "border-gray-200 opacity-70 hover:opacity-100"
+                    onClick={() => {
+                      setSelectedImage(url);
+                      setLightboxIndex(idx);
+                    }}
+                    className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
+                      selectedImage === url ? "border-indigo-600 ring-2 ring-indigo-600/30 scale-95 shadow-md" : "border-gray-200 opacity-70 hover:opacity-100"
                     }`}
                   >
-                    <img src={url} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover" />
+                    <img src={url} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -398,6 +455,67 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </div>
+
+        {/* Fullscreen Lightbox Modal */}
+        {isLightboxOpen && product.media.length > 0 && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+            onClick={() => setIsLightboxOpen(false)}
+          >
+            <button 
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-colors z-20 hover:scale-110"
+              title="Fermer (Échap)"
+            >
+              <X size={24} />
+            </button>
+
+            <div 
+              className="relative max-w-4xl w-full max-h-[85vh] flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Prev Arrow */}
+              {product.media.length > 1 && (
+                <button 
+                  onClick={() => {
+                    const nextIdx = (lightboxIndex - 1 + product.media.length) % product.media.length;
+                    setLightboxIndex(nextIdx);
+                    setSelectedImage(product.media[nextIdx]);
+                  }}
+                  className="absolute left-2 sm:-left-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all z-20 hover:scale-110"
+                >
+                  <ChevronLeft size={28} />
+                </button>
+              )}
+
+              {/* Main HD Image */}
+              <img 
+                src={product.media[lightboxIndex] || selectedImage || ""} 
+                alt={product.title}
+                className="max-h-[80vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+
+              {/* Next Arrow */}
+              {product.media.length > 1 && (
+                <button 
+                  onClick={() => {
+                    const nextIdx = (lightboxIndex + 1) % product.media.length;
+                    setLightboxIndex(nextIdx);
+                    setSelectedImage(product.media[nextIdx]);
+                  }}
+                  className="absolute right-2 sm:-right-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all z-20 hover:scale-110"
+                >
+                  <ChevronRight size={28} />
+                </button>
+              )}
+            </div>
+
+            {/* Counter Badge */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 text-white text-sm font-bold px-4 py-1.5 rounded-full backdrop-blur-sm">
+              {lightboxIndex + 1} / {product.media.length}
+            </div>
+          </div>
+        )}
 
       </main>
 
