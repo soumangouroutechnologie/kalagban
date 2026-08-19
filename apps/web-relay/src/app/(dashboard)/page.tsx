@@ -36,6 +36,10 @@ interface ExpectedOrder {
   total_amount: number;
   created_at: string;
   pickup_code?: string;
+  status: string;
+  relay_status: string;
+  shop_id?: string;
+  shop_name?: string;
 }
 
 export default function RelayDashboardHome() {
@@ -111,13 +115,26 @@ export default function RelayDashboardHome() {
       // 1. Load Expected Orders ONLY for THIS point relais
       const { data: pendingOrders } = await supabase
         .from("orders")
-        .select("id, customer_name, customer_phone, total_amount, created_at, pickup_code")
+        .select("id, customer_name, customer_phone, total_amount, created_at, pickup_code, status, relay_status, shop_id, shops(name)")
         .eq("pickup_point_id", currentId)
         .eq("delivery_type", "pickup_point")
         .eq("relay_status", "pending_deposit")
         .order("created_at", { ascending: false });
 
-      setExpectedOrders((pendingOrders as ExpectedOrder[]) || []);
+      const formattedExpected: ExpectedOrder[] = (pendingOrders || []).map((o: any) => ({
+        id: o.id,
+        customer_name: o.customer_name || "Client Kalagban",
+        customer_phone: o.customer_phone || "+225 --",
+        total_amount: Number(o.total_amount || 0),
+        created_at: o.created_at,
+        pickup_code: o.pickup_code,
+        status: o.status || "pending",
+        relay_status: o.relay_status || "pending_deposit",
+        shop_id: o.shop_id,
+        shop_name: Array.isArray(o.shops) ? (o.shops[0]?.name || "Boutique Partenaire") : (o.shops?.name || "Boutique Partenaire"),
+      }));
+
+      setExpectedOrders(formattedExpected);
 
       // 2. Count Colis en étagère (In-Stock) ONLY for THIS point relais
       const { data: inStockOrders } = await supabase
@@ -178,17 +195,30 @@ export default function RelayDashboardHome() {
 
   // Quick 1-Click Reception of Expected Order
   const handleQuickReceive = async (order: ExpectedOrder) => {
+    const isShipped = order.status === "shipped" || order.status === "in_transit";
+    if (!isShipped) {
+      const statusLabel = order.status === "pending" ? "En attente de confirmation marchand" : "En cours de préparation chez le vendeur";
+      alert(`⛔ Impossible de réceptionner ce colis :\nLe vendeur n'a pas encore remis le colis au coursier (Statut actuel : ${statusLabel}).\n\nVous ne pourrez enregistrer le colis en étagère qu'une fois expédié par la boutique.`);
+      return;
+    }
+
     setIsDepositing(true);
     const orderCode = order.id.slice(0, 8).toUpperCase();
     const generatedOtp = order.pickup_code || Math.floor(100000 + Math.random() * 900000).toString();
 
     try {
       // 1. Try Calling Dedicated RPC function
-      await supabase.rpc("relay_receive_package", {
+      const { data: rpcRes } = await supabase.rpc("relay_receive_package", {
         p_order_id: order.id,
         p_pickup_code: generatedOtp,
         p_relay_code: relayCode || null
       });
+
+      if (rpcRes && !rpcRes.success) {
+        alert(rpcRes.message || "Erreur de réception.");
+        setIsDepositing(false);
+        return;
+      }
 
       // 2. Also execute direct update as fallback/sync
       await supabase
@@ -200,57 +230,7 @@ export default function RelayDashboardHome() {
         })
         .eq("id", order.id);
 
-      // 3. Insert Relay Log
-      await supabase.from("relay_logs").insert({
-        pickup_point_id: relayId || (order as any).pickup_point_id || null,
-        order_id: order.id,
-        order_code: orderCode,
-        customer_name: order.customer_name,
-        customer_phone: order.customer_phone,
-        action_type: "deposit",
-        otp_code: generatedOtp,
-        commission_earned: 300
-      });
-
-      // 4. Insert Relay Internal Notification
-      await supabase.from("relay_notifications").insert({
-        title: "Colis Réceptionné en Étagère",
-        message: `La commande #${orderCode} de ${order.customer_name} a été réceptionnée du coursier et placée en étagère.`,
-        type: "deposit"
-      });
-
-      // 5. Notify Seller (Boutique)
-      if ((order as any).shop_id) {
-        await supabase.from("seller_notifications").insert({
-          shop_id: (order as any).shop_id,
-          title: "Colis Réceptionné au Point Relais 📍",
-          message: `Le colis de la commande #${orderCode} est bien arrivé au Point Relais (${relayCode || "Relais Kalagban"}) et attend le client.`,
-          type: "order",
-          reference_id: order.id,
-        });
-      }
-
-      // 6. Notify Customer (In-App)
-      if ((order as any).customer_id) {
-        await supabase.from("customer_notifications").insert({
-          customer_id: (order as any).customer_id,
-          order_id: order.id,
-          title: "Votre colis est disponible au Point Relais ! 📍",
-          message: `Votre commande #${orderCode} vous attend. Code secret de retrait OTP : ${generatedOtp}`,
-          type: "pickup",
-        });
-      }
-
-      // 7. Notify Super-Admin
-      await supabase.from("admin_notifications").insert({
-        title: "Colis en Stock Relais",
-        message: `La commande #${orderCode} (${order.customer_name}) a été réceptionnée au Point Relais ${relayCode || ""}.`,
-        notification_type: "info",
-        target_role: "all",
-        is_broadcast: true,
-      });
-
-      // 8. Trigger Email 2 (READY_FOR_PICKUP with OTP)
+      // 3. Trigger Email 2 (READY_FOR_PICKUP with OTP)
       try {
         await fetch("/api/notifications/send-email", {
           method: "POST",
@@ -284,8 +264,9 @@ export default function RelayDashboardHome() {
         },
         ...prev
       ]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error receiving package:", err);
+      alert("Erreur lors de la réception : " + err.message);
     } finally {
       setIsDepositing(false);
       setTimeout(() => setDepositSuccess(null), 6000);
@@ -295,48 +276,90 @@ export default function RelayDashboardHome() {
   // Handle Courier Package Deposit
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!depositCode.trim()) return;
+    const rawInput = depositCode.trim();
+    if (!rawInput) return;
 
     setIsDepositing(true);
-    const formattedCode = depositCode.trim().toUpperCase();
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const searchCode = rawInput.replace("#", "").trim();
 
-    // Insert log in Database
-    await supabase.from("relay_logs").insert({
-      pickup_point_id: relayId || null,
-      order_code: formattedCode,
-      customer_name: "Client Kalagban",
-      customer_phone: "+225 0700000000",
-      action_type: "deposit",
-      otp_code: generatedOtp,
-      commission_earned: 300
-    });
+    try {
+      // Find matching order in Database
+      const { data: matchedOrders, error: searchErr } = await supabase
+        .from("orders")
+        .select("id, customer_name, customer_phone, status, pickup_point_id, relay_status, pickup_code, shops(name)")
+        .or(`id.eq.${searchCode},id.ilike.${searchCode}%`)
+        .limit(1);
 
-    // Insert Notification
-    await supabase.from("relay_notifications").insert({
-      title: "Nouveau Colis Réceptionné",
-      message: `Le colis #${formattedCode} a été déposé par le coursier et placé en étagère. Code OTP généré: ${generatedOtp}.`,
-      type: "deposit"
-    });
+      if (searchErr || !matchedOrders || matchedOrders.length === 0) {
+        alert(`❌ Commande introuvable avec le numéro #${searchCode}. Veuillez vérifier la référence du colis.`);
+        setIsDepositing(false);
+        return;
+      }
 
-    setDepositSuccess(`Colis #${formattedCode} enregistré avec succès en étagère. Code OTP attribué: ${generatedOtp}.`);
-    setCapacity(prev => ({ ...prev, current: prev.current + 1 }));
-    setPackageLogs(prev => [
-      { 
-        id: formattedCode, 
-        client: "Client Kalagban", 
-        phone: "+225 07 00 00 00", 
-        status: "ready_for_pickup", 
-        code: generatedOtp, 
-        time: "À l'instant", 
-        amount: "En étagère" 
-      },
-      ...prev
-    ]);
-    setDepositCode("");
-    setIsDepositing(false);
+      const order = matchedOrders[0];
 
-    setTimeout(() => setDepositSuccess(null), 6000);
+      // Assignment check
+      if (order.pickup_point_id && relayId && order.pickup_point_id !== relayId) {
+        alert("⛔ Erreur d'assignation : Ce colis est assigné à un AUTRE point relais. Impossible de le réceptionner dans votre établissement.");
+        setIsDepositing(false);
+        return;
+      }
+
+      // Shipped check
+      if (order.status !== "shipped" && order.status !== "in_transit") {
+        const statusLabel = order.status === "pending" ? "En attente confirmation marchand" : "En cours de préparation chez le vendeur";
+        alert(`⛔ Impossible de mettre ce colis en étagère :\nLe vendeur n'a pas encore remis la commande au coursier (Statut actuel : ${statusLabel}).\nLa réception ne peut se faire qu'une fois le colis expédié.`);
+        setIsDepositing(false);
+        return;
+      }
+
+      if (order.relay_status === "ready_for_pickup") {
+        alert("ℹ️ Ce colis est DÉJÀ enregistré en étagère dans votre point relais.");
+        setIsDepositing(false);
+        return;
+      }
+
+      const generatedOtp = order.pickup_code || Math.floor(100000 + Math.random() * 900000).toString();
+
+      const { data: rpcRes } = await supabase.rpc("relay_receive_package", {
+        p_order_id: order.id,
+        p_pickup_code: generatedOtp,
+        p_relay_code: relayCode || null
+      });
+
+      if (rpcRes && !rpcRes.success) {
+        alert(rpcRes.message || "Erreur de réception.");
+        setIsDepositing(false);
+        return;
+      }
+
+      // Fallback direct sync
+      await supabase
+        .from("orders")
+        .update({
+          relay_status: "ready_for_pickup",
+          deposited_at: new Date().toISOString(),
+          pickup_code: generatedOtp,
+        })
+        .eq("id", order.id);
+
+      setDepositSuccess(`Colis #${order.id.slice(0, 8).toUpperCase()} (${order.customer_name}) réceptionné avec succès et placé en étagère.`);
+      setDepositCode("");
+      
+      // Reload live data
+      const { data: inStockOrders } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("pickup_point_id", relayId)
+        .eq("relay_status", "ready_for_pickup");
+      setCapacity(prev => ({ ...prev, current: inStockOrders?.length || prev.current + 1 }));
+      setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
+    } catch (err: any) {
+      alert("Erreur lors de la réception : " + err.message);
+    } finally {
+      setIsDepositing(false);
+      setTimeout(() => setDepositSuccess(null), 6000);
+    }
   };
 
   // Handle Customer Pickup via OTP Code Verification
@@ -609,22 +632,27 @@ export default function RelayDashboardHome() {
             </div>
             <div>
               <h3 className="font-extrabold text-gray-900 text-base">
-                Colis Attendus (En cours d'acheminement par le vendeur / coursier)
+                Colis Attendus & Acheminement
               </h3>
               <p className="text-xs text-gray-500 font-medium">
-                Commandes passées par les clients pour votre point relais — Cliquez sur « Réceptionner » dès que le coursier moto arrive.
+                Suivi des colis confiés aux coursiers vers votre point relais. Les colis en préparation chez le vendeur ne peuvent être réceptionnés qu'après expédition.
               </p>
             </div>
           </div>
-          <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black px-3.5 py-1.5 rounded-full self-start sm:self-auto">
-            {expectedOrders.length} colis en route
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black px-3 py-1 rounded-full">
+              {expectedOrders.filter(o => o.status === "shipped" || o.status === "in_transit").length} en route avec coursier
+            </span>
+            <span className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black px-3 py-1 rounded-full">
+              {expectedOrders.filter(o => o.status === "pending" || o.status === "processing" || o.status === "preparing").length} en préparation vendeur
+            </span>
+          </div>
         </div>
 
         {expectedOrders.length === 0 ? (
           <div className="py-8 text-center text-gray-400 font-medium text-xs bg-slate-50/50 rounded-2xl border border-dashed border-gray-200">
             <Truck className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-            Aucun nouveau colis en cours d'acheminement pour le moment.
+            Aucun nouveau colis en attente pour le moment.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -632,38 +660,64 @@ export default function RelayDashboardHome() {
               <thead>
                 <tr className="bg-slate-50 text-gray-600 font-black border-b border-gray-200">
                   <th className="px-4 py-3.5 rounded-l-xl">N° Commande</th>
-                  <th className="px-4 py-3.5">Nom du Client</th>
-                  <th className="px-4 py-3.5">Téléphone Client</th>
-                  <th className="px-4 py-3.5">Montant Commande</th>
-                  <th className="px-4 py-3.5">Date Commande</th>
+                  <th className="px-4 py-3.5">Boutique Marchande</th>
+                  <th className="px-4 py-3.5">Client & Contact</th>
+                  <th className="px-4 py-3.5">Statut Acheminement</th>
+                  <th className="px-4 py-3.5">Montant</th>
                   <th className="px-4 py-3.5 rounded-r-xl text-right">Action Réception</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {expectedOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-indigo-50/40 transition-colors">
-                    <td className="px-4 py-4 font-mono font-black text-indigo-700">
-                      #{order.id.slice(0, 8).toUpperCase()}
-                    </td>
-                    <td className="px-4 py-4 font-bold text-gray-900">{order.customer_name}</td>
-                    <td className="px-4 py-4 font-mono text-gray-600">{order.customer_phone}</td>
-                    <td className="px-4 py-4 font-bold text-gray-900">
-                      {Number(order.total_amount || 0).toLocaleString()} FCFA
-                    </td>
-                    <td className="px-4 py-4 text-gray-400 text-[11px]">
-                      {new Date(order.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => handleQuickReceive(order)}
-                        disabled={isDepositing}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        <Package className="w-4 h-4" /> Réceptionner &amp; Mettre en Étagère
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {expectedOrders.map((order) => {
+                  const isShipped = order.status === "shipped" || order.status === "in_transit";
+                  return (
+                    <tr key={order.id} className="hover:bg-indigo-50/40 transition-colors">
+                      <td className="px-4 py-4 font-mono font-black text-indigo-700">
+                        #{order.id.slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-4 py-4 font-bold text-gray-800">
+                        {order.shop_name || "Boutique Partenaire"}
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="font-bold text-gray-900">{order.customer_name}</p>
+                        <p className="font-mono text-[11px] text-gray-500">{order.customer_phone}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        {isShipped ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-black px-2.5 py-1 rounded-xl text-[10px] inline-flex items-center gap-1">
+                            <Truck size={12} /> En Route avec Coursier
+                          </span>
+                        ) : (
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 font-extrabold px-2.5 py-1 rounded-xl text-[10px] inline-flex items-center gap-1" title="Le vendeur n'a pas encore remis le colis au coursier.">
+                            ⏳ Chez le Vendeur ({order.status === "pending" ? "En attente" : "En préparation"})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 font-bold text-gray-900">
+                        {Number(order.total_amount || 0).toLocaleString()} FCFA
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {isShipped ? (
+                          <button
+                            onClick={() => handleQuickReceive(order)}
+                            disabled={isDepositing}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-md shadow-indigo-600/20 inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <Package className="w-4 h-4" /> Réceptionner du Coursier
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleQuickReceive(order)}
+                            className="bg-gray-100 border border-gray-200 text-gray-400 font-bold text-xs px-3.5 py-2 rounded-xl cursor-not-allowed inline-flex items-center gap-1.5 opacity-80"
+                            title="Le vendeur n'a pas encore expédié ce colis. Vous ne pouvez le réceptionner que lorsqu'il est en route."
+                          >
+                            <span>🔒 En attente d'expédition</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

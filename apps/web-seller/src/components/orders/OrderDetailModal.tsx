@@ -40,6 +40,7 @@ export interface SellerOrder {
   shipping_fee?: number;
   status: string;
   delivery_type?: string;
+  pickup_point_id?: string;
   created_at: string;
 }
 
@@ -141,6 +142,16 @@ export default function OrderDetailModal({
             target_role: "all",
             is_broadcast: true,
           });
+
+          // Point Relais notification if delivery type is pickup_point
+          if (order.pickup_point_id) {
+            await supabase.from("relay_notifications").insert({
+              pickup_point_id: order.pickup_point_id,
+              title: "🚚 Colis Remis au Coursier (En Route)",
+              message: `Le vendeur a préparé et expédié le colis #${orderCode} (${displayName}). Le coursier est en route vers votre point relais.`,
+              type: "in_transit"
+            });
+          }
         }
 
         if (notifTitle && order.customer_id) {
