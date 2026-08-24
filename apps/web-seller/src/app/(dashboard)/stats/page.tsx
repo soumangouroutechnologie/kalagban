@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import React, { useState, useEffect } from "react";
 import { TrendingUp, Package, Users, Banknote, ArrowUp, Star, Loader2, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -79,15 +80,16 @@ export default function StatsPage() {
         if (topProductIds.length > 0) {
           const { data: productsData } = await supabase
             .from('products')
-            .select('id, title, price')
+            .select('id, title, price, image_url, product_media(url)')
             .in('id', topProductIds);
 
           if (productsData) {
-            const formattedTopProducts = productsData.map(p => ({
+            const formattedTopProducts = productsData.map((p: any) => ({
               id: p.id,
               name: p.title,
-              price: `${p.price} FCFA`,
-              sales: productSales[p.id]
+              price: `${Number(p.price || 0).toLocaleString('fr-FR')} FCFA`,
+              sales: productSales[p.id],
+              image: p.image_url || (p.product_media && p.product_media.length > 0 ? p.product_media[0].url : undefined),
             })).sort((a, b) => b.sales - a.sales);
             
             setTopProducts(formattedTopProducts);
@@ -211,10 +213,20 @@ export default function StatsPage() {
                   {index + 1}
                 </div>
 
-                {/* Image Placeholder */}
-                <div className="w-full aspect-square rounded-xl overflow-hidden mb-4 shadow-sm bg-gray-200 flex flex-col items-center justify-center text-gray-400">
-                   <ImageIcon size={48} className="mb-2" />
-                   <span className="text-xs font-bold uppercase">Image produit</span>
+                {/* Image Produit */}
+                <div className="w-full aspect-square rounded-2xl overflow-hidden mb-4 shadow-xs bg-gray-100 flex flex-col items-center justify-center text-gray-400 relative">
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-4">
+                      <ImageIcon size={44} className="mb-2 text-gray-300" />
+                      <span className="text-[10px] font-bold uppercase text-gray-400 tracking-wider">Image produit</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Infos visuelles */}
