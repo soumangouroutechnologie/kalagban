@@ -86,6 +86,7 @@ export default function CustomerAccountPage() {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   // Profile Edit State
   const [editFullName, setEditFullName] = useState("");
@@ -260,6 +261,75 @@ export default function CustomerAccountPage() {
     }
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront immédiatement réintégrés au stock de la boutique.")) {
+      return;
+    }
+    setCancellingOrderId(orderId);
+    try {
+      // 1. Fetch order details to restore stock and notify seller
+      const { data: orderToCancel } = await supabase
+        .from("orders")
+        .select("id, shop_id, order_items(product_id, quantity)")
+        .eq("id", orderId)
+        .single();
+
+      // 2. Update order status to cancelled
+      const { error: updateErr } = await supabase
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", orderId);
+
+      if (updateErr) throw updateErr;
+
+      // 3. Restore product stock quantity
+      if (orderToCancel?.order_items) {
+        for (const item of orderToCancel.order_items) {
+          if (item.product_id && item.quantity > 0) {
+            const { data: prod } = await supabase
+              .from("products")
+              .select("stock_quantity")
+              .eq("id", item.product_id)
+              .single();
+            if (prod) {
+              await supabase
+                .from("products")
+                .update({ stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity) })
+                .eq("id", item.product_id);
+            }
+          }
+        }
+      }
+
+      // 4. Notify Seller
+      if (orderToCancel?.shop_id) {
+        try {
+          await supabase.from("seller_notifications").insert({
+            shop_id: orderToCancel.shop_id,
+            title: "Commande Annulée par le Client ❌",
+            message: `La commande #${orderId.slice(0, 8).toUpperCase()} a été annulée par l'acheteur. Les articles ont été réintégrés à votre stock.`,
+            type: "order",
+            reference_id: orderId,
+          });
+        } catch (notifErr) {
+          console.warn("Notification error:", notifErr);
+        }
+      }
+
+      // 5. Update local state
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "cancelled" } : o))
+      );
+      alert("Votre commande a bien été annulée avec succès.");
+    } catch (err: unknown) {
+      console.error("Error cancelling order:", err);
+      const msg = err instanceof Error ? err.message : "Une erreur est survenue lors de l'annulation.";
+      alert("Erreur : " + msg);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   const getStatusBadge = (status: string, relayStatus?: string | null) => {
     if (status === "delivered" || relayStatus === "picked_up") {
       return <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5"><CheckCircle2 size={14} /> Commande Livrée 🎉</span>;
@@ -270,6 +340,8 @@ export default function CustomerAccountPage() {
     switch (status) {
       case "pending":
         return <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200 flex items-center gap-1.5"><Clock size={14} /> En attente de préparation</span>;
+      case "pending_payment":
+        return <span className="bg-orange-50 text-orange-700 text-xs font-bold px-3 py-1.5 rounded-full border border-orange-200 flex items-center gap-1.5"><Clock size={14} /> En attente de paiement</span>;
       case "processing":
         return <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full border border-indigo-200 flex items-center gap-1.5"><Package size={14} /> En préparation par le vendeur</span>;
       case "shipped":
@@ -462,8 +534,25 @@ export default function CustomerAccountPage() {
                     />
                   </div>
 
-                  {/* Order Receipt Link */}
-                  <div className="pt-2 flex justify-end">
+                  {/* Order Actions */}
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-gray-50">
+                    {(ord.status === "pending" || ord.status === "pending_payment") ? (
+                      <button
+                        onClick={() => handleCancelOrder(ord.id)}
+                        disabled={cancellingOrderId === ord.id}
+                        className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-xl border border-red-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {cancellingOrderId === ord.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <XCircle size={14} />
+                        )}
+                        Annuler la commande
+                      </button>
+                    ) : (
+                      <div />
+                    )}
+
                     <Link 
                       href={`/orders/${ord.id}`} 
                       className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 transition-colors"

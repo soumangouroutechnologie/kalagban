@@ -66,10 +66,14 @@ export async function initKPayPayment(options: KPayInitOptions): Promise<KPayIni
     description: options.description || `Commande Kalagban #${options.externalId}`,
   };
 
-  if (options.customerName) payload.customerName = options.customerName;
-  if (options.customerEmail) payload.customerEmail = options.customerEmail;
-  if (options.customerPhone) payload.customerPhone = options.customerPhone;
-  if (options.metadata) payload.metadata = options.metadata;
+  const metadataObj: Record<string, unknown> = { ...(options.metadata || {}) };
+  if (options.customerName) metadataObj.customerName = options.customerName;
+  if (options.customerEmail) metadataObj.customerEmail = options.customerEmail;
+  if (options.customerPhone) metadataObj.customerPhone = options.customerPhone;
+
+  if (Object.keys(metadataObj).length > 0) {
+    payload.metadata = metadataObj;
+  }
 
   const res = await fetch(`${KPAY_BASE_URL}/api/v1/payments/init`, {
     method: "POST",

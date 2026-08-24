@@ -7,11 +7,12 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   SafeAreaView,
+  Alert,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CheckCircle2, KeyRound, Package, Home } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, KeyRound, Package, Home, XCircle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 
@@ -29,6 +30,7 @@ interface OrderDetail {
   pickup_code?: string;
   relay_status?: string;
   shipping_address?: string;
+  shop_id?: string;
 }
 
 export default function OrderDetailsReceiptScreen() {
@@ -41,6 +43,81 @@ export default function OrderDetailsReceiptScreen() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelOrder = () => {
+    if (!order) return;
+    Alert.alert(
+      "Annuler la commande",
+      "Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront remis en stock.",
+      [
+        { text: "Non, conserver", style: "cancel" },
+        { 
+          text: "Oui, annuler", 
+          style: "destructive",
+          onPress: async () => {
+            setIsCancelling(true);
+            try {
+              // 1. Fetch items to restore stock
+              const { data: items } = await supabase
+                .from('order_items')
+                .select('product_id, quantity')
+                .eq('order_id', order.id);
+
+              // 2. Update status
+              const { error: updateErr } = await supabase
+                .from('orders')
+                .update({ status: 'cancelled' })
+                .eq('id', order.id);
+
+              if (updateErr) throw updateErr;
+
+              // 3. Restore stock
+              if (items) {
+                for (const item of items) {
+                  if (item.product_id && item.quantity > 0) {
+                    const { data: prod } = await supabase
+                      .from('products')
+                      .select('stock_quantity')
+                      .eq('id', item.product_id)
+                      .single();
+                    if (prod) {
+                      await supabase
+                        .from('products')
+                        .update({ stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity) })
+                        .eq('id', item.product_id);
+                    }
+                  }
+                }
+              }
+
+              // 4. Notify Seller
+              if (order.shop_id) {
+                try {
+                  await supabase.from('seller_notifications').insert({
+                    shop_id: order.shop_id,
+                    title: "Commande Annulée par le Client ❌",
+                    message: `La commande #${order.id.slice(0, 8).toUpperCase()} a été annulée par l'acheteur.`,
+                    type: "order",
+                    reference_id: order.id,
+                  });
+                } catch (notifErr) {
+                  console.warn("Notification error:", notifErr);
+                }
+              }
+
+              setOrder(prev => prev ? { ...prev, status: 'cancelled' } : null);
+              Alert.alert("Succès", "Votre commande a été annulée.");
+            } catch (err: any) {
+              Alert.alert("Erreur", err.message || "Impossible d'annuler la commande.");
+            } finally {
+              setIsCancelling(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -187,6 +264,22 @@ export default function OrderDetailsReceiptScreen() {
             </Text>
           </View>
         </View>
+
+        {(order.status === 'pending' || order.status === 'pending_payment') ? (
+          <TouchableOpacity 
+            style={styles.cancelBtn} 
+            onPress={handleCancelOrder}
+            disabled={isCancelling}
+            activeOpacity={0.85}
+          >
+            {isCancelling ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <XCircle size={16} color="#DC2626" />
+            )}
+            <Text style={styles.cancelBtnText}>Annuler cette commande</Text>
+          </TouchableOpacity>
+        ) : null}
 
       </ScrollView>
 
@@ -408,5 +501,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: '#4F46E5',
+  },
+  cancelBtn: {
+    marginTop: 16,
+    marginBottom: 24,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingVertical: 14,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cancelBtnText: {
+    color: '#DC2626',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

@@ -10,7 +10,8 @@ import {
   CheckCircle2, 
   Package, 
   ArrowRight, 
-  Loader2 
+  Loader2,
+  XCircle
 } from "lucide-react";
 
 interface OrderDetail {
@@ -45,6 +46,63 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
   const [items, setItems] = useState<OrderItem[]>([]);
   const [shop, setShop] = useState<{ name?: string; payout_phone?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+    if (!confirm("Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront remis en stock.")) {
+      return;
+    }
+    setIsCancelling(true);
+    try {
+      // 1. Update order status to cancelled
+      const { error: updateErr } = await supabase
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", order.id);
+
+      if (updateErr) throw updateErr;
+
+      // 2. Restore product stock
+      for (const item of items) {
+        const { data: prod } = await supabase
+          .from("products")
+          .select("stock_quantity")
+          .eq("id", item.id)
+          .single();
+        if (prod) {
+          await supabase
+            .from("products")
+            .update({ stock_quantity: Number(prod.stock_quantity || 0) + Number(item.quantity) })
+            .eq("id", item.id);
+        }
+      }
+
+      // 3. Notify Seller
+      if (order.shop_id) {
+        try {
+          await supabase.from("seller_notifications").insert({
+            shop_id: order.shop_id,
+            title: "Commande Annulée par le Client ❌",
+            message: `La commande #${order.id.slice(0, 8).toUpperCase()} a été annulée par l'acheteur. Les articles ont été réintégrés à votre stock.`,
+            type: "order",
+            reference_id: order.id,
+          });
+        } catch (notifErr) {
+          console.warn("Notification error:", notifErr);
+        }
+      }
+
+      setOrder((prev) => (prev ? { ...prev, status: "cancelled" } : null));
+      alert("Votre commande a été annulée avec succès.");
+    } catch (err: unknown) {
+      console.error("Error cancelling order:", err);
+      const msg = err instanceof Error ? err.message : "Une erreur est survenue.";
+      alert("Erreur lors de l'annulation : " + msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -254,9 +312,20 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
 
-        {/* Home Button */}
-        <div className="text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-indigo-600 font-bold hover:underline">
+        {/* Actions & Navigation */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+          {(order.status === "pending" || order.status === "pending_payment") && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={isCancelling}
+              className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-600 font-bold px-5 py-3 rounded-2xl border border-red-200 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-sm"
+            >
+              {isCancelling ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+              Annuler cette commande
+            </button>
+          )}
+
+          <Link href="/" className="inline-flex items-center gap-2 text-indigo-600 font-bold hover:underline text-sm ml-auto">
             Retourner à l&apos;accueil de la boutique <ArrowRight size={16} />
           </Link>
         </div>

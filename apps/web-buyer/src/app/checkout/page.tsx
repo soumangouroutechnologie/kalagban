@@ -145,6 +145,8 @@ export default function CheckoutPage() {
       return;
     }
 
+    let lastOrderId = "";
+
     try {
       // 0. Verify real-time stock availability
       const productIds = Array.from(new Set(cart.map((i) => i.productId)));
@@ -171,7 +173,6 @@ export default function CheckoutPage() {
         shopGroups[item.shopId].push(item);
       });
 
-      let lastOrderId = "";
       let grandTotal = 0;
 
       for (const [shopId, items] of Object.entries(shopGroups)) {
@@ -199,7 +200,7 @@ export default function CheckoutPage() {
             application_fee_rate: feeCalc.rate,
             shipping_fee: 0,
             total_amount: feeCalc.total,
-            status: "pending",
+            status: paymentMethod === "kpay" ? "pending_payment" : "pending",
             delivery_type: deliveryType,
             pickup_point_id: deliveryType === "pickup_point" ? (selectedRelay?.id || null) : null,
             pickup_code: generatedOtp,
@@ -216,45 +217,47 @@ export default function CheckoutPage() {
           return;
         }
 
-        // Safe In-App Notification Dispatches
-        try {
-          if (deliveryType === "pickup_point" && selectedRelay) {
-            await supabase.from("relay_notifications").insert({
-              title: "Nouvelle Commande Client à Réceptionner",
-              message: `La commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
-              type: "pickup"
-            });
-          }
+        // Safe In-App Notification Dispatches (Only for COD or confirmed orders)
+        if (paymentMethod === "cod") {
+          try {
+            if (deliveryType === "pickup_point" && selectedRelay) {
+              await supabase.from("relay_notifications").insert({
+                title: "Nouvelle Commande Client à Réceptionner",
+                message: `La commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
+                type: "pickup"
+              });
+            }
 
-          if (shopId) {
-            await supabase.from("seller_notifications").insert({
-              shop_id: shopId,
-              title: "Nouvelle Commande Reçue 🛍️",
-              message: `Nouvelle commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${groupSubtotal.toLocaleString("fr-FR")} FCFA). En attente de votre confirmation.`,
-              type: "order",
-              reference_id: orderData.id,
-            });
-          }
+            if (shopId) {
+              await supabase.from("seller_notifications").insert({
+                shop_id: shopId,
+                title: "Nouvelle Commande Reçue 🛍️",
+                message: `Nouvelle commande #${orderData.id.slice(0, 8).toUpperCase()} de ${customerName} (${groupSubtotal.toLocaleString("fr-FR")} FCFA). En attente de votre confirmation.`,
+                type: "order",
+                reference_id: orderData.id,
+              });
+            }
 
-          if (session?.user?.id) {
-            await supabase.from("customer_notifications").insert({
-              customer_id: session.user.id,
-              order_id: orderData.id,
-              title: "Commande Effectuée avec Succès 🎉",
-              message: `Votre commande #${orderData.id.slice(0, 8).toUpperCase()} a été enregistrée avec succès. Nous attendons la confirmation du vendeur.`,
-              type: "order",
-            });
-          }
+            if (session?.user?.id) {
+              await supabase.from("customer_notifications").insert({
+                customer_id: session.user.id,
+                order_id: orderData.id,
+                title: "Commande Effectuée avec Succès 🎉",
+                message: `Votre commande #${orderData.id.slice(0, 8).toUpperCase()} a été enregistrée avec succès. Nous attendons la confirmation du vendeur.`,
+                type: "order",
+              });
+            }
 
-          await supabase.from("admin_notifications").insert({
-            title: "Nouvelle Commande Marketplace",
-            message: `Commande #${orderData.id.slice(0, 8).toUpperCase()} passée par ${customerName} (${feeCalc.total.toLocaleString("fr-FR")} FCFA).`,
-            notification_type: "info",
-            target_role: "all",
-            is_broadcast: true,
-          });
-        } catch (notifErr) {
-          console.warn("Non-blocking notification error:", notifErr);
+            await supabase.from("admin_notifications").insert({
+              title: "Nouvelle Commande Marketplace",
+              message: `Commande #${orderData.id.slice(0, 8).toUpperCase()} passée par ${customerName} (${feeCalc.total.toLocaleString("fr-FR")} FCFA).`,
+              notification_type: "info",
+              target_role: "all",
+              is_broadcast: true,
+            });
+          } catch (notifErr) {
+            console.warn("Non-blocking notification error:", notifErr);
+          }
         }
 
         lastOrderId = orderData.id;
@@ -310,6 +313,15 @@ export default function CheckoutPage() {
 
     } catch (err: unknown) {
       console.error("Checkout Exception:", err);
+      // Clean up uncommitted order on failure so seller does not receive ghost order
+      if (lastOrderId) {
+        try {
+          await supabase.from("order_items").delete().eq("order_id", lastOrderId);
+          await supabase.from("orders").delete().eq("id", lastOrderId);
+        } catch (cleanupErr) {
+          console.warn("Error cleaning up aborted order:", cleanupErr);
+        }
+      }
       const msg = err instanceof Error ? err.message : "Une erreur inattendue est survenue.";
       setErrorMsg(msg);
     } finally {
