@@ -199,12 +199,17 @@ export default function TeamPage() {
 
       currentCustom[permKey as string] = newVal;
 
-      await supabase.from("admin_permissions").upsert({
+      const { error: upErr } = await supabase.from("admin_permissions").upsert({
         user_id: memberId,
         [permKey]: newVal,
         custom_permissions: currentCustom,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: "user_id" });
+
+      if (upErr) {
+        console.error("Error upserting admin_permissions:", upErr);
+        throw upErr;
+      }
 
       // Local state update
       setMembers((prev) =>
@@ -220,8 +225,10 @@ export default function TeamPage() {
           return m;
         })
       );
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error toggling permission:", err);
+      const msg = err instanceof Error ? err.message : "Erreur lors de la modification de la permission.";
+      alert(msg);
     } finally {
       setSavingPermissions(null);
     }
@@ -556,14 +563,22 @@ export default function TeamPage() {
                             <button
                               disabled={!isSuperAdmin || savingPermissions === m.id}
                               onClick={() => handleToggleExtraPermission(m.id, perm.key)}
-                              className={`w-7 h-7 rounded-xl inline-flex items-center justify-center transition-all cursor-pointer ${
-                                has
-                                  ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
-                                  : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                              className={`w-8 h-8 rounded-xl inline-flex items-center justify-center transition-all cursor-pointer transform active:scale-95 ${
+                                savingPermissions === m.id
+                                  ? "bg-slate-200 text-slate-600 animate-pulse"
+                                  : has
+                                    ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105"
+                                    : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-800 hover:scale-105 border border-slate-200/60"
                               }`}
-                              title={has ? "Permission active (Cliquer pour retirer)" : "Permission inactive (Cliquer pour accorder)"}
+                              title={has ? "Permission active (Cliquer pour désactiver)" : "Permission inactive (Cliquer pour accorder l'accès)"}
                             >
-                              {has ? <Check size={14} className="stroke-3" /> : <X size={14} />}
+                              {savingPermissions === m.id ? (
+                                <Loader2 size={14} className="animate-spin text-slate-600" />
+                              ) : has ? (
+                                <Check size={16} className="stroke-3" />
+                              ) : (
+                                <X size={14} className="stroke-2" />
+                              )}
                             </button>
                           )}
                         </td>
