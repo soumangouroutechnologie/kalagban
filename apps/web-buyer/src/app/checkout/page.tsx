@@ -279,7 +279,7 @@ export default function CheckoutPage() {
             application_fee_rate: feeCalc.rate,
             shipping_fee: 0,
             total_amount: feeCalc.total,
-            status: paymentMethod === "kpay" ? "pending_payment" : "pending",
+            status: "pending",
             delivery_type: deliveryType,
             pickup_point_id: deliveryType === "pickup_point" ? (selectedRelay?.id || null) : null,
             pickup_code: generatedOtp,
