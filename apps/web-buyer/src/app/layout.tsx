@@ -1,7 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
+import { FavoritesProvider } from "@/context/FavoritesContext";
 import CartDrawer from "@/components/CartDrawer";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "Kalagban - Le Marché des Meilleurs Commerçants",
@@ -16,10 +24,12 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
-        <CartProvider>
-          {children}
-          <CartDrawer />
-        </CartProvider>
+        <FavoritesProvider>
+          <CartProvider>
+            {children}
+            <CartDrawer />
+          </CartProvider>
+        </FavoritesProvider>
       </body>
     </html>
   );

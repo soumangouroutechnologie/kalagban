@@ -206,7 +206,7 @@ export default function CategoryJumiaStyleScreen() {
   };
 
   const handleToggleFav = async (prod: ProductItem) => {
-    const res = await toggleFavorite({
+    await toggleFavorite({
       id: prod.id,
       title: prod.title,
       price: prod.price,
@@ -214,16 +214,6 @@ export default function CategoryJumiaStyleScreen() {
       image_url: prod.image_url,
       shop_name: prod.shop_name,
     });
-    if (res.requiresAuth) {
-      Alert.alert(
-        'Connexion requise',
-        'Connectez-vous pour ajouter des produits à vos favoris.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Se connecter', onPress: () => router.push('/favorites') },
-        ]
-      );
-    }
   };
 
   const formatPrice = (amount: number) => {

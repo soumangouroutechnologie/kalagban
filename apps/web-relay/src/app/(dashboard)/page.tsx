@@ -83,7 +83,7 @@ function generateSecureOtp(): string {
 }
 
 export default function RelayDashboardHome() {
-  const [relayCode, setRelayCode] = useState<string>(() => {
+  const [relayCode] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("kalagban_relay_code") || "";
     }
@@ -239,16 +239,29 @@ export default function RelayDashboardHome() {
 
   // Initial load from Supabase PostgreSQL with strict relay tenant isolation
   useEffect(() => {
-    void loadRealData();
+    let isMounted = true;
+
+    const initLoad = async () => {
+      if (isMounted) {
+        await loadRealData();
+      }
+    };
+
+    void initLoad();
 
     // Supabase Live Realtime (orders & relay_logs)
     const channel = supabase
       .channel("relay_dashboard_orders_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { void loadRealData(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => { void loadRealData(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        if (isMounted) void loadRealData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_logs" }, () => {
+        if (isMounted) void loadRealData();
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       void supabase.removeChannel(channel);
     };
   }, [loadRealData]);
@@ -316,8 +329,19 @@ export default function RelayDashboardHome() {
             trackingUrl: "https://kalagban.com/account",
           }),
         });
+
+        // In-App Notification to Customer
+        if (order.customer_id) {
+          await supabase.from("customer_notifications").insert({
+            customer_id: order.customer_id,
+            order_id: order.id,
+            title: "📦 Colis disponible au Point Relais !",
+            message: `Votre commande #${orderCode} est arrivée et vous attend au ${relayCode ? `Point Relais ${relayCode}` : "Point Relais"}. Votre Code secret de retrait est : ${generatedOtp}.`,
+            type: "pickup",
+          });
+        }
       } catch (mailErr) {
-        console.error("Error triggering ready_for_pickup email:", mailErr);
+        console.error("Error triggering ready_for_pickup notifications:", mailErr);
       }
 
       setExpectedOrders(prev => prev.filter(o => o.id !== order.id));
@@ -417,7 +441,49 @@ export default function RelayDashboardHome() {
         })
         .eq("id", order.id);
 
-      const successText = `Colis #${order.id.slice(0, 8).toUpperCase()} (${order.customer_name || "Client"}) réceptionné avec succès.`;
+      const orderRef = order.id.slice(0, 8).toUpperCase();
+
+      // Trigger Email & In-App Customer Notifications
+      try {
+        let recipientEmail = order.customer_email;
+        if (!recipientEmail && order.customer_id) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("id", order.customer_id)
+            .maybeSingle();
+          if (prof?.email) recipientEmail = prof.email;
+        }
+
+        await fetch("/api/notifications/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "READY_FOR_PICKUP",
+            orderId: order.id,
+            orderCode: orderRef,
+            recipientEmail: recipientEmail,
+            recipientName: order.customer_name,
+            pickupCode: generatedOtp,
+            relayName: relayCode ? `Point Relais ${relayCode}` : "Point Relais Kalagban",
+            trackingUrl: "https://kalagban.com/account",
+          }),
+        });
+
+        if (order.customer_id) {
+          await supabase.from("customer_notifications").insert({
+            customer_id: order.customer_id,
+            order_id: order.id,
+            title: "📦 Colis disponible au Point Relais !",
+            message: `Votre commande #${orderRef} est arrivée et vous attend au ${relayCode ? `Point Relais ${relayCode}` : "Point Relais"}. Votre Code secret de retrait est : ${generatedOtp}.`,
+            type: "pickup",
+          });
+        }
+      } catch (notifyErr) {
+        console.error("Error triggering deposit notifications:", notifyErr);
+      }
+
+      const successText = `Colis #${orderRef} (${order.customer_name || "Client"}) réceptionné avec succès.`;
       setDepositSuccess(successText);
       toast.success("Colis Réceptionné !", successText);
       setDepositCode("");
@@ -645,7 +711,7 @@ export default function RelayDashboardHome() {
             Pilotez vos réceptions et remises de colis en toute simplicité ✨
           </h1>
           <p className="text-sm text-gray-300 font-medium">
-            Enregistrez rapidement les arrivages des coursiers et sécurisez la livraison aux clients à l&apos;aide de leur Code OTP à 6 chiffres.
+            Enregistrez rapidement les arrivages des coursiers et sécurisez la livraison aux clients à l&apos;aide de leur Code OTP à 4 chiffres.
           </p>
         </div>
       </div>
@@ -871,7 +937,7 @@ export default function RelayDashboardHome() {
             </div>
             <div>
               <h3 className="font-extrabold text-gray-900 text-base">2. Remise Colis au Client (Code OTP)</h3>
-              <p className="text-xs text-gray-500 font-medium">Valider le code de sécurité à 6 chiffres de l&apos;acheteur</p>
+              <p className="text-xs text-gray-500 font-medium">Valider le code de sécurité à 4 chiffres de l&apos;acheteur</p>
             </div>
           </div>
 
@@ -892,14 +958,16 @@ export default function RelayDashboardHome() {
           <form onSubmit={handleOtpVerify} className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Code OTP à 6 Chiffres Présenté par l&apos;Acheteur
+                Code OTP à 4 Chiffres Présenté par l&apos;Acheteur
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value)}
-                  placeholder="ex: 748291"
+                  placeholder="ex: 3717"
+                  maxLength={6}
+                  inputMode="numeric"
                   className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-2xl py-3.5 px-4 pl-11 focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-600 transition-all font-mono tracking-widest text-lg font-bold text-center"
                   required
                 />

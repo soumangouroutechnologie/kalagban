@@ -69,8 +69,8 @@ export default function Footer() {
   }, []);
 
   return (
-    <footer className="bg-white text-gray-900 pt-12 pb-10 mt-16 border-t border-gray-100 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <footer className="bg-white text-gray-900 pt-12 pb-10 mt-16 border-t border-gray-100 shadow-xs w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         
         {/* Useful Links Grid Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-12 border-b border-gray-100">

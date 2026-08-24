@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  RefreshControl,
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
@@ -75,6 +76,7 @@ export default function MarketplaceHomeScreen() {
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParentCat, setSelectedParentCat] = useState<string | null>(null);
   const [selectedSubCat, setSelectedSubCat] = useState<string>('all');
@@ -276,6 +278,20 @@ export default function MarketplaceHomeScreen() {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchProducts(),
+        fetchAdBanner(),
+      ]);
+    } catch (err) {
+      console.error("Error refreshing mobile buyer data:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleAddToCart = (product: ProductItem) => {
     if (product.stock_quantity <= 0) return;
     addToCart({
@@ -296,7 +312,7 @@ export default function MarketplaceHomeScreen() {
   };
 
   const handleToggleFav = async (product: ProductItem) => {
-    const res = await toggleFavorite({
+    await toggleFavorite({
       id: product.id,
       title: product.title,
       price: product.price,
@@ -304,17 +320,6 @@ export default function MarketplaceHomeScreen() {
       image_url: product.image_url,
       shop_name: product.shop_name,
     });
-
-    if (res.requiresAuth) {
-      Alert.alert(
-        'Connexion requise',
-        'Vous devez être inscrit ou connecté à votre compte Kalagban pour ajouter des produits à vos favoris.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Se connecter', onPress: () => router.push('/favorites') },
-        ]
-      );
-    }
   };
 
   const handleAdPress = () => {
@@ -453,7 +458,18 @@ export default function MarketplaceHomeScreen() {
         </View>
       ) : null}
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 76 + bottomPadding }]}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 76 + bottomPadding }]}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            colors={['#4F46E5']} 
+            tintColor="#4F46E5" 
+          />
+        }
+      >
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Search size={20} color="#64748B" style={styles.searchIcon} />

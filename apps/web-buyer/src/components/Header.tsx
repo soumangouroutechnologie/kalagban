@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ShoppingBag, Search, User, UserCheck, Home, Heart, X, Bell, Truck, Package } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useCart } from "@/context/CartContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { supabase } from "@/lib/supabase";
 
 interface CustomerNotification {
@@ -27,6 +28,7 @@ export default function Header({
 }) {
   const pathname = usePathname();
   const { totalItems, setIsCartOpen } = useCart();
+  const { totalFavorites } = useFavorites();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   
   // Notification State
@@ -112,16 +114,16 @@ export default function Header({
   const isAccountPage = pathname === "/account";
 
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-xs">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
         
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 sm:gap-3 group shrink-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+        <Link href="/" className="flex items-center gap-2 group shrink-0">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-2xl shadow-md shadow-indigo-500/30 group-hover:scale-105 transition-transform">
             K
           </div>
           <div className="hidden sm:flex flex-col">
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-gray-900 leading-none">
+            <span className="text-lg sm:text-2xl font-black tracking-tight text-gray-900 leading-none">
               Kalagban
             </span>
             <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 mt-0.5">
@@ -131,31 +133,31 @@ export default function Header({
         </Link>
 
         {/* Search Bar */}
-        <div className="flex-1 max-w-lg mx-2 sm:mx-4 flex">
+        <div className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-4 flex">
           <div className="relative w-full">
             <input
               type="text"
               value={searchTerm || ""}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Rechercher un produit, une catégorie..."
-              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-full py-2.5 sm:py-3 px-4 sm:px-5 pl-10 sm:pl-12 pr-9 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all text-xs sm:text-sm font-medium"
+              placeholder="Rechercher un produit..."
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-full py-2 sm:py-3 px-3 sm:px-5 pl-8 sm:pl-12 pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all text-xs sm:text-sm font-medium"
             />
-            <Search className="absolute left-3.5 sm:left-4.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-2.5 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={15} />
             {searchTerm ? (
               <button
                 type="button"
                 onClick={() => onSearchChange?.("")}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
                 title="Effacer la recherche"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             ) : null}
           </div>
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           
           {/* Notification Bell (If logged in) */}
           {user && (
@@ -165,12 +167,12 @@ export default function Header({
                   setShowNotifs(!showNotifs);
                   if (!showNotifs && unreadCount > 0) markAllAsRead();
                 }}
-                className="relative p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl transition-all cursor-pointer flex items-center justify-center"
+                className="relative p-2 sm:p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl sm:rounded-2xl transition-all cursor-pointer flex items-center justify-center"
                 title="Notifications de suivi"
               >
-                <Bell size={18} />
+                <Bell size={17} />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white font-black text-[10px] w-4 h-4 rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white font-black text-[9px] w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center shadow-xs animate-pulse">
                     {unreadCount}
                   </span>
                 )}
@@ -178,7 +180,7 @@ export default function Header({
 
               {/* Notification Dropdown */}
               {showNotifs && (
-                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-3 w-72 sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                       <Bell size={16} className="text-indigo-600" />
@@ -233,49 +235,58 @@ export default function Header({
             isAccountPage ? (
               <Link
                 href="/"
-                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold px-4 py-2.5 rounded-xl transition-colors text-xs border border-indigo-100"
+                className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold p-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-colors text-xs border border-indigo-100 shrink-0"
+                title="Aller sur Kalagban"
               >
-                <Home size={16} />
-                <span>Aller sur Kalagban</span>
+                <Home size={17} />
+                <span className="hidden md:inline">Accueil</span>
               </Link>
             ) : (
               <Link
                 href="/account"
-                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold px-4 py-2.5 rounded-xl transition-colors text-xs"
+                className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold p-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-colors text-xs shrink-0"
+                title="Mon Compte"
               >
-                <UserCheck size={16} className="text-emerald-600" />
-                <span>Mon Compte</span>
+                <UserCheck size={17} className="text-emerald-600" />
+                <span className="hidden md:inline">Mon Compte</span>
               </Link>
             )
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold px-4 py-2.5 rounded-xl transition-colors text-xs"
+              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold p-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl transition-colors text-xs shrink-0"
+              title="Se Connecter"
             >
-              <User size={16} className="text-gray-600" />
-              <span>Se Connecter</span>
+              <User size={17} className="text-gray-600" />
+              <span className="hidden md:inline">Connexion</span>
             </Link>
           )}
 
           {/* Favoris Button */}
           <Link
             href={user ? "/account?tab=favorites" : "/login?redirect=/account"}
-            className="relative bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3.5 py-2.5 rounded-2xl flex items-center gap-2 transition-all border border-rose-100 text-xs"
-            title="Mes Favoris (Connexion requise)"
+            className="relative bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold p-2 sm:px-3 sm:py-2.5 rounded-xl sm:rounded-2xl flex items-center gap-1.5 transition-all border border-rose-100 text-xs shrink-0"
+            title="Mes Favoris"
           >
-            <Heart size={18} className="fill-rose-500 text-rose-500" />
-            <span className="hidden sm:inline">Favoris</span>
+            <Heart size={17} className="fill-rose-500 text-rose-500" />
+            <span className="hidden lg:inline">Favoris</span>
+            {totalFavorites > 0 && (
+              <span className="bg-rose-500 text-white font-black text-[10px] sm:text-xs px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full">
+                {totalFavorites}
+              </span>
+            )}
           </Link>
 
           {/* Cart Button */}
           <button
             onClick={() => setIsCartOpen(true)}
-            className="relative bg-gray-900 text-white font-bold px-4 py-2.5 rounded-2xl flex items-center gap-2 hover:bg-indigo-600 transition-all shadow-lg shadow-gray-900/10 hover:shadow-indigo-600/30 transform hover:-translate-y-0.5 text-xs cursor-pointer"
+            className="relative bg-gray-900 text-white font-bold p-2 sm:px-3.5 sm:py-2.5 rounded-xl sm:rounded-2xl flex items-center gap-1.5 hover:bg-indigo-600 transition-all shadow-md shadow-gray-900/10 text-xs cursor-pointer shrink-0"
+            title="Mon Panier"
           >
-            <ShoppingBag size={18} />
-            <span className="hidden sm:inline">Panier</span>
+            <ShoppingBag size={17} />
+            <span className="hidden lg:inline">Panier</span>
             {totalItems > 0 && (
-              <span className="bg-emerald-400 text-gray-950 font-black text-xs px-2 py-0.5 rounded-full animate-bounce">
+              <span className="bg-emerald-400 text-gray-950 font-black text-[10px] sm:text-xs px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full">
                 {totalItems}
               </span>
             )}

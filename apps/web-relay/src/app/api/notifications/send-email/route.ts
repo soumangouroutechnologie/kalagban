@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     // Provider check (Resend API Key with verified kalagban.com domain)
     const resendApiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Kalagban <onboarding@resend.dev>";
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Kalagban <notifications@kalagban.com>";
     let providerResponse = null;
 
     if (resendApiKey && recipientEmail) {

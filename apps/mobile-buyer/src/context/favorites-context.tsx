@@ -71,22 +71,40 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const toggleFavorite = async (item: FavoriteItem): Promise<{ success: boolean; requiresAuth?: boolean }> => {
-    const isAuth = await checkAuthStatus();
-    if (!isAuth) {
-      return { success: false, requiresAuth: true };
-    }
+    const sessionRes = await supabase.auth.getSession();
+    const currentUser = sessionRes.data.session?.user || null;
+    setUser(currentUser);
 
-    setFavorites((prev) => {
-      const exists = prev.some((fav) => fav.id === item.id);
-      let updated: FavoriteItem[];
-      if (exists) {
-        updated = prev.filter((fav) => fav.id !== item.id);
-      } else {
-        updated = [...prev, item];
+    const exists = favorites.some((fav) => fav.id === item.id);
+    let updated: FavoriteItem[];
+    if (exists) {
+      updated = favorites.filter((fav) => fav.id !== item.id);
+    } else {
+      updated = [...favorites, item];
+    }
+    setFavorites(updated);
+    await saveFavorites(updated);
+
+    if (currentUser?.id) {
+      try {
+        if (exists) {
+          await supabase
+            .from('wishlists')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('product_id', item.id);
+        } else {
+          await supabase
+            .from('wishlists')
+            .upsert({
+              user_id: currentUser.id,
+              product_id: item.id,
+            }, { onConflict: 'user_id,product_id' });
+        }
+      } catch (err) {
+        console.error('Error syncing wishlist with Supabase:', err);
       }
-      saveFavorites(updated);
-      return updated;
-    });
+    }
 
     return { success: true };
   };

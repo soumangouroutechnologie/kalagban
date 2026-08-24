@@ -428,7 +428,7 @@ export default function BuyerHomePage() {
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fafafa] font-sans relative">
+    <div className="min-h-screen flex flex-col bg-[#fafafa] font-sans relative w-full max-w-[100vw] overflow-x-hidden">
       
       {/* SUBTLE TRANSPARENT AFRICAN PATTERN BACKGROUND OVERLAY */}
       <div 
@@ -437,17 +437,17 @@ export default function BuyerHomePage() {
       />      {/* TOP ANNOUNCEMENT BANNER */}
       {topBannerConfig.enabled && (
         <div 
-          className="relative z-10 text-xs font-bold py-2 px-4 text-center flex items-center justify-center gap-2"
+          className="relative z-10 text-xs font-bold py-2 px-3 sm:px-4 text-center flex items-center justify-center gap-2 overflow-hidden"
           style={{ backgroundColor: topBannerConfig.bg_color, color: topBannerConfig.text_color }}
         >
-          <Sparkles size={14} className="text-amber-300 animate-pulse" />
-          <span>{topBannerConfig.text}</span>
+          <Sparkles size={14} className="text-amber-300 animate-pulse shrink-0" />
+          <span className="truncate">{topBannerConfig.text}</span>
         </div>
       )}
 
       <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16 space-y-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-16 space-y-8 sm:space-y-10 overflow-x-hidden">
         
         {/* HERO SECTION WITH AUTO-SLIDING CAROUSEL */}
         <div className="relative rounded-3xl bg-linear-to-r from-[#f4f2ff] via-[#f7f5ff] to-[#f4f2ff] p-5 sm:p-10 md:p-12 border border-[#e8e4ff] overflow-hidden shadow-xs flex flex-row items-center justify-between gap-4 sm:gap-8">

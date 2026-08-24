@@ -127,7 +127,7 @@ export default function OrderDetailsReceiptScreen() {
               </View>
               <Text style={styles.otpCardCode}>{order.pickup_code}</Text>
               <Text style={styles.otpCardDesc}>
-                Présentez ce code à 6 chiffres au gérant du Point Relais pour récupérer votre colis.
+                Présentez ce code de sécurité au gérant du Point Relais pour récupérer votre colis.
               </Text>
             </View>
           )}

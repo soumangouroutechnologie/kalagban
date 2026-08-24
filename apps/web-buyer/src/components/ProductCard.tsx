@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Image as ImageIcon, Eye, Heart } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { supabase } from "@/lib/supabase";
+import { useFavorites } from "@/context/FavoritesContext";
 
 export interface ProductType {
   id: string;
@@ -24,7 +24,8 @@ export interface ProductType {
 export default function ProductCard({ product }: { product: ProductType }) {
   const router = useRouter();
   const { addToCart } = useCart();
-  const [isFav, setIsFav] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isFav = isFavorite(product.id);
 
   const discountPercent = product.old_price && product.old_price > product.price
     ? Math.round(((product.old_price - product.price) / product.old_price) * 100)
@@ -34,25 +35,25 @@ export default function ProductCard({ product }: { product: ProductType }) {
     e.preventDefault();
     e.stopPropagation();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      alert("Connexion requise : Vous devez être connecté ou inscrit à votre compte Kalagban pour ajouter des produits à vos favoris.");
-      router.push("/login");
-      return;
-    }
-
-    setIsFav(!isFav);
+    await toggleFavorite({
+      id: product.id,
+      shop_id: product.shop_id,
+      title: product.title,
+      price: product.price,
+      old_price: product.old_price,
+      image_url: product.image_url,
+      category: product.category,
+    });
   };
 
   const [imgError, setImgError] = useState(false);
   const isValidUrl = product.image_url && !product.image_url.startsWith("file://") && !imgError;
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 flex flex-col group relative">
+    <div className="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 flex flex-col group relative min-w-0">
       
       {/* Image Container */}
-      <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gray-50 rounded-xl sm:rounded-2xl overflow-hidden mb-2.5 sm:mb-4">
+      <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gray-50 rounded-xl sm:rounded-2xl overflow-hidden mb-2 sm:mb-4">
         {isValidUrl ? (
           <img 
             src={product.image_url!} 
@@ -69,12 +70,12 @@ export default function ProductCard({ product }: { product: ProductType }) {
         {/* Badges */}
         <div className="absolute top-2 sm:top-3 left-2 sm:left-3 flex flex-col gap-1 z-10">
           {discountPercent !== null && (
-            <span className="bg-red-500 text-white font-extrabold text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg sm:rounded-xl shadow-md">
+            <span className="bg-red-500 text-white font-extrabold text-[9px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-xl shadow-md">
               -{discountPercent}%
             </span>
           )}
           {product.category && (
-            <span className="bg-white/90 backdrop-blur-md text-gray-800 font-bold text-[9px] sm:text-[10px] uppercase tracking-wider px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg sm:rounded-xl shadow-xs border border-white/50 hidden xs:inline-block">
+            <span className="bg-white/90 backdrop-blur-md text-gray-800 font-bold text-[8px] sm:text-[10px] uppercase tracking-wider px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-xl shadow-xs border border-white/50 hidden xs:inline-block">
               {product.category}
             </span>
           )}
@@ -87,7 +88,7 @@ export default function ProductCard({ product }: { product: ProductType }) {
           title="Ajouter aux favoris (Connexion requise)"
         >
           <Heart
-            size={15}
+            size={14}
             className={isFav ? "text-red-500 fill-red-500" : "text-gray-600 hover:text-red-500"}
           />
         </button>
@@ -101,7 +102,7 @@ export default function ProductCard({ product }: { product: ProductType }) {
       </Link>
 
       {/* Info Container */}
-      <div className="flex-1 flex flex-col justify-between gap-2 sm:gap-3">
+      <div className="flex-1 flex flex-col justify-between gap-1.5 sm:gap-3 min-w-0">
         <div>
           <Link href={`/products/${product.id}`} className="group-hover:text-indigo-600 transition-colors">
             <h3 className="font-bold text-gray-900 text-xs sm:text-base line-clamp-2 leading-snug">
@@ -111,16 +112,16 @@ export default function ProductCard({ product }: { product: ProductType }) {
         </div>
 
         {/* Price & Cart Action */}
-        <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t border-gray-50">
-          <div className="flex flex-col">
-            <div className="flex items-baseline gap-1 sm:gap-2">
-              <span className="text-sm sm:text-xl font-black text-gray-900 tracking-tight">
+        <div className="flex items-center justify-between pt-1 sm:pt-2 border-t border-gray-50 gap-1 min-w-0">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-baseline gap-0.5 sm:gap-1 flex-wrap">
+              <span className="text-xs sm:text-lg font-black text-gray-900 tracking-tight">
                 {product.price.toLocaleString("fr-FR")}
               </span>
-              <span className="text-[10px] sm:text-xs font-bold text-gray-500">FCFA</span>
+              <span className="text-[8px] sm:text-xs font-bold text-gray-500">FCFA</span>
             </div>
             {product.old_price && (
-              <span className="text-[10px] sm:text-xs text-gray-400 line-through font-medium">
+              <span className="text-[8px] sm:text-xs text-gray-400 line-through font-medium truncate">
                 {product.old_price.toLocaleString("fr-FR")} FCFA
               </span>
             )}
@@ -140,10 +141,10 @@ export default function ProductCard({ product }: { product: ProductType }) {
                 maxStock: product.stock_quantity,
               })
             }
-            className="w-8 h-8 sm:w-11 sm:h-11 bg-indigo-50 text-indigo-600 rounded-xl sm:rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-xs group/btn cursor-pointer shrink-0 disabled:opacity-40 disabled:hover:bg-indigo-50 disabled:hover:text-indigo-600 disabled:cursor-not-allowed"
+            className="w-7 h-7 sm:w-11 sm:h-11 bg-indigo-50 text-indigo-600 rounded-lg sm:rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-xs group/btn cursor-pointer shrink-0 disabled:opacity-40 disabled:hover:bg-indigo-50 disabled:hover:text-indigo-600 disabled:cursor-not-allowed"
             title={product.stock_quantity <= 0 ? "Rupture de stock" : "Ajouter au panier"}
           >
-            <ShoppingBag size={16} className="group-hover/btn:scale-110 transition-transform" />
+            <ShoppingBag size={14} className="group-hover/btn:scale-110 transition-transform" />
           </button>
         </div>
 

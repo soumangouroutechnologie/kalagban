@@ -169,7 +169,7 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
                 {order.pickup_code}
               </h2>
               <p className="text-xs text-amber-800 font-bold max-w-sm mx-auto">
-                Présentez ce code à 6 chiffres au gérant de votre Point Relais pour récupérer votre colis.
+                Présentez ce code de sécurité au gérant de votre Point Relais pour récupérer votre colis.
               </p>
             </div>
           )}

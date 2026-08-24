@@ -182,7 +182,7 @@ export default function DedicatedWebCategoryPage() {
     });
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fafafa] font-sans relative">
+    <div className="min-h-screen flex flex-col bg-[#fafafa] font-sans relative w-full max-w-[100vw] overflow-x-hidden">
       <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
       {/* Hero Category Banner Header */}

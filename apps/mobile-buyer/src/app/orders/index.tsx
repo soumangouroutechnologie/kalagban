@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -45,13 +46,14 @@ export default function OrderHistoryScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (isPullToRefresh = false) => {
+    if (!isPullToRefresh) setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -78,7 +80,13 @@ export default function OrderHistoryScreen() {
       setOrders([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchOrders(true);
   };
 
   const formatPrice = (amount: number) => {
@@ -159,7 +167,18 @@ export default function OrderHistoryScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={['#4F46E5']} 
+              tintColor="#4F46E5" 
+            />
+          }
+        >
           {orders.map((order) => {
             const badge = getStatusBadge(order.status);
             return (
