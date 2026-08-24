@@ -118,7 +118,7 @@ export default function NewProductPage() {
               position: i
             });
           } else {
-            console.error(`Erreur d'upload image ${i}:`, uploadError);
+            console.error("Erreur d'upload image", i, uploadError);
           }
         }
       }

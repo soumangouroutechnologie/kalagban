@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Wallet, ArrowDownRight, CheckCircle2, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Wallet, ArrowDownRight, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { toast } from "@/components/ToastContext";
 
 interface PayoutRecord {
   id: string;
@@ -12,6 +13,15 @@ interface PayoutRecord {
   status: string;
   date: string;
   ref: string;
+}
+
+interface RawPayoutRow {
+  id: string;
+  amount: number | string;
+  payment_method?: string | null;
+  reference_code?: string | null;
+  status: string;
+  created_at: string;
 }
 
 export default function RelayEarningsPage() {
@@ -26,77 +36,90 @@ export default function RelayEarningsPage() {
   const [totalWithdrawn, setTotalWithdrawn] = useState(0);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
 
-  const fetchEarningsData = async () => {
-    const relayCode = localStorage.getItem("kalagban_relay_code");
-    
-    // Find pickup_point id
-    let pId = null;
-    if (relayCode) {
-      const { data: pt } = await supabase
-        .from("pickup_points")
-        .select("id")
-        .eq("code", relayCode)
-        .maybeSingle();
-      if (pt) {
-        pId = pt.id;
-        setRelayPointId(pt.id);
+  const fetchEarningsData = useCallback(async () => {
+    try {
+      const activeRelayCode = typeof window !== "undefined" ? localStorage.getItem("kalagban_relay_code") : null;
+      let activeRelayId = typeof window !== "undefined" ? localStorage.getItem("kalagban_relay_id") : null;
+
+      if (!activeRelayId && activeRelayCode) {
+        const { data: pt } = await supabase
+          .from("pickup_points")
+          .select("id")
+          .eq("code", activeRelayCode)
+          .maybeSingle();
+        if (pt?.id) activeRelayId = pt.id;
       }
+
+      if (activeRelayId) {
+        setRelayPointId(activeRelayId);
+
+        // Fetch logs
+        const { data: logs } = await supabase
+          .from("relay_logs")
+          .select("commission_earned, action_type")
+          .eq("pickup_point_id", activeRelayId);
+
+        const totalEarned = (logs || []).reduce((acc, curr) => acc + (curr.commission_earned || 0), 0);
+
+        // Fetch payouts
+        const { data: payoutList } = await supabase
+          .from("relay_payouts")
+          .select("id, amount, payment_method, reference_code, status, created_at")
+          .eq("pickup_point_id", activeRelayId)
+          .order("created_at", { ascending: false });
+
+        let paid = 0;
+        let pending = 0;
+
+        const typedPayouts = (payoutList as RawPayoutRow[] | null) || [];
+
+        const formattedPayouts: PayoutRecord[] = typedPayouts.map((p) => {
+          const numAmount = Number(p.amount) || 0;
+          if (p.status === "completed" || p.status === "paid" || p.status === "processed") {
+            paid += numAmount;
+          } else if (p.status === "pending") {
+            pending += numAmount;
+          }
+          return {
+            id: p.id.slice(0, 8).toUpperCase(),
+            amount: `${numAmount.toLocaleString()} FCFA`,
+            provider: p.payment_method || "Mobile Money",
+            phone: p.reference_code || "--",
+            status: p.status === "completed" || p.status === "paid" || p.status === "processed" ? "processed" : p.status,
+            date: new Date(p.created_at).toLocaleDateString("fr-FR"),
+            ref: p.id.slice(0, 8).toUpperCase()
+          };
+        });
+
+        const available = Math.max(0, totalEarned - (paid + pending));
+        setTotalWithdrawn(paid);
+        setAvailableBalance(available);
+        setPayouts(formattedPayouts);
+      }
+    } catch (err) {
+      console.error("Error fetching earnings data:", err);
     }
-
-    if (!pId) return;
-
-    // 1. Calculate earned commissions from relay_logs ONLY for THIS relay point
-    const { data: logs } = await supabase
-      .from("relay_logs")
-      .select("commission_earned, action_type")
-      .eq("pickup_point_id", pId)
-      .eq("action_type", "pickup");
-
-    const totalEarned = (logs || []).reduce((acc, l) => acc + (Number(l.commission_earned) || 300), 0);
-
-    // 2. Fetch payouts ONLY for THIS relay point
-    const { data: payoutsData } = await supabase
-      .from("relay_payouts")
-      .select("*")
-      .eq("pickup_point_id", pId)
-      .order("created_at", { ascending: false });
-
-    if (payoutsData && payoutsData.length > 0) {
-      const processedSum = payoutsData
-        .filter(p => p.status === "processed")
-        .reduce((acc, p) => acc + Number(p.amount), 0);
-      const pendingSum = payoutsData
-        .filter(p => p.status === "pending")
-        .reduce((acc, p) => acc + Number(p.amount), 0);
-
-      setTotalWithdrawn(processedSum);
-      setAvailableBalance(Math.max(0, totalEarned - processedSum - pendingSum));
-
-      setPayouts(payoutsData.map(p => ({
-        id: p.id.slice(0, 8).toUpperCase(),
-        amount: `${Number(p.amount).toLocaleString()} FCFA`,
-        provider: p.payment_method || "Wave",
-        phone: p.reference_code || "--",
-        status: p.status,
-        date: new Date(p.created_at).toLocaleDateString("fr-FR"),
-        ref: p.status === "processed" ? "Virement Effectué" : "En cours d'approbation Admin"
-      })));
-    } else {
-      setAvailableBalance(totalEarned);
-      setPayouts([]);
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchEarningsData();
-  }, []);
+    let isMounted = true;
+    if (isMounted) {
+      void fetchEarningsData();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchEarningsData]);
 
   const handleRequestPayout = async (e: React.FormEvent) => {
     e.preventDefault();
     const reqAmount = Number(amount);
-    if (!reqAmount || reqAmount <= 0) return;
+    if (!reqAmount || reqAmount <= 0) {
+      toast.warning("Montant Invalide", "Veuillez saisir un montant supérieur à 0 FCFA.");
+      return;
+    }
     if (reqAmount > availableBalance) {
-      alert("Le montant demandé dépasse votre solde disponible.");
+      toast.warning("Solde Insuffisant", "Le montant demandé dépasse votre solde disponible.");
       return;
     }
 
@@ -121,13 +144,15 @@ export default function RelayEarningsPage() {
         });
       }
 
-      setSuccessMsg(`Demande de retrait de ${reqAmount.toLocaleString()} FCFA transmise avec succès à l'Administration Kalagban.`);
+      const msg = `Demande de retrait de ${reqAmount.toLocaleString()} FCFA transmise avec succès à l'Administration Kalagban.`;
+      setSuccessMsg(msg);
+      toast.success("Demande Enregistrée !", msg);
       setAmount("");
       setPhone("");
       await fetchEarningsData();
     } catch (err) {
       console.error("Payout error:", err);
-      alert("Erreur lors de la demande de virement.");
+      toast.error("Erreur de demande", "Une erreur est survenue lors de la demande de virement.");
     } finally {
       setIsSubmitting(false);
     }
@@ -136,7 +161,7 @@ export default function RelayEarningsPage() {
   return (
     <div className="space-y-6 font-sans">
       <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Commissions & Versements Mobile Money</h1>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Commissions &amp; Versements Mobile Money</h1>
         <p className="text-gray-500 text-xs font-medium mt-1">Gérez vos revenus de garde et de remise de colis en point relais.</p>
       </div>
 
@@ -156,7 +181,7 @@ export default function RelayEarningsPage() {
         <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xs">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Taux de Commission Relais</p>
           <h3 className="text-3xl font-black text-indigo-600 mt-2">300 FCFA <span className="text-xs font-normal text-gray-500">/ colis</span></h3>
-          <p className="text-xs text-gray-500 font-medium mt-2">Règlement direct par l'Admin Kalagban</p>
+          <p className="text-xs text-gray-500 font-medium mt-2">Règlement direct par l&apos;Admin Kalagban</p>
         </div>
       </div>
 
@@ -199,7 +224,7 @@ export default function RelayEarningsPage() {
               onChange={(e) => setProvider(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-2xl p-3.5 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600/40 focus:border-indigo-600 transition-all"
             >
-              <option value="Wave">Wave Côte d'Ivoire</option>
+              <option value="Wave">Wave Côte d&apos;Ivoire</option>
               <option value="Orange Money">Orange Money</option>
               <option value="MTN MoMo">MTN Mobile Money</option>
               <option value="Moov Money">Moov Money</option>
@@ -241,7 +266,7 @@ export default function RelayEarningsPage() {
               <tr>
                 <th className="px-4 py-3.5 rounded-l-xl">N° Demande</th>
                 <th className="px-4 py-3.5">Montant</th>
-                <th className="px-4 py-3.5">Moyen & Téléphone</th>
+                <th className="px-4 py-3.5">Moyen &amp; Téléphone</th>
                 <th className="px-4 py-3.5">Statut Admin</th>
                 <th className="px-4 py-3.5 rounded-r-xl text-right">Référence Transaction</th>
               </tr>
@@ -269,7 +294,7 @@ export default function RelayEarningsPage() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                          En Attente d'Approbation
+                          En Attente d&apos;Approbation
                         </span>
                       )}
                     </td>

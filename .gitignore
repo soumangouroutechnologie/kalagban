@@ -69,6 +69,7 @@ builds/
 *.jks
 
 # Temp files
+scratch/
 current_auth.json
 patch*.json
 test_storage.js
