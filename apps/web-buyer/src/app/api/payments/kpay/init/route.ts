@@ -31,12 +31,14 @@ export async function POST(req: Request) {
     // Call K-PAY to initialize the hosted gateway session
     const kpayResponse = await initKPayPayment({
       amount: Number(amount),
+      currency: "XOF",
       externalId: `KB-${orderId}`,
       returnUrl,
       cancelUrl,
       description: `Commande Kalagban #${orderId.slice(0, 8).toUpperCase()}`,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
+      customerPhone: customerPhone || undefined,
       metadata: {
         orderId,
         customerPhone,

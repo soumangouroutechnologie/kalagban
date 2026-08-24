@@ -1,11 +1,13 @@
 export interface KPayInitOptions {
   amount: number;
+  currency?: string;
   externalId: string;
   returnUrl: string;
   cancelUrl?: string;
   description?: string;
   customerName?: string;
   customerEmail?: string;
+  customerPhone?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -16,6 +18,7 @@ export interface KPayInitResponse {
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
   mode: "GATEWAY" | "USSD";
   amount: number;
+  currency?: string;
   gatewayUrl?: string;
   expiresAt?: string;
   isTest?: boolean;
@@ -56,12 +59,16 @@ export async function initKPayPayment(options: KPayInitOptions): Promise<KPayIni
 
   const payload: Record<string, unknown> = {
     amount: Math.round(options.amount),
+    currency: options.currency || "XOF",
     externalId: options.externalId,
     returnUrl: options.returnUrl,
     cancelUrl: options.cancelUrl || options.returnUrl,
     description: options.description || `Commande Kalagban #${options.externalId}`,
   };
 
+  if (options.customerName) payload.customerName = options.customerName;
+  if (options.customerEmail) payload.customerEmail = options.customerEmail;
+  if (options.customerPhone) payload.customerPhone = options.customerPhone;
   if (options.metadata) payload.metadata = options.metadata;
 
   const res = await fetch(`${KPAY_BASE_URL}/api/v1/payments/init`, {
