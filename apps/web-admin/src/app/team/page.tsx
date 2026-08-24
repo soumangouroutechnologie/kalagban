@@ -9,6 +9,8 @@ import {
   Loader2, 
   X, 
   User, 
+  Mail,
+  Lock,
   Trash2, 
   ShieldCheck, 
   Info, 
@@ -132,31 +134,34 @@ export default function TeamPage() {
       alert("Seul le Super Administrateur peut créer des collaborateurs.");
       return;
     }
+
+    if (!formData.email.trim() || !formData.password.trim()) {
+      alert("Veuillez renseigner l'email professionnel et un mot de passe pour le collaborateur.");
+      return;
+    }
+
     setCreating(true);
 
     try {
-      const generatedUid = crypto.randomUUID();
-
-      // 1. Create in profiles
-      const { error: profErr } = await supabase.from("profiles").upsert({
-        id: generatedUid,
-        full_name: formData.full_name,
-        role: "admin",
-        admin_role: formData.admin_role,
+      const res = await fetch("/api/team/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: formData.full_name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          admin_role: formData.admin_role,
+          custom_permissions: formData.custom_permissions,
+        }),
       });
 
-      if (profErr) throw profErr;
+      const data = await res.json();
 
-      // 2. Set permissions
-      const basePerms = ROLE_BASE_PERMISSIONS[formData.admin_role];
-      const { error: permErr } = await supabase.from("admin_permissions").upsert({
-        user_id: generatedUid,
-        ...basePerms,
-        custom_permissions: formData.custom_permissions,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (permErr) throw permErr;
+      if (!res.ok) {
+        throw new Error(data.error || "Erreur lors de la création du collaborateur.");
+      }
 
       // Reset form & close
       setShowAddModal(false);
@@ -709,6 +714,37 @@ export default function TeamPage() {
                     placeholder="Ex: Jean Kouassi"
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Email Professionnel (Identifiant)</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="Ex: jean@kalagban.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Mot de Passe Initial</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="Minimum 6 caractères"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full pl-10 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-indigo-500 focus:bg-white transition-all"
                   />
                 </div>
