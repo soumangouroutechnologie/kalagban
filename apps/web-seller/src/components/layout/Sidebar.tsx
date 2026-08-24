@@ -151,7 +151,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Modal de Confirmation de Déconnexion (Sidebar) */}
       {isLogoutModalOpen && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-9999 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 transition-transform my-auto">
             <div className="w-16 h-16 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto mb-4">
               <LogOut size={32} />

@@ -6,10 +6,7 @@ import {
   Banknote, 
   X, 
   Send, 
-  CheckCircle2, 
-  AlertCircle, 
   Loader2, 
-  ShieldCheck, 
   Smartphone,
   Info
 } from "lucide-react";
@@ -101,7 +98,7 @@ export default function PayoutRequestModal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-auto">
         
         {/* Header */}
@@ -112,7 +109,7 @@ export default function PayoutRequestModal({
             </div>
             <div>
               <h3 className="text-base font-black">Demande de Virement</h3>
-              <p className="text-xs text-gray-400 font-medium">Reversement des gains boutique</p>
+              <p className="text-xs text-gray-400 font-medium">Boutique &ldquo;{shopName || "Partenaire"}&rdquo; • Reversement</p>
             </div>
           </div>
           <button 
