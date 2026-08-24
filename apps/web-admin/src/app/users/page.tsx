@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAdminAuth } from "@/lib/rbac";
 import { UserCheck, Search, Loader2, Users, ShoppingBag, ShieldCheck, UserPlus, Eye, Ban, CheckCircle2, X } from "lucide-react";
 
 interface UserProfile {
@@ -15,6 +16,7 @@ interface UserProfile {
 }
 
 export default function AdminUsersPage() {
+  const { isSuperAdmin, hasPermission } = useAdminAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -162,12 +164,14 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => alert("Pour créer un utilisateur de l'équipe d'administration avec des autorisations spécifiques, rendez-vous dans l'onglet 'Gestion Équipe & RBAC'.")}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20 transition-all shrink-0"
-        >
-          <UserPlus size={16} /> Nouveau Compte Admin
-        </button>
+        {(isSuperAdmin || hasPermission("can_manage_team")) && (
+          <button
+            onClick={() => alert("Pour créer un utilisateur de l'équipe d'administration avec des autorisations spécifiques, rendez-vous dans l'onglet 'Gestion Équipe & RBAC'.")}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20 transition-all shrink-0"
+          >
+            <UserPlus size={16} /> Nouveau Compte Admin
+          </button>
+        )}
       </div>
 
       {/* Overview Stat Cards */}

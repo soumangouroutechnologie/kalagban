@@ -222,9 +222,7 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_view_orders: true,
     can_update_order_status: true,
     can_view_customer_order_data: true,
-    can_view_analytics: true,
     can_view_logistics_analytics: true,
-    can_view_users: true,
   },
   accountant: {
     can_view_finance: true,
@@ -239,7 +237,6 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_view_orders: true,
     can_view_order_financial_data: true,
     can_export_orders: true,
-    can_view_analytics: true,
     can_view_financial_analytics: true,
     can_export_reports: true,
   },
@@ -248,8 +245,6 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_moderate_shops: true,
     can_view_orders: true,
     can_view_customer_order_data: true,
-    can_view_users: true,
-    can_view_analytics: true,
     can_view_seller_analytics: true,
   },
   developer: {
@@ -264,8 +259,6 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_manage_coupons: true,
     can_send_marketing_notifications: true,
     can_view_marketing_analytics: true,
-    can_view_analytics: true,
-    can_view_users: true,
   },
   support_agent: {
     can_view_support: true,
@@ -275,7 +268,6 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_escalate_support: true,
     can_view_orders: true,
     can_view_customer_order_data: true,
-    can_view_users: true,
   },
   risk_manager: {
     can_view_risk: true,
@@ -284,12 +276,12 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
     can_suspend_accounts: true,
     can_view_security_events: true,
     can_view_orders: true,
-    can_view_users: true,
   },
   seller_manager: {
     can_moderate_shops: true,
+    can_moderate_products: true,
     can_view_orders: true,
-    can_view_users: true,
+    can_view_customer_order_data: true,
     can_view_seller_analytics: true,
   },
   analyst: {

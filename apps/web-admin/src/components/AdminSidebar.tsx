@@ -165,7 +165,7 @@ export default function AdminSidebar() {
         { label: "Journal d'Audit", href: "/audit", icon: FileText, permissionKey: "can_manage_team" },
         { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, permissionKey: "can_edit_cms" },
         { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, permissionKey: "can_manage_team" },
-        { label: "Utilisateurs & Profils", href: "/users", icon: UserCheck, permissionKey: "can_view_users" },
+        { label: "Utilisateurs & Profils", href: "/users", icon: UserCheck, permissionKey: "can_manage_users" },
       ],
     },
   ];
