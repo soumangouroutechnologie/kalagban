@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
@@ -149,9 +150,9 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       />
 
       {/* Modal de Confirmation de Déconnexion (Sidebar) */}
-      {isLogoutModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 transition-transform">
+      {isLogoutModalOpen && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center transform scale-100 transition-transform my-auto">
             <div className="w-16 h-16 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto mb-4">
               <LogOut size={32} />
             </div>
@@ -160,19 +161,20 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             <div className="flex gap-3">
               <button 
                 onClick={() => setIsLogoutModalOpen(false)}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-text-main bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-text-main bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
               >
                 Annuler
               </button>
               <button 
                 onClick={confirmLogout}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-danger hover:bg-red-600 shadow-lg shadow-danger/30 transition-all"
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-danger hover:bg-red-600 shadow-lg shadow-danger/30 transition-all cursor-pointer"
               >
                 Oui, quitter
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );

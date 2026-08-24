@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Banknote, 
   X, 
@@ -37,12 +38,17 @@ export default function PayoutRequestModal({
   onSuccess
 }: PayoutRequestModalProps) {
   const { toast } = useToast();
+  const [mounted, setMounted] = useState(false);
   const [amount, setAmount] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<string>(defaultProvider || "Wave");
   const [payoutPhone, setPayoutPhone] = useState<string>(defaultPhone || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const minPayout = 5000; // 5 000 FCFA minimum
 
@@ -61,36 +67,29 @@ export default function PayoutRequestModal({
     }
 
     if (!payoutPhone.trim()) {
-      toast.warning("Veuillez renseigner le numéro de téléphone pour le virement.");
+      toast.warning("Veuillez renseigner le numéro Mobile Money bénéficiaire.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // 1. Insert Payout Request
-      const { error: payoutError } = await supabase.from("payouts").insert({
+      const reference = `PAY-${Date.now().toString(36).toUpperCase()}`;
+
+      const { error } = await supabase.from("payouts").insert({
         shop_id: shopId,
         amount: numAmount,
-        payment_method: paymentMethod,
-        reference_code: `REQ-${Date.now().toString().slice(-6)}`,
+        payment_method: `${paymentMethod} (${payoutPhone.trim()})`,
+        reference_code: reference,
         status: "pending"
       });
 
-      if (payoutError) throw payoutError;
-
-      // 2. Notify Admin
-      await supabase.from("admin_notifications").insert({
-        title: "💰 Nouvelle Demande de Retrait Vendeur",
-        message: `La boutique "${shopName}" a demandé un virement de ${numAmount.toLocaleString("fr-FR")} FCFA via ${paymentMethod} (${payoutPhone}).`,
-        type: "payout_request",
-        data: { shop_id: shopId, amount: numAmount, payment_method: paymentMethod, phone: payoutPhone }
-      });
+      if (error) throw error;
 
       toast.success(
-        "Votre demande de virement a été transmise à l'équipe financière Kalagban. Le versement sera effectué après vérification sous 24h ouvrées.",
-        "Demande enregistrée 🎉"
+        `Votre demande de virement de ${numAmount.toLocaleString("fr-FR")} FCFA a été enregistrée avec succès !`,
+        "Demande transmise"
       );
-
+      
       onSuccess();
       onClose();
 
@@ -103,9 +102,9 @@ export default function PayoutRequestModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-auto">
         
         {/* Header */}
         <div className="px-6 py-5 bg-slate-900 text-white flex items-center justify-between">
@@ -237,4 +236,6 @@ export default function PayoutRequestModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

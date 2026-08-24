@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Headphones, 
   X, 
@@ -47,7 +48,12 @@ export default function ContactSupportModal({
   defaultOrderCode = ""
 }: ContactSupportModalProps) {
   const { toast } = useToast();
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Form State
   const [subject, setSubject] = useState("");
@@ -231,11 +237,11 @@ export default function ContactSupportModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col">
+  const modalContent = (
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl max-w-lg sm:max-w-xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col my-auto">
         
         {/* Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
@@ -490,4 +496,6 @@ export default function ContactSupportModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
