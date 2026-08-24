@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { 
-  Headphones, 
   X, 
   Send, 
   MessageSquare, 
@@ -123,7 +122,10 @@ export default function ContactSupportModal({
 
   useEffect(() => {
     if (isOpen && activeTab === "history") {
-      fetchShopTickets();
+      const timer = setTimeout(() => {
+        fetchShopTickets();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, activeTab, fetchShopTickets]);
 
@@ -178,6 +180,18 @@ export default function ContactSupportModal({
         sender_name: shopName.trim() || "Boutique",
         message: message.trim()
       });
+
+      // Notify Admin Dashboard
+      try {
+        await supabase.from("admin_notifications").insert({
+          title: "🎧 Nouveau Ticket Support Vendeur",
+          message: `La boutique "${shopName || "Marchand"}" a ouvert le ticket #${randomCode} : "${subject.trim()}".`,
+          target_group: "admins",
+          notification_type: "info"
+        });
+      } catch (notifErr) {
+        console.warn("Could not insert admin notification:", notifErr);
+      }
 
       toast.success("Votre demande vendeur a été transmise à notre équipe.", "Ticket ouvert avec succès 🎫");
       setSubject("");

@@ -80,6 +80,18 @@ export default function PayoutRequestModal({
 
       if (error) throw error;
 
+      // Notify Admin Back-Office
+      try {
+        await supabase.from("admin_notifications").insert({
+          title: "💰 Nouvelle Demande de Virement",
+          message: `La boutique "${shopName || "Marchand"}" demande un virement de ${numAmount.toLocaleString("fr-FR")} FCFA via ${paymentMethod} (${payoutPhone.trim()}).`,
+          target_group: "admins",
+          notification_type: "info"
+        });
+      } catch (notifErr) {
+        console.warn("Could not insert admin notification:", notifErr);
+      }
+
       toast.success(
         `Votre demande de virement de ${numAmount.toLocaleString("fr-FR")} FCFA a été enregistrée avec succès !`,
         "Demande transmise"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
@@ -14,7 +14,14 @@ import {
   TrendingUp, 
   Loader2, 
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  Headphones,
+  ShieldAlert,
+  ArrowRight,
+  Bell,
+  Clock,
+  MessageSquare
 } from "lucide-react";
 
 interface OrderSummary {
@@ -25,6 +32,15 @@ interface OrderSummary {
   shipping_address?: { full_name?: string; city?: string };
 }
 
+interface AdminNotifItem {
+  id: string;
+  title: string;
+  message: string;
+  target_group?: string;
+  notification_type?: string;
+  created_at: string;
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -32,10 +48,17 @@ export default function AdminDashboardPage() {
     activeShops: 0,
     totalBuyers: 0,
   });
+  const [alerts, setAlerts] = useState({
+    pendingPayouts: 0,
+    pendingProducts: 0,
+    openTickets: 0,
+    openIncidents: 0,
+  });
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<AdminNotifItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchDashboardMetrics = async () => {
+  const fetchDashboardMetrics = useCallback(async () => {
     try {
       // 1. Orders & Revenue
       const { data: orders } = await supabase
@@ -73,12 +96,43 @@ export default function AdminDashboardPage() {
         setStats(prev => ({ ...prev, totalBuyers: profiles.length }));
       }
 
+      // 4. Actionable Alerts (Payouts, Moderation, Tickets, Incidents)
+      const [
+        { count: payCount },
+        { count: prodCount },
+        { count: ticketCount },
+        { count: incidentCount }
+      ] = await Promise.all([
+        supabase.from("payouts").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("products").select("*", { count: "exact", head: true }).eq("moderation_status", "pending_review"),
+        supabase.from("support_tickets").select("*", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("logistics_incidents").select("*", { count: "exact", head: true }).eq("status", "open"),
+      ]);
+
+      setAlerts({
+        pendingPayouts: payCount || 0,
+        pendingProducts: prodCount || 0,
+        openTickets: ticketCount || 0,
+        openIncidents: incidentCount || 0,
+      });
+
+      // 5. Recent Admin Notifications (Feed)
+      const { data: notifData } = await supabase
+        .from("admin_notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (notifData) {
+        setRecentNotifs(notifData as AdminNotifItem[]);
+      }
+
     } catch (err) {
       console.error("Error fetching admin dashboard metrics:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboardMetrics();
@@ -89,12 +143,17 @@ export default function AdminDashboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchDashboardMetrics())
       .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => fetchDashboardMetrics())
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "logistics_incidents" }, () => fetchDashboardMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_notifications" }, () => fetchDashboardMetrics())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchDashboardMetrics]);
 
   return (
     <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
@@ -200,6 +259,105 @@ export default function AdminDashboardPage() {
 
       </div>
 
+      {/* Actionable Alerts & Pending Interventions */}
+      {(alerts.pendingPayouts > 0 || alerts.pendingProducts > 0 || alerts.openTickets > 0 || alerts.openIncidents > 0) && (
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-amber-500/20">
+                <Bell size={18} className="animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-amber-950">Actions &amp; Demandes en Attente d&apos;Intervention</h3>
+                <p className="text-xs text-amber-800/80 font-medium">Les éléments suivants nécessitent l&apos;attention de l&apos;équipe de gestion.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {alerts.pendingPayouts > 0 && (
+              <Link
+                href="/finance"
+                className="bg-white hover:bg-emerald-50/60 p-4 rounded-2xl border border-amber-200/80 hover:border-emerald-300 flex items-center justify-between group transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">
+                    <DollarSign size={16} />
+                  </div>
+                  <div>
+                    <span className="block font-black text-xs text-gray-900 group-hover:text-emerald-700">
+                      {alerts.pendingPayouts} Virement(s)
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">En attente de règlement</span>
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
+
+            {alerts.pendingProducts > 0 && (
+              <Link
+                href="/products-moderation"
+                className="bg-white hover:bg-blue-50/60 p-4 rounded-2xl border border-amber-200/80 hover:border-blue-300 flex items-center justify-between group transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black">
+                    <ShieldAlert size={16} />
+                  </div>
+                  <div>
+                    <span className="block font-black text-xs text-gray-900 group-hover:text-blue-700">
+                      {alerts.pendingProducts} Produit(s)
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">En attente de modération</span>
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-blue-700 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
+
+            {alerts.openTickets > 0 && (
+              <Link
+                href="/support"
+                className="bg-white hover:bg-indigo-50/60 p-4 rounded-2xl border border-amber-200/80 hover:border-indigo-300 flex items-center justify-between group transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black">
+                    <Headphones size={16} />
+                  </div>
+                  <div>
+                    <span className="block font-black text-xs text-gray-900 group-hover:text-indigo-700">
+                      {alerts.openTickets} Ticket(s) Support
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">Clients &amp; Vendeurs</span>
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-indigo-700 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
+
+            {alerts.openIncidents > 0 && (
+              <Link
+                href="/logistics/incidents"
+                className="bg-white hover:bg-red-50/60 p-4 rounded-2xl border border-amber-200/80 hover:border-red-300 flex items-center justify-between group transition-all shadow-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-black">
+                    <AlertTriangle size={16} />
+                  </div>
+                  <div>
+                    <span className="block font-black text-xs text-gray-900 group-hover:text-red-700">
+                      {alerts.openIncidents} Incident(s)
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">Flotte &amp; Colis</span>
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-red-700 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Quick Action Navigation Modules */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
@@ -253,43 +411,130 @@ export default function AdminDashboardPage() {
 
       </div>
 
-      {/* Recent Orders Feed */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-black text-gray-900">Commandes Récentes sur la Plateforme</h2>
-          <Link href="/orders" className="text-xs font-bold text-indigo-600 hover:underline">
-            Voir tout →
-          </Link>
+      {/* Split Feeds: Recent Orders & Live Notifications */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        
+        {/* Feed 1: Recent Orders */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <Package size={18} />
+              </div>
+              <h2 className="text-base font-black text-gray-900">Commandes Récentes</h2>
+            </div>
+            <Link href="/orders" className="text-xs font-bold text-indigo-600 hover:underline">
+              Voir tout →
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="py-16 flex flex-col items-center justify-center flex-1">
+              <Loader2 className="animate-spin text-indigo-600 w-8 h-8 mb-2" />
+              <p className="text-gray-400 text-xs font-bold animate-pulse">Chargement des commandes...</p>
+            </div>
+          ) : recentOrders.length === 0 ? (
+            <div className="p-10 text-center text-xs font-medium text-gray-400 flex-1 flex items-center justify-center">
+              Aucune commande enregistrée pour le moment.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 flex-1">
+              {recentOrders.map((order) => (
+                <div key={order.id} className="p-5 flex items-center justify-between gap-4 text-xs hover:bg-slate-50/50 transition-colors">
+                  <div>
+                    <span className="font-mono font-bold text-gray-800">#{order.id.slice(0, 8)}</span>
+                    <p className="text-gray-500 font-medium mt-0.5">
+                      {order.shipping_address?.full_name || "Client Kalagban"} — {order.shipping_address?.city || "Abidjan"}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="font-black text-gray-900">{Number(order.total_amount).toLocaleString()} FCFA</span>
+                    <p className="text-[10px] font-bold text-indigo-600 mt-0.5 uppercase tracking-wider">{order.status}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className="py-16 flex flex-col items-center justify-center">
-            <Loader2 className="animate-spin text-indigo-600 w-8 h-8 mb-2" />
-            <p className="text-gray-400 text-xs font-bold animate-pulse">Chargement des données...</p>
-          </div>
-        ) : recentOrders.length === 0 ? (
-          <div className="p-10 text-center text-xs font-medium text-gray-400">
-            Aucune commande enregistrée pour le moment.
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="p-5 flex items-center justify-between gap-4 text-xs">
-                <div>
-                  <span className="font-mono font-bold text-gray-800">#{order.id.slice(0, 8)}</span>
-                  <p className="text-gray-500 font-medium mt-0.5">
-                    {order.shipping_address?.full_name || "Client Kalagban"} — {order.shipping_address?.city || "Abidjan"}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <span className="font-black text-gray-900">{Number(order.total_amount).toLocaleString()} FCFA</span>
-                  <p className="text-[10px] font-bold text-indigo-600 mt-0.5 uppercase tracking-wider">{order.status}</p>
-                </div>
+        {/* Feed 2: Live Notifications & Demandes Vendeurs/Clients */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Bell size={18} />
               </div>
-            ))}
+              <div>
+                <h2 className="text-base font-black text-gray-900">Flux des Notifications &amp; Demandes</h2>
+              </div>
+            </div>
+            <Link href="/notifications" className="text-xs font-bold text-amber-700 hover:underline">
+              Centre de notifs →
+            </Link>
           </div>
-        )}
+
+          {loading ? (
+            <div className="py-16 flex flex-col items-center justify-center flex-1">
+              <Loader2 className="animate-spin text-amber-600 w-8 h-8 mb-2" />
+              <p className="text-gray-400 text-xs font-bold animate-pulse">Chargement des notifications...</p>
+            </div>
+          ) : recentNotifs.length === 0 ? (
+            <div className="p-10 text-center text-xs font-medium text-gray-400 flex-1 flex items-center justify-center">
+              Aucune notification récente sur la plateforme.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 flex-1">
+              {recentNotifs.map((notif) => {
+                const isPayout = notif.title?.toLowerCase().includes("virement") || notif.title?.toLowerCase().includes("retrait");
+                const isSupport = notif.title?.toLowerCase().includes("ticket") || notif.title?.toLowerCase().includes("support");
+                const isKyc = notif.title?.toLowerCase().includes("kyc") || notif.title?.toLowerCase().includes("boutique");
+
+                const targetLink = isPayout ? "/finance" : isSupport ? "/support" : isKyc ? "/shops" : "/notifications";
+
+                return (
+                  <Link 
+                    key={notif.id} 
+                    href={targetLink}
+                    className="p-5 flex items-start justify-between gap-4 text-xs hover:bg-amber-50/30 transition-colors group cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center mt-0.5 ${
+                        isPayout 
+                          ? "bg-emerald-100 text-emerald-700" 
+                          : isSupport 
+                            ? "bg-indigo-100 text-indigo-700" 
+                            : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {isPayout ? <DollarSign size={15} /> : isSupport ? <Headphones size={15} /> : <Bell size={15} />}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                          {notif.title}
+                        </h4>
+                        <p className="text-gray-500 font-medium text-[11px] mt-0.5 line-clamp-2">
+                          {notif.message}
+                        </p>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 font-medium mt-1">
+                          <Clock size={10} />
+                          {new Date(notif.created_at).toLocaleString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <ArrowRight size={14} className="text-gray-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
 
     </main>

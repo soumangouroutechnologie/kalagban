@@ -124,7 +124,10 @@ export default function ContactSupportModal({
 
   useEffect(() => {
     if (isOpen && activeTab === "history") {
-      fetchUserTickets();
+      const timer = setTimeout(() => {
+        fetchUserTickets();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, activeTab, fetchUserTickets]);
 
@@ -180,6 +183,18 @@ export default function ContactSupportModal({
         sender_name: userName.trim() || "Moi",
         message: message.trim()
       });
+
+      // Notify Admin Dashboard
+      try {
+        await supabase.from("admin_notifications").insert({
+          title: "🎧 Nouveau Ticket Support Client",
+          message: `${userName || "Client"} a ouvert le ticket #${randomCode} : "${subject.trim()}".`,
+          target_group: "admins",
+          notification_type: "info"
+        });
+      } catch (notifErr) {
+        console.warn("Could not insert admin notification:", notifErr);
+      }
 
       toast.success("Votre demande d'assistance a été transmise à notre équipe.", "Ticket créé avec succès 🎫");
       setSubject("");

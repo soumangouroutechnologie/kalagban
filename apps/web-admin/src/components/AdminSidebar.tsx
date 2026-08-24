@@ -52,6 +52,8 @@ export default function AdminSidebar() {
   const [pendingCount, setPendingCount] = useState(0);
   const [openIncidentsCount, setOpenIncidentsCount] = useState(0);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
+  const [pendingPayoutsCount, setPendingPayoutsCount] = useState(0);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
 
   useEffect(() => {
     const fetchCounters = async () => {
@@ -75,6 +77,19 @@ export default function AdminSidebar() {
         .select("*", { count: "exact", head: true })
         .eq("status", "open");
       setOpenTicketsCount(tickCount || 0);
+
+      // Pending seller payouts
+      const { count: payCount } = await supabase
+        .from("payouts")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+      setPendingPayoutsCount(payCount || 0);
+
+      // Admin notifications count
+      const { count: notifCount } = await supabase
+        .from("admin_notifications")
+        .select("*", { count: "exact", head: true });
+      setUnreadNotifsCount(notifCount || 0);
     };
 
     fetchCounters();
@@ -85,6 +100,8 @@ export default function AdminSidebar() {
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "logistics_incidents" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchCounters())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => fetchCounters())
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_notifications" }, () => fetchCounters())
       .subscribe();
 
     return () => {
@@ -123,7 +140,7 @@ export default function AdminSidebar() {
     {
       groupTitle: "💰 Finances & Tarification",
       items: [
-        { label: "Comptabilité & Finances", href: "/finance", icon: DollarSign, permissionKey: "can_view_finance" },
+        { label: "Comptabilité & Finances", href: "/finance", icon: DollarSign, permissionKey: "can_view_finance", badge: pendingPayoutsCount },
         { label: "Tarification & Commissions", href: "/finance/pricing", icon: Sliders, permissionKey: "can_manage_commissions" },
       ],
     },
@@ -139,7 +156,7 @@ export default function AdminSidebar() {
       items: [
         { label: "Risques & Sécurité", href: "/risk", icon: ShieldCheck, permissionKey: "can_view_risk" },
         { label: "Analytics & Rapports", href: "/analytics", icon: BarChart3, permissionKey: "can_view_analytics" },
-        { label: "Notifications", href: "/notifications", icon: Bell, permissionKey: "can_send_notifications" },
+        { label: "Notifications", href: "/notifications", icon: Bell, permissionKey: "can_send_notifications", badge: unreadNotifsCount },
       ],
     },
     {
