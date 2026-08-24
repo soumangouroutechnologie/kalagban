@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { 
   Banknote, 
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
+
+const emptySubscribe = () => () => {};
 
 interface PayoutRequestModalProps {
   isOpen: boolean;
@@ -38,17 +40,13 @@ export default function PayoutRequestModal({
   onSuccess
 }: PayoutRequestModalProps) {
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [amount, setAmount] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<string>(defaultProvider || "Wave");
   const [payoutPhone, setPayoutPhone] = useState<string>(defaultPhone || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || !isClient) return null;
 
   const minPayout = 5000; // 5 000 FCFA minimum
 

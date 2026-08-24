@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { 
   Headphones, 
@@ -10,12 +10,14 @@ import {
   Loader2, 
   Plus, 
   ChevronRight, 
-  FileText,
-  PhoneCall,
-  Store
+  FileText, 
+  PhoneCall, 
+  Store 
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
+
+const emptySubscribe = () => () => {};
 
 export interface SupportTicket {
   id: string;
@@ -48,12 +50,8 @@ export default function ContactSupportModal({
   defaultOrderCode = ""
 }: ContactSupportModalProps) {
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
   
   // Form State
   const [subject, setSubject] = useState("");
@@ -102,7 +100,7 @@ export default function ContactSupportModal({
     loadShopInfo();
   }, [isOpen]);
 
-  const fetchShopTickets = async () => {
+  const fetchShopTickets = useCallback(async () => {
     setLoadingTickets(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -121,13 +119,13 @@ export default function ContactSupportModal({
     } finally {
       setLoadingTickets(false);
     }
-  };
+  }, [sellerPhone]);
 
   useEffect(() => {
     if (isOpen && activeTab === "history") {
       fetchShopTickets();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, fetchShopTickets]);
 
   const handleOpenTicketConversation = async (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
@@ -237,7 +235,7 @@ export default function ContactSupportModal({
     }
   };
 
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || !isClient) return null;
 
   const modalContent = (
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">

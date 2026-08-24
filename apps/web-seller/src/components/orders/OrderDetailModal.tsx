@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, 
@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
+
+const emptySubscribe = () => () => {};
 
 export interface OrderItemDetail {
   id: string;
@@ -59,16 +61,12 @@ export default function OrderDetailModal({
   onStatusUpdated 
 }: OrderDetailModalProps) {
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [items, setItems] = useState<OrderItemDetail[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string>(order?.status || "pending");
   const [pendingConfirmStatus, setPendingConfirmStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!order) return;
@@ -214,10 +212,10 @@ export default function OrderDetailModal({
   );
   const supportWhatsAppUrl = `https://wa.me/${logisticsSupportPhone}?text=${supportMessage}`;
 
-  if (!mounted) return null;
+  if (!isClient) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-lg sm:max-w-2xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 relative flex flex-col custom-scrollbar my-auto">
         
         {/* Header Bar */}

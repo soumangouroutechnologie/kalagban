@@ -1,15 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { 
   Headphones, 
   X, 
   Send, 
   MessageSquare, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
   Loader2, 
   Plus, 
   ChevronRight, 
@@ -18,6 +15,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
+
+const emptySubscribe = () => () => {};
 
 export interface SupportTicket {
   id: string;
@@ -52,12 +51,8 @@ export default function ContactSupportModal({
   defaultOrderCode = ""
 }: ContactSupportModalProps) {
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
+  const isClient = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
   
   // Form State
   const [subject, setSubject] = useState("");
@@ -106,7 +101,7 @@ export default function ContactSupportModal({
     loadUserProfile();
   }, [isOpen]);
 
-  const fetchUserTickets = async () => {
+  const fetchUserTickets = useCallback(async () => {
     setLoadingTickets(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -125,13 +120,13 @@ export default function ContactSupportModal({
     } finally {
       setLoadingTickets(false);
     }
-  };
+  }, [userPhone]);
 
   useEffect(() => {
     if (isOpen && activeTab === "history") {
       fetchUserTickets();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, fetchUserTickets]);
 
   const handleOpenTicketConversation = async (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
@@ -242,10 +237,10 @@ export default function ContactSupportModal({
     }
   };
 
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || !isClient) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-lg sm:max-w-xl w-full max-h-[92vh] sm:max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col my-auto">
         
         {/* Header */}
