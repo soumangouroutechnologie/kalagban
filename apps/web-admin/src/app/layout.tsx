@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AdminLayoutWrapper from "@/components/AdminLayoutWrapper";
+import { ToastProvider } from "@/context/ToastContext";
 
 export const metadata: Metadata = {
   title: "Kalagban — Panneau Administrateur Back-Office",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-screen bg-slate-50 text-slate-900 font-sans relative overflow-x-hidden">
-        <AdminLayoutWrapper>{children}</AdminLayoutWrapper>
+        <ToastProvider>
+          <AdminLayoutWrapper>{children}</AdminLayoutWrapper>
+        </ToastProvider>
       </body>
     </html>
   );

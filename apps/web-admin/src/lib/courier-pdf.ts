@@ -25,7 +25,7 @@ export interface CourierPdfData {
 export function printCourierBadge(courier: CourierPdfData) {
   const printWindow = window.open("", "_blank", "width=900,height=1000");
   if (!printWindow) {
-    alert("Veuillez autoriser les fenêtres contextuelles (pop-ups) pour télécharger la fiche livreur.");
+    console.warn("Popups blocked by browser");
     return;
   }
 

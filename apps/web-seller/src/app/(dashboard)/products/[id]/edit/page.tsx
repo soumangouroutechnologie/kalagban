@@ -17,6 +17,7 @@ import {
   Star
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
 
 interface ProductImage {
@@ -32,6 +33,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const resolvedParams = use(params);
   const productId = resolvedParams.id;
   const router = useRouter();
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -156,7 +158,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           .single();
 
         if (error || !prod) {
-          alert("Produit introuvable ou accès non autorisé.");
+          toast.error("Produit introuvable ou accès non autorisé.");
           router.push("/products");
           return;
         }
@@ -225,7 +227,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     };
 
     fetchProduct();
-  }, [productId, router]);
+  }, [productId, router, toast]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -320,7 +322,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       );
     } catch (error) {
       console.error("Erreur de détourage IA ou conversion:", error);
-      alert("Erreur lors du traitement de l'image.");
+      toast.error("Erreur lors du traitement de l'image.");
     } finally {
       setIsRemovingBg(false);
     }
@@ -329,7 +331,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !price) {
-      alert("Veuillez remplir au moins le titre et le prix.");
+      toast.warning("Veuillez remplir au moins le titre et le prix.");
       return;
     }
 
@@ -393,16 +395,16 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       }
 
       setIsSaved(true);
-      alert(
+      toast.success(
         isAlreadyApproved 
-          ? "Modifications et photos enregistrées avec succès ! Votre article est à jour sur Kalagban. 🎉" 
-          : "Produit mis à jour et soumis à l'équipe de modération ! 🎉"
+          ? "Modifications enregistrées avec succès ! Votre article est à jour sur Kalagban. 🎉" 
+          : "Produit mis à jour et soumis à la modération ! 🎉"
       );
       router.push("/products");
 
     } catch (error) {
       console.error("Erreur de mise à jour du produit:", error);
-      alert("Erreur lors de la mise à jour du produit.");
+      toast.error("Erreur lors de la mise à jour du produit.");
     } finally {
       setIsSaving(false);
     }

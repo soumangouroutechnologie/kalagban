@@ -13,10 +13,12 @@ import {
   ShieldCheck,
   Headphones,
   CheckCircle2,
+  XCircle,
   Lock,
   ArrowRight
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 
 export interface OrderItemDetail {
   id: string;
@@ -55,6 +57,7 @@ export default function OrderDetailModal({
   onClose,
   onStatusUpdated 
 }: OrderDetailModalProps) {
+  const { toast } = useToast();
   const [items, setItems] = useState<OrderItemDetail[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -95,10 +98,11 @@ export default function OrderDetailModal({
         .eq("id", order.id);
 
       if (error) {
-        alert("Erreur lors de la mise à jour : " + error.message);
+        toast.error("Erreur lors de la mise à jour : " + error.message);
       } else {
         setCurrentStatus(newStatus);
         if (onStatusUpdated) onStatusUpdated();
+        toast.success("Statut de la commande mis à jour avec succès.");
 
         // Dispatch In-App & Email Notifications
         const orderCode = order.id.slice(0, 8).toUpperCase();
@@ -287,7 +291,19 @@ export default function OrderDetailModal({
               {isUpdatingStatus && <Loader2 size={18} className="animate-spin text-indigo-600" />}
             </div>
 
-            {currentStatus === "delivered" ? (
+            {currentStatus === "cancelled" ? (
+              <div className="bg-red-50 text-red-900 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+                <XCircle size={22} className="text-red-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-red-950 uppercase tracking-wide">
+                    Commande Annulée par le Client ❌
+                  </p>
+                  <p className="text-xs text-red-800 font-medium leading-relaxed">
+                    Cette commande a été annulée. Les articles ont été automatiquement réintégrés à votre stock boutique. Aucune préparation ni expédition n&apos;est requise de votre part.
+                  </p>
+                </div>
+              </div>
+            ) : currentStatus === "delivered" ? (
               <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl p-3.5 flex items-center gap-2.5 font-bold text-xs">
                 <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
                 <span>Cette commande a été livrée et remise au client avec succès.</span>

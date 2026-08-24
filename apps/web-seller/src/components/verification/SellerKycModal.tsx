@@ -23,30 +23,33 @@ import {
   ExternalLink
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 import { printKycCertificate } from "@/lib/kyc-pdf";
 
 export interface KycData {
   id?: string;
   shop_id?: string;
-  seller_name?: string;
-  id_type?: string;
-  id_number?: string;
-  id_card_front_url?: string;
+  seller_name: string;
+  id_type: string;
+  id_number: string;
+  seller_photo_url: string;
+  id_card_front_url: string;
   id_card_back_url?: string | null;
-  seller_photo_url?: string;
-  primary_phone?: string;
+  primary_phone: string;
   secondary_phone?: string | null;
-  store_address?: string;
-  store_photos?: string[];
+  store_address: string;
   location_description?: string | null;
-  signature_url?: string;
-  status?: string;
+  store_photos: string[];
+  signature_url: string;
+  terms_accepted: boolean;
+  status: "pending" | "approved" | "rejected";
+  rejection_reason?: string | null;
   admin_notes?: string | null;
   submitted_at?: string;
   reviewed_at?: string;
 }
 
-interface SellerKycModalProps {
+export interface SellerKycModalProps {
   isOpen: boolean;
   onClose: () => void;
   shopId: string;
@@ -63,6 +66,7 @@ export default function SellerKycModal({
   existingKyc,
   onSuccess
 }: SellerKycModalProps) {
+  const { toast } = useToast();
   const isAlreadyCertified = existingKyc?.status === "approved";
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -168,7 +172,7 @@ export default function SellerKycModal({
   const handleFileValidate = (file: File) => {
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
-      alert(`Le fichier "${file.name}" dépasse la taille maximale autorisée de 5 MB.`);
+      toast.error(`Le fichier "${file.name}" dépasse la taille maximale autorisée de 5 MB.`);
       return false;
     }
     return true;
@@ -246,11 +250,11 @@ export default function SellerKycModal({
   // Submit Final KYC Dossier
   const handleFinalSubmit = async () => {
     if (!termsAccepted) {
-      alert("Veuillez cocher la case d'acceptation de la charte.");
+      toast.warning("Veuillez cocher la case d'acceptation de la charte.");
       return;
     }
     if (!signatureData) {
-      alert("Veuillez apposer votre signature numérique dans l'encadré.");
+      toast.warning("Veuillez apposer votre signature numérique dans l'encadré.");
       return;
     }
 
@@ -310,14 +314,14 @@ export default function SellerKycModal({
         data: { shop_id: shopId, seller_name: sellerName }
       });
 
-      alert("🎉 Votre dossier de certification a été transmis avec succès ! Le service Conformité Kalagban va l'examiner sous 24 à 48 heures.");
+      toast.success("Votre dossier de certification a été transmis avec succès ! Le service Conformité Kalagban va l'examiner sous 24 à 48 heures.", "Dossier KYC transmis 🎉");
       onSuccess();
       onClose();
 
     } catch (err: unknown) {
       console.error("KYC Submission error:", err);
       const msg = err instanceof Error ? err.message : "Erreur lors de l'envoi du dossier.";
-      alert("Erreur : " + msg);
+      toast.error(msg, "Erreur KYC");
     } finally {
       setIsSubmitting(false);
     }

@@ -17,6 +17,7 @@ import {
   Star
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
 
 interface ProductImage {
@@ -28,6 +29,7 @@ interface ProductImage {
 }
 
 export default function NewProductPage() {
+  const { toast } = useToast();
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -135,7 +137,7 @@ export default function NewProductPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !price) {
-      alert("Veuillez remplir le titre et le prix du produit.");
+      toast.warning("Veuillez remplir le titre et le prix du produit.");
       return;
     }
     
@@ -144,7 +146,7 @@ export default function NewProductPage() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        alert("Vous n'êtes pas authentifié. Veuillez vous connecter ou créer une boutique d'abord.");
+        toast.error("Vous n'êtes pas authentifié. Veuillez vous connecter ou créer une boutique d'abord.");
         return;
       }
 
@@ -196,10 +198,11 @@ export default function NewProductPage() {
       }
 
       setIsSaved(true);
+      toast.success("Produit soumis avec succès !");
       setSubmittedModal(true);
     } catch (err) {
       const error = err as Error;
-      alert("Erreur lors de la soumission : " + error.message);
+      toast.error("Erreur lors de la soumission : " + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -299,7 +302,7 @@ export default function NewProductPage() {
       );
     } catch (error) {
       console.error("Erreur de détourage IA ou conversion:", error);
-      alert("Erreur lors du traitement de l'image.");
+      toast.error("Erreur lors du traitement de l'image.");
     } finally {
       setIsRemovingBg(false);
     }

@@ -25,6 +25,7 @@ import {
   Save
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useToast } from "@/context/ToastContext";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
 
 interface CustomerOrder {
@@ -77,6 +78,7 @@ interface CustomerAddress {
 export default function CustomerAccountPage() {
   const router = useRouter();
   const { addToCart } = useCart();
+  const { toast, confirm } = useToast();
 
   const [activeTab, setActiveTab] = useState<"orders" | "wishlist" | "addresses" | "profile">("orders");
   const [isLoading, setIsLoading] = useState(true);
@@ -190,18 +192,18 @@ export default function CustomerAccountPage() {
       });
 
       if (error) {
-        alert("Erreur de mise à jour : " + error.message);
+        toast.error("Erreur de mise à jour : " + error.message);
       } else {
         setProfile({
           ...profile,
           full_name: editFullName,
           phone: editPhone
         });
-        setProfileSuccessMsg("Vos informations personnelles ont été mises à jour avec succès !");
-        setTimeout(() => setProfileSuccessMsg(""), 3500);
+        toast.success("Vos informations personnelles ont été enregistrées.");
       }
     } catch (err) {
       console.error("Error updating profile:", err);
+      toast.error("Une erreur inattendue est survenue.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -210,7 +212,7 @@ export default function CustomerAccountPage() {
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFullName || !newPhone || !newDistrict) {
-      alert("Veuillez remplir les champs obligatoires.");
+      toast.warning("Veuillez remplir tous les champs obligatoires (*)");
       return;
     }
 
@@ -237,18 +239,30 @@ export default function CustomerAccountPage() {
         setShowAddressModal(false);
         setNewDistrict("");
         setNewLandmark("");
+        toast.success("Nouvelle adresse ajoutée avec succès !");
       }
     } catch (err) {
       console.error("Error adding address:", err);
+      toast.error("Impossible d'ajouter cette adresse.");
     }
   };
 
   const handleDeleteAddress = async (id: string) => {
+    const isOk = await confirm({
+      title: "Supprimer cette adresse",
+      message: "Êtes-vous sûr de vouloir supprimer cette adresse de livraison ?",
+      confirmText: "Oui, supprimer",
+      type: "danger"
+    });
+    if (!isOk) return;
+
     try {
       await supabase.from("customer_addresses").delete().eq("id", id);
       setAddresses(addresses.filter(a => a.id !== id));
+      toast.success("Adresse supprimée.");
     } catch (err) {
       console.error("Error deleting address:", err);
+      toast.error("Erreur lors de la suppression de l'adresse.");
     }
   };
 
@@ -256,15 +270,23 @@ export default function CustomerAccountPage() {
     try {
       await supabase.from("wishlists").delete().eq("id", id);
       setWishlist(wishlist.filter(w => w.id !== id));
+      toast.info("Article retiré de vos favoris.");
     } catch (err) {
       console.error("Error deleting wishlist item:", err);
     }
   };
 
   const handleCancelOrder = async (orderId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront immédiatement réintégrés au stock de la boutique.")) {
-      return;
-    }
+    const isConfirmed = await confirm({
+      title: "Annuler cette commande",
+      message: "Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront immédiatement réintégrés au stock de la boutique.",
+      confirmText: "Oui, annuler la commande",
+      cancelText: "Non, conserver",
+      type: "danger"
+    });
+
+    if (!isConfirmed) return;
+
     setCancellingOrderId(orderId);
     try {
       // 1. Fetch order details to restore stock and notify seller
@@ -320,11 +342,11 @@ export default function CustomerAccountPage() {
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: "cancelled" } : o))
       );
-      alert("Votre commande a bien été annulée avec succès.");
+      toast.success("Votre commande a bien été annulée avec succès.", "Commande annulée");
     } catch (err: unknown) {
       console.error("Error cancelling order:", err);
       const msg = err instanceof Error ? err.message : "Une erreur est survenue lors de l'annulation.";
-      alert("Erreur : " + msg);
+      toast.error(msg, "Erreur d'annulation");
     } finally {
       setCancellingOrderId(null);
     }

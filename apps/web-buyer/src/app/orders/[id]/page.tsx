@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabase";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
+import { useToast } from "@/context/ToastContext";
 import { 
   CheckCircle2, 
   Package, 
@@ -41,6 +42,7 @@ interface OrderItem {
 
 export default function OrderSuccessPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { toast, confirm } = useToast();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -50,9 +52,16 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
 
   const handleCancelOrder = async () => {
     if (!order) return;
-    if (!confirm("Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront remis en stock.")) {
-      return;
-    }
+    const isConfirmed = await confirm({
+      title: "Annuler cette commande",
+      message: "Êtes-vous sûr de vouloir annuler cette commande ? Les articles seront immédiatement réintégrés au stock.",
+      confirmText: "Oui, annuler la commande",
+      cancelText: "Non, conserver",
+      type: "danger"
+    });
+
+    if (!isConfirmed) return;
+
     setIsCancelling(true);
     try {
       // 1. Update order status to cancelled
@@ -94,11 +103,11 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
       }
 
       setOrder((prev) => (prev ? { ...prev, status: "cancelled" } : null));
-      alert("Votre commande a été annulée avec succès.");
+      toast.success("Votre commande a été annulée avec succès.", "Commande annulée");
     } catch (err: unknown) {
       console.error("Error cancelling order:", err);
       const msg = err instanceof Error ? err.message : "Une erreur est survenue.";
-      alert("Erreur lors de l'annulation : " + msg);
+      toast.error(msg, "Erreur d'annulation");
     } finally {
       setIsCancelling(false);
     }

@@ -15,6 +15,7 @@ import {
   X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 import { PRODUCT_CATEGORIES } from "@/lib/categories";
 import ProductDetailModal, { SellerProduct } from "@/components/products/ProductDetailModal";
 
@@ -32,6 +33,7 @@ interface Product extends SellerProduct {
 }
 
 export default function ProductsPage() {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,12 +124,14 @@ export default function ProductsPage() {
         .eq('id', productToDelete.id);
 
       if (error) {
-        alert("Erreur lors de la suppression : " + error.message);
+        toast.error("Erreur lors de la suppression : " + error.message);
       } else {
         setProducts(products.filter(p => p.id !== productToDelete.id));
+        toast.success("Produit retiré du catalogue avec succès.");
       }
     } catch (error) {
       console.error("Erreur suppression:", error);
+      toast.error("Une erreur inattendue est survenue.");
     } finally {
       setIsDeleting(false);
       setProductToDelete(null);

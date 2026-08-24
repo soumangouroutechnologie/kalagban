@@ -4,9 +4,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Camera, Image as ImageIcon, Save, CheckCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("Boutique");
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,7 +90,7 @@ export default function SettingsPage() {
 
     if (uploadError) {
       console.error("Upload error", uploadError);
-      alert(`Upload error: ${uploadError.message || JSON.stringify(uploadError)}`);
+      toast.error(`Erreur d'upload : ${uploadError.message || "Une erreur est survenue"}`);
       return null;
     }
 
@@ -105,8 +107,9 @@ export default function SettingsPage() {
       const url = await uploadFile(file, 'shop_logo');
       if (url) {
         setShopLogoUrl(url);
+        toast.success("Logo de la boutique mis à jour !");
       } else {
-        alert("Erreur lors de l'upload de l'image.");
+        toast.error("Erreur lors de l'upload de l'image.");
       }
     }
     // Clear the input value so the same file can be selected again
@@ -119,8 +122,9 @@ export default function SettingsPage() {
       const url = await uploadFile(file, 'avatar');
       if (url) {
         setAvatarUrl(url);
+        toast.success("Photo de profil mise à jour !");
       } else {
-        alert("Erreur lors de l'upload de l'image.");
+        toast.error("Erreur lors de l'upload de l'image.");
       }
     }
     // Clear the input value so the same file can be selected again
@@ -160,19 +164,20 @@ export default function SettingsPage() {
         if (upsertError) {
           console.error("Upsert error:", upsertError);
           if (upsertError.code === '23503') {
-            alert("Votre session a expiré ou la base de données a été réinitialisée. Vous allez être déconnecté.");
+            toast.warning("Votre session a expiré. Vous allez être déconnecté.");
             await supabase.auth.signOut();
             document.cookie = "kalagban_seller_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             router.push("/login");
             return;
           }
-          alert(`Erreur d'enregistrement : ${upsertError.message}`);
+          toast.error(`Erreur d'enregistrement : ${upsertError.message}`);
           setIsSaving(false);
           return;
         }
       }
 
       setIsSaved(true);
+      toast.success("Modifications enregistrées avec succès !");
       setTimeout(() => setIsSaved(false), 3000);
       
       // Dire au Header de se mettre à jour sans recharger la page !
@@ -180,7 +185,7 @@ export default function SettingsPage() {
       
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Erreur lors de l'enregistrement.");
+      toast.error("Erreur lors de l'enregistrement.");
     } finally {
       setIsSaving(false);
     }

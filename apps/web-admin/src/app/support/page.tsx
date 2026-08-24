@@ -1,26 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Headphones, 
   Search, 
   MessageSquare, 
   Send, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
   X, 
-  User, 
-  Mail, 
-  Phone, 
-  Plus, 
-  RefreshCw,
-  Package,
-  ShieldAlert,
-  ArrowRight
+  Loader2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
+import { useToast } from "@/context/ToastContext";
 
 interface SupportTicket {
   id: string;
@@ -47,7 +38,8 @@ interface SupportMessage {
 }
 
 export default function SupportPage() {
-  const { user, hasPermission, isSuperAdmin } = useAdminAuth();
+  const { user } = useAdminAuth();
+  const { toast } = useToast();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,8 +53,7 @@ export default function SupportPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
-  const fetchTickets = async () => {
-    setLoading(true);
+  const fetchTickets = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("support_tickets")
@@ -79,20 +70,46 @@ export default function SupportPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchTickets();
+    let isMounted = true;
+
+    const initFetch = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("support_tickets")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (isMounted) {
+          if (!error && data) {
+            setTickets(data);
+          } else {
+            setTickets([]);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching tickets:", err);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initFetch();
 
     const channel = supabase
       .channel("admin_support_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchTickets())
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => {
+        fetchTickets();
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchTickets]);
 
   const handleOpenConversation = async (ticket: SupportTicket) => {
     setActiveTicket(ticket);
@@ -154,8 +171,10 @@ export default function SupportPage() {
 
       setReplyText("");
       fetchTickets();
-    } catch (err: any) {
-      alert("Erreur lors de l'envoi : " + err.message);
+      toast.success("Réponse transmise avec succès.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur réseau";
+      toast.error("Erreur lors de l'envoi : " + msg);
     } finally {
       setSendingReply(false);
     }
@@ -276,7 +295,14 @@ export default function SupportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTickets.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center text-xs text-gray-400 font-medium">
+                    <Loader2 className="animate-spin text-indigo-600 w-8 h-8 mx-auto mb-2" />
+                    <p className="font-bold text-gray-700">Chargement des tickets de support...</p>
+                  </td>
+                </tr>
+              ) : filteredTickets.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-xs text-gray-400 font-medium">
                     <p className="font-bold text-gray-700 text-sm mb-1">Aucune réclamation ou ticket d&apos;assistance</p>

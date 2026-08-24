@@ -204,13 +204,23 @@ export default function OrdersPage() {
                     </td>
                     <td className="py-4 px-6 font-black text-text-main">{order.total_amount} FCFA</td>
                     <td className="py-4 px-6 text-right">
-                      <button 
-                        onClick={() => setSelectedOrder(order)}
-                        className="text-xs font-extrabold text-primary hover:text-white bg-primary/10 hover:bg-primary px-3.5 py-2 rounded-xl transition-all border border-primary/20 shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"
-                      >
-                        <Eye size={14} />
-                        Gérer la commande
-                      </button>
+                      {order.status === "cancelled" ? (
+                        <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="text-xs font-bold text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3.5 py-2 rounded-xl transition-all border border-gray-200 flex items-center gap-1.5 ml-auto cursor-pointer"
+                        >
+                          <Eye size={14} />
+                          Consulter
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="text-xs font-extrabold text-primary hover:text-white bg-primary/10 hover:bg-primary px-3.5 py-2 rounded-xl transition-all border border-primary/20 shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"
+                        >
+                          <Eye size={14} />
+                          Gérer la commande
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

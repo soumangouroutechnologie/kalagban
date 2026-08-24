@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
+import { ToastProvider } from "@/context/ToastContext";
 import CartDrawer from "@/components/CartDrawer";
 
 export const viewport: Viewport = {
@@ -24,12 +25,14 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
-        <FavoritesProvider>
-          <CartProvider>
-            {children}
-            <CartDrawer />
-          </CartProvider>
-        </FavoritesProvider>
+        <ToastProvider>
+          <FavoritesProvider>
+            <CartProvider>
+              {children}
+              <CartDrawer />
+            </CartProvider>
+          </FavoritesProvider>
+        </ToastProvider>
       </body>
     </html>
   );

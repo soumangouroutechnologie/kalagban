@@ -21,7 +21,7 @@ export interface KycExportData {
 export function printKycCertificate(kyc: KycExportData, shopName: string) {
   const printWindow = window.open("", "_blank", "width=900,height=1000");
   if (!printWindow) {
-    alert("Veuillez autoriser les fenêtres contextuelles (pop-ups) pour télécharger le document PDF.");
+    console.warn("Popups blocked by browser");
     return;
   }
 
