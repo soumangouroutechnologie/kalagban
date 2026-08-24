@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Package, 
@@ -15,9 +15,6 @@ import {
   Store, 
   User, 
   Eye, 
-  ShieldAlert, 
-  KeyRound,
-  ExternalLink,
   Phone
 } from "lucide-react";
 
@@ -74,7 +71,7 @@ export default function AdminOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [inspectOrder, setInspectOrder] = useState<AdminOrder | null>(null);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("orders")
@@ -94,20 +91,49 @@ export default function AdminOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchOrders();
+    let isMounted = true;
+
+    const initFetch = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("orders")
+          .select(`
+            *,
+            shops ( id, name, payout_phone ),
+            pickup_points ( id, name, commune, code ),
+            order_items ( id, quantity, unit_price, products ( title ) )
+          `)
+          .order("created_at", { ascending: false });
+
+        if (isMounted) {
+          if (!error && data) {
+            setOrders(data as unknown as AdminOrder[]);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching admin orders:", err);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initFetch();
 
     const channel = supabase
       .channel("admin_orders_realtime_audit")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        fetchOrders();
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchOrders]);
 
   const filteredOrders = orders.filter((o) => {
     const q = searchTerm.trim().toLowerCase();
