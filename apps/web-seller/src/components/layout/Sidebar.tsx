@@ -15,11 +15,13 @@ import {
   LogOut
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import ContactSupportModal from "@/components/ContactSupportModal";
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const handleLogoutClick = () => {
     setIsLogoutModalOpen(true);
@@ -103,14 +105,20 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
 
       {/* Promo/Support Widget */}
-      <div className="mt-auto bg-linear-to-br from-indigo-500 via-primary to-purple-500 rounded-card p-5 text-white shadow-md relative overflow-hidden group cursor-pointer mb-6">
+      <div 
+        onClick={() => setIsSupportModalOpen(true)}
+        className="mt-auto bg-linear-to-br from-indigo-500 via-primary to-purple-500 rounded-card p-5 text-white shadow-md relative overflow-hidden group cursor-pointer mb-6"
+      >
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-2">
             <HelpCircle size={18} />
             <h3 className="font-bold text-sm">Centre d&apos;Aide</h3>
           </div>
           <p className="text-xs opacity-90 mb-4 leading-relaxed">Besoin d&apos;assistance pour gérer vos commandes ?</p>
-          <button className="bg-white text-primary text-xs font-bold py-2 px-4 rounded-full w-full shadow-sm group-hover:scale-105 transition-transform">
+          <button 
+            type="button"
+            className="bg-white text-primary text-xs font-bold py-2 px-4 rounded-full w-full shadow-sm group-hover:scale-105 transition-transform cursor-pointer"
+          >
             Contacter le support
           </button>
         </div>
@@ -133,6 +141,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           <span className="font-medium text-sm">Déconnexion</span>
         </button>
       </div>
+
+      {/* Modal de Support & Tickets Vendeurs */}
+      <ContactSupportModal
+        isOpen={isSupportModalOpen}
+        onClose={() => setIsSupportModalOpen(false)}
+      />
 
       {/* Modal de Confirmation de Déconnexion (Sidebar) */}
       {isLogoutModalOpen && (

@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
 import { calculateApplicationFee } from "@/lib/fee";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/context/ToastContext";
 import { 
   ArrowLeft, 
   ShoppingBag, 
@@ -19,11 +20,15 @@ import {
   UserCheck,
   AlertCircle,
   CreditCard,
-  ShieldCheck
+  ShieldCheck,
+  Ticket,
+  Tag,
+  X as XIcon
 } from "lucide-react";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { cart, totalPrice, clearCart } = useCart();
 
   const [user, setUser] = useState<unknown | null>(null);
@@ -37,6 +42,30 @@ export default function CheckoutPage() {
   const [selectedCommune, setSelectedCommune] = useState("");
   const [selectedRelayId, setSelectedRelayId] = useState("");
   const [communesList, setCommunesList] = useState<Array<{ id: string; name: string; code: string; color_hex?: string }>>([]);
+
+  // Promo Code / Coupon state
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount_type: "percentage" | "fixed_amount";
+    discount_value: number;
+    max_discount_amount?: number;
+  } | null>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
+  const calculateDiscount = () => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discount_type === "percentage") {
+      let disc = (totalPrice * appliedCoupon.discount_value) / 100;
+      if (appliedCoupon.max_discount_amount && disc > appliedCoupon.max_discount_amount) {
+        disc = appliedCoupon.max_discount_amount;
+      }
+      return Math.round(disc);
+    }
+    return Math.min(totalPrice, appliedCoupon.discount_value);
+  };
+
+  const discountAmount = calculateDiscount();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -125,6 +154,56 @@ export default function CheckoutPage() {
       </div>
     );
   }
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoCodeInput.trim()) return;
+
+    setValidatingCoupon(true);
+    try {
+      const cleanCode = promoCodeInput.trim().toUpperCase();
+      const { data: coupon, error } = await supabase
+        .from("marketing_coupons")
+        .select("*")
+        .eq("code", cleanCode)
+        .eq("is_active", true)
+        .single();
+
+      if (error || !coupon) {
+        toast.error("Code promo invalide ou inactif.");
+        return;
+      }
+
+      if (new Date(coupon.expires_at) < new Date()) {
+        toast.error("Ce code promo a expiré.");
+        return;
+      }
+
+      if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+        toast.error("Ce code promo a atteint sa limite d'utilisation.");
+        return;
+      }
+
+      if (totalPrice < (coupon.min_order_amount || 0)) {
+        toast.warning(`Ce code nécessite un panier minimum de ${Number(coupon.min_order_amount).toLocaleString()} FCFA.`);
+        return;
+      }
+
+      setAppliedCoupon({
+        code: coupon.code,
+        discount_type: coupon.discount_type,
+        discount_value: Number(coupon.discount_value),
+        max_discount_amount: coupon.max_discount_amount ? Number(coupon.max_discount_amount) : undefined
+      });
+
+      toast.success(`Code ${coupon.code} appliqué avec succès !`, "Réduction accordée 🎉");
+    } catch (err: unknown) {
+      console.error("Coupon error:", err);
+      toast.error("Erreur lors de l'application du code.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -752,14 +831,72 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* PROMO CODE BOX */}
+              <div className="border-t border-gray-100 pt-4">
+                {appliedCoupon ? (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Tag size={16} className="text-emerald-600" />
+                      <div>
+                        <span className="font-mono font-black text-xs text-emerald-950">{appliedCoupon.code}</span>
+                        <p className="text-[10px] text-emerald-700 font-bold">
+                          {appliedCoupon.discount_type === "percentage" ? `-${appliedCoupon.discount_value}%` : `-${appliedCoupon.discount_value.toLocaleString()} FCFA`} appliqué
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedCoupon(null);
+                        setPromoCodeInput("");
+                        toast.info("Code promo retiré.");
+                      }}
+                      className="p-1 text-emerald-700 hover:text-red-600 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer"
+                      title="Retirer le code promo"
+                    >
+                      <XIcon size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Ticket size={15} className="absolute left-3.5 top-3 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Code promo (ex: PROMO10)"
+                        value={promoCodeInput}
+                        onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-gray-900 focus:outline-hidden focus:border-indigo-500 uppercase placeholder:normal-case"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={validatingCoupon || !promoCodeInput.trim()}
+                      className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shrink-0 flex items-center justify-center"
+                    >
+                      {validatingCoupon ? <Loader2 size={14} className="animate-spin" /> : "Appliquer"}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {(() => {
-                const summaryFee = calculateApplicationFee(totalPrice, 0);
+                const discountedSubtotal = Math.max(0, totalPrice - discountAmount);
+                const summaryFee = calculateApplicationFee(discountedSubtotal, 0);
                 return (
                   <div className="border-t border-gray-100 pt-4 flex flex-col gap-3">
                     <div className="flex justify-between text-sm text-gray-500 font-medium">
                       <span>Sous-total</span>
-                      <span className="font-bold text-gray-900">{summaryFee.subtotal.toLocaleString("fr-FR")} FCFA</span>
+                      <span className="font-bold text-gray-900">{totalPrice.toLocaleString("fr-FR")} FCFA</span>
                     </div>
+
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-sm text-emerald-600 font-bold">
+                        <span>Réduction code promo</span>
+                        <span>-{discountAmount.toLocaleString("fr-FR")} FCFA</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between text-sm text-gray-500 font-medium">
                       <span>Frais d&apos;application</span>
                       <span className="font-bold text-indigo-600">+{summaryFee.applicationFee.toLocaleString("fr-FR")} FCFA</span>

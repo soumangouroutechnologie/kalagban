@@ -1,9 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Search, User, UserCheck, Home, Heart, X, Bell, Truck, Package } from "lucide-react";
+import { ShoppingBag, Search, User, UserCheck, Home, Heart, X, Bell, Truck, Package, Store, Loader2 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -17,6 +18,21 @@ interface CustomerNotification {
   is_read: boolean;
   created_at: string;
   order_id?: string;
+}
+
+interface SearchSuggestionProduct {
+  id: string;
+  title: string;
+  price: number;
+  image_url?: string | null;
+  product_media?: { url: string }[];
+  shops?: { name: string };
+}
+
+interface SearchSuggestionShop {
+  id: string;
+  name: string;
+  logo_url?: string | null;
 }
 
 export default function Header({ 
@@ -36,6 +52,13 @@ export default function Header({
   const [showNotifs, setShowNotifs] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // Live Search Autocompletion State
+  const [suggestedProducts, setSuggestedProducts] = useState<SearchSuggestionProduct[]>([]);
+  const [suggestedShops, setSuggestedShops] = useState<SearchSuggestionShop[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const fetchNotifications = async (userId: string) => {
     try {
       const { data } = await supabase
@@ -52,6 +75,66 @@ export default function Header({
       console.error("Error fetching customer notifications:", err);
     }
   };
+
+  // Live search debounce effect
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!searchTerm || searchTerm.trim().length < 2) {
+        setSuggestedProducts([]);
+        setSuggestedShops([]);
+        setShowSearchDropdown(false);
+        return;
+      }
+
+      setIsSearching(true);
+      setShowSearchDropdown(true);
+      try {
+        const cleanTerm = searchTerm.trim();
+
+        // 1. Search matching active products
+        const { data: prodData } = await supabase
+          .from("products")
+          .select("id, title, price, image_url, product_media(url), shops(name)")
+          .ilike("title", `%${cleanTerm}%`)
+          .eq("status", "active")
+          .limit(4);
+
+        if (prodData) {
+          setSuggestedProducts(prodData as unknown as SearchSuggestionProduct[]);
+        }
+
+        // 2. Search matching verified shops
+        const { data: shopData } = await supabase
+          .from("shops")
+          .select("id, name, logo_url")
+          .ilike("name", `%${cleanTerm}%`)
+          .limit(2);
+
+        if (shopData) {
+          setSuggestedShops(shopData);
+        }
+      } catch (err) {
+        console.error("Search error:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifs(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -132,27 +215,124 @@ export default function Header({
           </div>
         </Link>
 
-        {/* Search Bar */}
-        <div className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-4 flex">
+        {/* Search Bar with Live Autocompletion */}
+        <div className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-4 flex relative" ref={searchRef}>
           <div className="relative w-full">
             <input
               type="text"
               value={searchTerm || ""}
+              onFocus={() => { if (searchTerm && searchTerm.length >= 2) setShowSearchDropdown(true); }}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Rechercher un produit..."
+              placeholder="Rechercher un produit, une boutique..."
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-full py-2 sm:py-3 px-3 sm:px-5 pl-8 sm:pl-12 pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all text-xs sm:text-sm font-medium"
             />
             <Search className="absolute left-2.5 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={15} />
             {searchTerm ? (
               <button
                 type="button"
-                onClick={() => onSearchChange?.("")}
+                onClick={() => {
+                  onSearchChange?.("");
+                  setShowSearchDropdown(false);
+                }}
                 className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
                 title="Effacer la recherche"
               >
                 <X size={13} />
               </button>
             ) : null}
+
+            {/* Floating Live Autocompletion Dropdown */}
+            {showSearchDropdown && (
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-3xl shadow-2xl border border-gray-100 p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 max-h-96 overflow-y-auto custom-scrollbar">
+                {isSearching ? (
+                  <div className="py-6 flex items-center justify-center gap-2 text-gray-400 text-xs font-bold">
+                    <Loader2 size={16} className="animate-spin text-indigo-600" />
+                    <span>Recherche en direct...</span>
+                  </div>
+                ) : suggestedProducts.length === 0 && suggestedShops.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-gray-400 font-medium">
+                    Aucun résultat trouvé pour &ldquo;{searchTerm}&rdquo;
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    
+                    {/* Matching Shops */}
+                    {suggestedShops.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider px-2 block mb-1">
+                          Boutiques Certifiées
+                        </span>
+                        <div className="space-y-1">
+                          {suggestedShops.map((s) => (
+                            <Link
+                              key={s.id}
+                              href={`/shops/${s.id}`}
+                              onClick={() => setShowSearchDropdown(false)}
+                              className="flex items-center gap-3 p-2 rounded-2xl hover:bg-indigo-50/50 transition-colors group"
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                {s.logo_url ? (
+                                  <img src={s.logo_url} alt={s.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Store size={15} />
+                                )}
+                              </div>
+                              <span className="text-xs font-black text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                {s.name}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Matching Products */}
+                    {suggestedProducts.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider px-2 block mb-1">
+                          Produits Suggérés
+                        </span>
+                        <div className="space-y-1">
+                          {suggestedProducts.map((p) => {
+                            const img = p.image_url || (p.product_media && p.product_media.length > 0 ? p.product_media[0].url : "");
+                            return (
+                              <Link
+                                key={p.id}
+                                href={`/products/${p.id}`}
+                                onClick={() => setShowSearchDropdown(false)}
+                                className="flex items-center justify-between gap-3 p-2 rounded-2xl hover:bg-indigo-50/50 transition-colors group"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden border border-gray-100">
+                                    {img ? (
+                                      <img src={img} alt={p.title} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Package size={14} className="text-gray-400" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <h5 className="text-xs font-extrabold text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+                                      {p.title}
+                                    </h5>
+                                    {p.shops?.name && (
+                                      <p className="text-[10px] text-gray-400 font-medium truncate">{p.shops.name}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-xs font-black text-indigo-600 shrink-0">
+                                  {Number(p.price).toLocaleString()} F
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

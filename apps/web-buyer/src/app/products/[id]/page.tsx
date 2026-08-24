@@ -27,6 +27,7 @@ import {
   ChevronRight,
   X
 } from "lucide-react";
+import ProductReviewsSection from "@/components/reviews/ProductReviewsSection";
 
 interface ProductDetails {
   id: string;
@@ -433,14 +434,19 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
+          {/* Reviews & Ratings Section */}
+          <div className="md:col-span-2">
+            <ProductReviewsSection productId={product.id} productTitle={product.title} />
+          </div>
+
           {/* Reassurance 1 */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
               <Truck size={24} />
             </div>
             <div>
-              <h4 className="font-bold text-gray-900 text-sm">Livraison Rapide</h4>
-              <p className="text-xs text-gray-500 font-medium">Expédié directement par le vendeur.</p>
+              <h4 className="font-bold text-gray-900 text-sm">Livraison Sécurisée Point Relais</h4>
+              <p className="text-xs text-gray-500 font-medium">Récupération avec code OTP unique.</p>
             </div>
           </div>
 
@@ -451,7 +457,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <h4 className="font-bold text-gray-900 text-sm">Paiement Sécurisé</h4>
-              <p className="text-xs text-gray-500 font-medium">Mobile Money ou espèces à la livraison.</p>
+              <p className="text-xs text-gray-500 font-medium">Mobile Money (K-PAY) ou espèces au retrait.</p>
             </div>
           </div>
         </div>

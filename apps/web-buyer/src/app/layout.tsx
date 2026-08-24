@@ -4,6 +4,7 @@ import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
 import { ToastProvider } from "@/context/ToastContext";
 import CartDrawer from "@/components/CartDrawer";
+import FloatingSupportButton from "@/components/FloatingSupportButton";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -30,6 +31,7 @@ export default function RootLayout({
             <CartProvider>
               {children}
               <CartDrawer />
+              <FloatingSupportButton />
             </CartProvider>
           </FavoritesProvider>
         </ToastProvider>
