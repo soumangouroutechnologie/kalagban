@@ -13,6 +13,14 @@ interface TopProduct {
   image?: string;
 }
 
+interface DbProductItem {
+  id: string;
+  title: string;
+  price: number;
+  image_url?: string | null;
+  product_media?: { url: string }[];
+}
+
 export default function StatsPage() {
   const [timeFilter, setTimeFilter] = useState("Cette semaine");
   const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +92,7 @@ export default function StatsPage() {
             .in('id', topProductIds);
 
           if (productsData) {
-            const formattedTopProducts = productsData.map((p: any) => ({
+            const formattedTopProducts = (productsData as unknown as DbProductItem[]).map((p) => ({
               id: p.id,
               name: p.title,
               price: `${Number(p.price || 0).toLocaleString('fr-FR')} FCFA`,
