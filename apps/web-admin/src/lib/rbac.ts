@@ -368,12 +368,32 @@ export function computePermissions(
   }
   const base = ROLE_BASE_PERMISSIONS[normalizedRole] || ROLE_BASE_PERMISSIONS.moderator;
 
+  // Filter dbPermissions to strictly keep valid boolean permission keys
+  const cleanDb: Record<string, boolean> = {};
+  if (dbPermissions && typeof dbPermissions === "object") {
+    Object.entries(dbPermissions).forEach(([k, v]) => {
+      if (typeof v === "boolean" && k in DEFAULT_PERMISSIONS) {
+        cleanDb[k] = v;
+      }
+    });
+  }
+
+  // Filter customPermissions overrides (explicit true/false)
+  const cleanCustom: Record<string, boolean> = {};
+  if (customPermissions && typeof customPermissions === "object") {
+    Object.entries(customPermissions).forEach(([k, v]) => {
+      if (typeof v === "boolean" && k in DEFAULT_PERMISSIONS) {
+        cleanCustom[k] = v;
+      }
+    });
+  }
+
   return {
     ...DEFAULT_PERMISSIONS,
     ...base,
-    ...(dbPermissions || {}),
-    ...(customPermissions || {}),
-  };
+    ...cleanDb,
+    ...cleanCustom,
+  } as AdminPermissions;
 }
 
 export { useAdminAuth } from "./useAdminAuth";

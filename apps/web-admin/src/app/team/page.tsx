@@ -199,12 +199,19 @@ export default function TeamPage() {
 
       currentCustom[permKey as string] = newVal;
 
-      const { error: upErr } = await supabase.from("admin_permissions").upsert({
+      const payload: Record<string, unknown> = {
         user_id: memberId,
-        [permKey]: newVal,
         custom_permissions: currentCustom,
         updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
+      };
+
+      // Only include legacy column if known
+      const legacyColumns = ["can_manage_team", "can_edit_cms", "can_view_finance", "can_moderate_shops"];
+      if (legacyColumns.includes(permKey as string)) {
+        payload[permKey] = newVal;
+      }
+
+      const { error: upErr } = await supabase.from("admin_permissions").upsert(payload, { onConflict: "user_id" });
 
       if (upErr) {
         console.error("Error upserting admin_permissions:", upErr);
