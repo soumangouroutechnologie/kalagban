@@ -374,6 +374,9 @@ export function computePermissions(
   customPermissions?: Record<string, boolean>
 ): AdminPermissions {
   const normalizedRole = (role || "moderator") as AdminRole;
+  if (normalizedRole === "super_admin") {
+    return { ...DEFAULT_PERMISSIONS, ...ROLE_BASE_PERMISSIONS.super_admin } as AdminPermissions;
+  }
   const base = ROLE_BASE_PERMISSIONS[normalizedRole] || ROLE_BASE_PERMISSIONS.moderator;
 
   return {

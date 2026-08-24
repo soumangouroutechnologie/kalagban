@@ -1,33 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Users, 
   UserPlus, 
-  Crown, 
-  Truck, 
-  DollarSign, 
-  ShieldAlert, 
-  Code, 
   Check, 
   Loader2, 
   X, 
-  Mail, 
   User, 
-  Lock, 
-  Edit3, 
   Trash2, 
   ShieldCheck, 
-  PlusCircle, 
-  Info,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  Megaphone,
-  Headphones,
-  BarChart3,
-  Sliders
+  Info, 
+  CheckCircle2, 
+  XCircle, 
+  Sliders 
 } from "lucide-react";
 import { 
   useAdminAuth, 
@@ -50,7 +37,7 @@ interface TeamMember {
 }
 
 export default function TeamPage() {
-  const { isSuperAdmin, role: currentRole, loading: authLoading } = useAdminAuth();
+  const { isSuperAdmin } = useAdminAuth();
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +45,6 @@ export default function TeamPage() {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [inspectMember, setInspectMember] = useState<TeamMember | null>(null);
   const [creating, setCreating] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState<string | null>(null);
@@ -72,7 +58,7 @@ export default function TeamPage() {
     custom_permissions: {} as Record<string, boolean>,
   });
 
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
     try {
       const { data: profiles, error: pErr } = await supabase
         .from("profiles")
@@ -121,10 +107,12 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchTeamMembers();
+    const timer = setTimeout(() => {
+      fetchTeamMembers();
+    }, 0);
 
     const channel = supabase
       .channel("admin_team_realtime_full")
@@ -133,9 +121,10 @@ export default function TeamPage() {
       .subscribe();
 
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchTeamMembers]);
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +143,6 @@ export default function TeamPage() {
         full_name: formData.full_name,
         role: "admin",
         admin_role: formData.admin_role,
-        status: "active",
       });
 
       if (profErr) throw profErr;
@@ -180,9 +168,10 @@ export default function TeamPage() {
         custom_permissions: {},
       });
       fetchTeamMembers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error creating team member:", err);
-      alert(err.message || "Erreur lors de la création du collaborateur.");
+      const msg = err instanceof Error ? err.message : "Erreur lors de la création du collaborateur.";
+      alert(msg);
     } finally {
       setCreating(false);
     }
