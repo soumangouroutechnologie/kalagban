@@ -350,10 +350,20 @@ export default function MarketplaceHomeScreen() {
 
     let matchesCat = true;
     if (selectedParentCat) {
+      const isUnisex = itemCat.includes('unisexe') || itemCat.includes('mixte');
+      const isParentGender = selectedParentCat.toLowerCase() === 'homme' || selectedParentCat.toLowerCase() === 'femme';
+
       if (selectedSubCat !== 'all') {
-        matchesCat = itemCat.includes(selectedSubCat.toLowerCase()) || itemCat.includes(selectedSubCat.replace(/-/g, ' '));
+        const subLower = selectedSubCat.toLowerCase();
+        const baseSub = subLower.replace('-hommes', '').replace('-femmes', '').replace('-enfants', '');
+        matchesCat = 
+          itemCat.includes(subLower) || 
+          itemCat.includes(subLower.replace(/-/g, ' ')) ||
+          (isUnisex && isParentGender && itemCat.includes(baseSub));
       } else {
-        matchesCat = itemCat.includes(selectedParentCat.toLowerCase());
+        matchesCat = 
+          itemCat.includes(selectedParentCat.toLowerCase()) ||
+          (isParentGender && isUnisex);
       }
     }
 

@@ -62,6 +62,7 @@ export default function ProductEditorScreen() {
   const [title, setTitle] = useState('');
   const [selectedParentCat, setSelectedParentCat] = useState<string>('femme');
   const [selectedSubCat, setSelectedSubCat] = useState<string>('vetements-femmes');
+  const [isUnisex, setIsUnisex] = useState(false);
   const [price, setPrice] = useState('');
   const [oldPrice, setOldPrice] = useState('');
   const [stockQuantity, setStockQuantity] = useState('10');
@@ -97,17 +98,23 @@ export default function ProductEditorScreen() {
       if (!error && data) {
         setTitle(data.title || '');
         
-        // Find corresponding category
+        // Find corresponding category & unisex flag
         const savedCat = data.category || 'vetements-femmes';
+        const isCatUnisex = savedCat.toLowerCase().includes('unisexe') || savedCat.toLowerCase().includes('mixte');
+        setIsUnisex(isCatUnisex);
+
         let foundParent = 'femme';
         for (const p of CATEGORY_TREE) {
-          if (p.id === savedCat || p.subCategories.some(s => s.id === savedCat)) {
+          if (p.id === savedCat || p.subCategories.some(s => savedCat.includes(s.id))) {
             foundParent = p.id;
             break;
           }
         }
         setSelectedParentCat(foundParent);
-        setSelectedSubCat(savedCat);
+        
+        // Match primary subcategory
+        const matchingSub = CATEGORY_TREE.flatMap(p => p.subCategories).find(s => savedCat.includes(s.id));
+        setSelectedSubCat(matchingSub ? matchingSub.id : savedCat.split(',')[0]);
 
         setPrice(data.price ? String(data.price) : '');
         setOldPrice(data.old_price ? String(data.old_price) : '');
@@ -219,6 +226,7 @@ export default function ProductEditorScreen() {
       }
 
       let currentProductId = productId;
+      const finalCategory = isUnisex ? `${selectedSubCat},unisexe,mixte,homme,femme` : selectedSubCat;
 
       if (productId) {
         // Update existing product and reset to pending review
@@ -226,7 +234,7 @@ export default function ProductEditorScreen() {
           .from('products')
           .update({
             title: title.trim(),
-            category: selectedSubCat,
+            category: finalCategory,
             price: parseFloat(price),
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
@@ -242,7 +250,7 @@ export default function ProductEditorScreen() {
           .insert({
             shop_id: targetShopId,
             title: title.trim(),
-            category: selectedSubCat,
+            category: finalCategory,
             price: parseFloat(price),
             old_price: oldPrice ? parseFloat(oldPrice) : null,
             stock_quantity: parseInt(stockQuantity, 10),
@@ -471,6 +479,28 @@ export default function ProductEditorScreen() {
                 ))}
               </ScrollView>
             </View>
+
+            {/* Unisexe / Multi-Genre Toggle */}
+            <TouchableOpacity 
+              style={[
+                styles.unisexCard, 
+                isUnisex && styles.unisexCardActive
+              ]}
+              onPress={() => setIsUnisex(!isUnisex)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.unisexCheckbox, isUnisex && styles.unisexCheckboxActive]}>
+                {isUnisex && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.unisexTitle, isUnisex && styles.unisexTitleActive]}>
+                  🔄 Convient aux Hommes &amp; Femmes (Unisexe)
+                </Text>
+                <Text style={styles.unisexSubtitle}>
+                  Cochez si cet article peut être utilisé ou porté par les deux genres.
+                </Text>
+              </View>
+            </TouchableOpacity>
 
             <View style={styles.rowInputs}>
               <View style={[styles.inputGroup, { flex: 1 }]}>
@@ -777,6 +807,50 @@ const styles = StyleSheet.create({
   },
   activeSubCatChipText: {
     color: '#FFFFFF',
+  },
+  unisexCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 12,
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  unisexCardActive: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6366F1',
+  },
+  unisexCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unisexCheckboxActive: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  unisexTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  unisexTitleActive: {
+    color: '#3730A3',
+    fontWeight: '800',
+  },
+  unisexSubtitle: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
   },
   textArea: {
     height: 90,

@@ -14,3 +14,72 @@ html, body {
   background-color: #fafafa !important;
   color: #111827 !important;
 }
+
+/* Custom Dual Range Slider for Kalagban */
+.kalagban-range-slider {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.kalagban-range-input {
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+  appearance: none;
+  background: none;
+  height: 6px;
+  margin: 0;
+  outline: none;
+  z-index: 20;
+}
+
+.kalagban-range-input::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3.5px solid #6d28d9;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.35);
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kalagban-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.45);
+}
+
+.kalagban-range-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+  box-shadow: 0 0 0 6px rgba(109, 40, 217, 0.18);
+}
+
+.kalagban-range-input::-moz-range-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3.5px solid #6d28d9;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.35);
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kalagban-range-input::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.45);
+}
+
+.kalagban-range-input::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+  box-shadow: 0 0 0 6px rgba(109, 40, 217, 0.18);
+}

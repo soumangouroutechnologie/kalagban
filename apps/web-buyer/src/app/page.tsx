@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -23,7 +23,9 @@ import {
   ChevronRight,
   PhoneCall,
   X,
+  SlidersHorizontal,
 } from "lucide-react";
+import PriceRangeFilter, { formatFcfa } from "@/components/PriceRangeFilter";
 
 interface ShopType {
   id: string;
@@ -51,6 +53,22 @@ export default function BuyerHomePage() {
   const [shops, setShops] = useState<ShopType[]>([]);
   const [activeFlashSale, setActiveFlashSale] = useState<FlashSaleCampaign | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Dynamic Price Bounds & Pure Filtering State
+  const allPrices = useMemo(
+    () => products.map((p) => Number(p.price)).filter((p) => !isNaN(p) && p >= 0),
+    [products]
+  );
+  const minPossiblePrice = useMemo(() => (allPrices.length > 0 ? Math.min(...allPrices) : 0), [allPrices]);
+  const maxPossiblePrice = useMemo(() => (allPrices.length > 0 ? Math.max(Math.max(...allPrices), 25000) : 500000), [allPrices]);
+
+  const [customMinPrice, setCustomMinPrice] = useState<number | null>(null);
+  const [customMaxPrice, setCustomMaxPrice] = useState<number | null>(null);
+  const [isMobilePriceModalOpen, setIsMobilePriceModalOpen] = useState(false);
+
+  const currentMinPrice = customMinPrice !== null ? customMinPrice : minPossiblePrice;
+  const currentMaxPrice = customMaxPrice !== null ? customMaxPrice : maxPossiblePrice;
+  const isPriceFiltered = (customMinPrice !== null && customMinPrice > minPossiblePrice) || (customMaxPrice !== null && customMaxPrice < maxPossiblePrice);
 
   // CMS Dynamic Live Settings
   const [topBannerConfig, setTopBannerConfig] = useState({
@@ -378,21 +396,32 @@ export default function BuyerHomePage() {
     let matchesCategory = true;
     if (selectedCategory !== "all") {
       const prodCat = (p.category || "").toLowerCase();
+      const isUnisex = prodCat.includes("unisexe") || prodCat.includes("mixte");
+      const isParentGender = selectedCategory === "homme" || selectedCategory === "femme";
 
       if (selectedSubCategory !== "all") {
-        matchesCategory = prodCat === selectedSubCategory.toLowerCase();
+        const subLower = selectedSubCategory.toLowerCase();
+        const baseSub = subLower.replace("-hommes", "").replace("-femmes", "").replace("-enfants", "");
+        matchesCategory = 
+          prodCat === subLower || 
+          prodCat.includes(subLower) ||
+          (isUnisex && isParentGender && prodCat.includes(baseSub));
       } else if (activeParentCategory) {
         const subIds = activeParentCategory.subCategories.map((s) => s.id.toLowerCase());
         matchesCategory =
           prodCat === selectedCategory.toLowerCase() ||
           subIds.includes(prodCat) ||
-          prodCat.includes(selectedCategory.toLowerCase());
+          prodCat.includes(selectedCategory.toLowerCase()) ||
+          subIds.some((s) => prodCat.includes(s)) ||
+          (isParentGender && isUnisex);
       } else {
-        matchesCategory = prodCat === selectedCategory.toLowerCase();
+        matchesCategory = prodCat === selectedCategory.toLowerCase() || prodCat.includes(selectedCategory.toLowerCase());
       }
     }
 
-    return matchesSearch && matchesCategory;
+    const matchesPrice = Number(p.price) >= currentMinPrice && Number(p.price) <= currentMaxPrice;
+
+    return matchesSearch && matchesCategory && matchesPrice;
   });
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
@@ -847,77 +876,151 @@ export default function BuyerHomePage() {
             })}
           </div>
 
-          {/* TWO COLUMN LAYOUT: SIDEBAR + PRODUCT GRID */}
+          {/* TWO COLUMN LAYOUT: SIDEBAR (FILTERS & SUBCATEGORIES) + PRODUCT GRID */}
           <div className="flex flex-col lg:flex-row gap-8 items-start">
             
-            {/* SIDEBAR FOR SUB-CATEGORIES */}
-            {activeParentCategory && (
-              <aside className="w-full lg:w-72 shrink-0 bg-white rounded-3xl p-5 border border-gray-100/90 shadow-xs sticky top-24">
-                <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
-                  <span className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
-                    <Sparkles size={14} className="text-[#6d28d9]" />
-                    {activeParentCategory.label}
-                  </span>
-                  <span className="text-[10px] font-bold bg-purple-50 text-[#6d28d9] px-2 py-0.5 rounded-full border border-purple-100">
-                    {activeParentCategory.subCategories.length} sous-catégories
-                  </span>
-                </div>
+            {/* SIDEBAR FOR PRICE FILTER & SUB-CATEGORIES */}
+            <aside className="w-full lg:w-72 shrink-0 space-y-5 sticky top-24 hidden lg:block">
+              {/* SUB-CATEGORIES LIST (If parent category selected) */}
+              {activeParentCategory && (
+                <div className="bg-white rounded-3xl p-5 border border-gray-100/90 shadow-xs animate-fade-in">
+                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+                    <span className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                      <Sparkles size={14} className="text-[#6d28d9]" />
+                      {activeParentCategory.label}
+                    </span>
+                    <span className="text-[10px] font-bold bg-purple-50 text-[#6d28d9] px-2 py-0.5 rounded-full border border-purple-100">
+                      {activeParentCategory.subCategories.length} catégories
+                    </span>
+                  </div>
 
-                <div className="flex flex-col gap-1.5">
-                  {/* All Subcategories Pill */}
-                  <button
-                    onClick={() => setSelectedSubCategory("all")}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
-                      selectedSubCategory === "all"
-                        ? "bg-[#6d28d9] text-white shadow-sm font-extrabold"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span>Tous les articles ({activeParentCategory.label})</span>
-                    <ChevronRight size={14} className={selectedSubCategory === "all" ? "text-white" : "text-gray-400"} />
-                  </button>
+                  <div className="flex flex-col gap-1.5">
+                    {/* All Subcategories Pill */}
+                    <button
+                      onClick={() => setSelectedSubCategory("all")}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                        selectedSubCategory === "all"
+                          ? "bg-[#6d28d9] text-white shadow-sm font-extrabold"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <span>Tous les articles ({activeParentCategory.label})</span>
+                      <ChevronRight size={14} className={selectedSubCategory === "all" ? "text-white" : "text-gray-400"} />
+                    </button>
 
-                  {/* Subcategories Items List */}
-                  {activeParentCategory.subCategories.map((sub) => {
-                    const isSubSelected = selectedSubCategory.toLowerCase() === sub.id.toLowerCase();
-                    const subCount = products.filter(
-                      (p) => (p.category || "").toLowerCase() === sub.id.toLowerCase()
-                    ).length;
+                    {/* Subcategories Items List */}
+                    {activeParentCategory.subCategories.map((sub) => {
+                      const isSubSelected = selectedSubCategory.toLowerCase() === sub.id.toLowerCase();
+                      const subCount = products.filter(
+                        (p) => (p.category || "").toLowerCase().includes(sub.id.toLowerCase())
+                      ).length;
 
-                    return (
-                      <button
-                        key={sub.id}
-                        onClick={() => setSelectedSubCategory(sub.id)}
-                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
-                          isSubSelected
-                            ? "bg-purple-50 text-[#6d28d9] font-black border border-purple-200/80 shadow-2xs"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-[#6d28d9]"
-                        }`}
-                      >
-                        <span className="truncate">{sub.label}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                          isSubSelected ? "bg-[#6d28d9] text-white" : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {subCount}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Sidebar Guarantee Badge */}
-                <div className="mt-6 p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-                  <ShieldCheck size={20} className="text-emerald-500 shrink-0" />
-                  <div>
-                    <h4 className="font-extrabold text-[11px] text-gray-900">Retrait Sécurisé</h4>
-                    <p className="text-[10px] text-gray-400">Point Relais vérifié Abidjan</p>
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => setSelectedSubCategory(sub.id)}
+                          className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                            isSubSelected
+                              ? "bg-purple-50 text-[#6d28d9] font-black border border-purple-200/80 shadow-2xs"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-[#6d28d9]"
+                          }`}
+                        >
+                          <span className="truncate">{sub.label}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                            isSubSelected ? "bg-[#6d28d9] text-white" : "bg-gray-100 text-gray-500"
+                          }`}>
+                            {subCount}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              </aside>
-            )}
+              )}
+
+              {/* DYNAMIC PRICE RANGE FILTER CARD */}
+              <PriceRangeFilter
+                minPrice={currentMinPrice}
+                maxPrice={currentMaxPrice}
+                minLimit={minPossiblePrice}
+                maxLimit={maxPossiblePrice}
+                productCount={filteredProducts.length}
+                onChange={(min, max) => {
+                  setCustomMinPrice(min);
+                  setCustomMaxPrice(max);
+                }}
+                onReset={() => {
+                  setCustomMinPrice(null);
+                  setCustomMaxPrice(null);
+                }}
+              />
+
+              {/* Sidebar Guarantee Badge */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3">
+                <ShieldCheck size={20} className="text-emerald-500 shrink-0" />
+                <div>
+                  <h4 className="font-extrabold text-[11px] text-gray-900">Retrait Sécurisé</h4>
+                  <p className="text-[10px] text-gray-400">Point Relais vérifié Abidjan</p>
+                </div>
+              </div>
+            </aside>
 
             {/* MAIN CATALOG PRODUCTS GRID */}
             <div className="flex-1 min-w-0 w-full">
+              {/* Mobile & Tablet Quick Price Filter Button */}
+              <div className="lg:hidden flex items-center justify-between gap-3 mb-5">
+                <button
+                  onClick={() => setIsMobilePriceModalOpen(true)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
+                    isPriceFiltered
+                      ? "bg-[#6d28d9] text-white border-[#6d28d9] shadow-purple-500/20"
+                      : "bg-white text-gray-800 border-gray-200 hover:border-purple-200"
+                  }`}
+                >
+                  <SlidersHorizontal size={14} />
+                  <span>
+                    {isPriceFiltered
+                      ? `Budget : ${formatFcfa(currentMinPrice)} - ${formatFcfa(currentMaxPrice)}`
+                      : "Filtrer par Prix"}
+                  </span>
+                  {isPriceFiltered && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                </button>
+
+                {isPriceFiltered && (
+                  <button
+                    onClick={() => {
+                      setCustomMinPrice(null);
+                      setCustomMaxPrice(null);
+                    }}
+                    className="text-xs font-bold text-[#6d28d9] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw size={12} /> Réinitialiser
+                  </button>
+                )}
+              </div>
+
+              {/* Mobile Price Modal Drawer */}
+              {isMobilePriceModalOpen && (
+                <PriceRangeFilter
+                  minPrice={currentMinPrice}
+                  maxPrice={currentMaxPrice}
+                  minLimit={minPossiblePrice}
+                  maxLimit={maxPossiblePrice}
+                  productCount={filteredProducts.length}
+                  isMobileModal={true}
+                  onCloseMobile={() => setIsMobilePriceModalOpen(false)}
+                  onChange={(min, max) => {
+                    setCustomMinPrice(min);
+                    setCustomMaxPrice(max);
+                  }}
+                  onReset={() => {
+                    setCustomMinPrice(null);
+                    setCustomMaxPrice(null);
+                  }}
+                />
+              )}
               {isLoading ? (
                 <div className="py-16 flex flex-col items-center justify-center">
                   <Loader2 className="animate-spin text-[#6d28d9] w-10 h-10 mb-3" />

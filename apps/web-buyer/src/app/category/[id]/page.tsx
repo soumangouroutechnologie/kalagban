@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -18,7 +18,9 @@ import {
   Loader2,
   Filter,
   SlidersHorizontal,
+  Banknote,
 } from "lucide-react";
+import PriceRangeFilter, { formatFcfa } from "@/components/PriceRangeFilter";
 
 export default function DedicatedWebCategoryPage() {
   const params = useParams();
@@ -34,6 +36,22 @@ export default function DedicatedWebCategoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "price-asc" | "price-desc">("recent");
+
+  // Dynamic Price Bounds & Pure Filtering State
+  const allPrices = useMemo(
+    () => products.map((p) => Number(p.price)).filter((p) => !isNaN(p) && p >= 0),
+    [products]
+  );
+  const minPossiblePrice = useMemo(() => (allPrices.length > 0 ? Math.min(...allPrices) : 0), [allPrices]);
+  const maxPossiblePrice = useMemo(() => (allPrices.length > 0 ? Math.max(Math.max(...allPrices), 25000) : 500000), [allPrices]);
+
+  const [customMinPrice, setCustomMinPrice] = useState<number | null>(null);
+  const [customMaxPrice, setCustomMaxPrice] = useState<number | null>(null);
+  const [isMobilePriceModalOpen, setIsMobilePriceModalOpen] = useState(false);
+
+  const currentMinPrice = customMinPrice !== null ? customMinPrice : minPossiblePrice;
+  const currentMaxPrice = customMaxPrice !== null ? customMaxPrice : maxPossiblePrice;
+  const isPriceFiltered = (customMinPrice !== null && customMinPrice > minPossiblePrice) || (customMaxPrice !== null && customMaxPrice < maxPossiblePrice);
 
   useEffect(() => {
     let isMounted = true;
@@ -134,16 +152,28 @@ export default function DedicatedWebCategoryPage() {
       const subIds = activeParentCategory.subCategories.map((s) => s.id.toLowerCase());
 
       let matchesCat = true;
+      const isUnisex = prodCat.includes("unisexe") || prodCat.includes("mixte");
+      const isParentGender = activeParentCategory.id === "homme" || activeParentCategory.id === "femme";
+
       if (selectedSubCategory !== "all") {
-        matchesCat = prodCat === selectedSubCategory.toLowerCase();
+        const subLower = selectedSubCategory.toLowerCase();
+        const baseSub = subLower.replace("-hommes", "").replace("-femmes", "").replace("-enfants", "");
+        matchesCat = 
+          prodCat === subLower || 
+          prodCat.includes(subLower) ||
+          (isUnisex && isParentGender && prodCat.includes(baseSub));
       } else {
         matchesCat =
           prodCat === activeParentCategory.id.toLowerCase() ||
           subIds.includes(prodCat) ||
-          prodCat.includes(activeParentCategory.id.toLowerCase());
+          prodCat.includes(activeParentCategory.id.toLowerCase()) ||
+          subIds.some((s) => prodCat.includes(s)) ||
+          (isParentGender && isUnisex);
       }
 
-      return matchesSearch && matchesCat;
+      const matchesPrice = Number(p.price) >= currentMinPrice && Number(p.price) <= currentMaxPrice;
+
+      return matchesSearch && matchesCat && matchesPrice;
     })
     .sort((a, b) => {
       if (sortBy === "price-asc") return a.price - b.price;
@@ -273,8 +303,27 @@ export default function DedicatedWebCategoryPage() {
               })}
             </div>
 
+            {/* DYNAMIC PRICE RANGE FILTER CARD */}
+            <div className="mt-5">
+              <PriceRangeFilter
+                minPrice={currentMinPrice}
+                maxPrice={currentMaxPrice}
+                minLimit={minPossiblePrice}
+                maxLimit={maxPossiblePrice}
+                productCount={filteredProducts.length}
+                onChange={(min, max) => {
+                  setCustomMinPrice(min);
+                  setCustomMaxPrice(max);
+                }}
+                onReset={() => {
+                  setCustomMinPrice(null);
+                  setCustomMaxPrice(null);
+                }}
+              />
+            </div>
+
             {/* Sidebar Security & Delivery Badge */}
-            <div className="mt-8 p-4 rounded-2xl bg-purple-50/50 border border-purple-100 flex items-center gap-3">
+            <div className="mt-5 p-4 rounded-2xl bg-purple-50/50 border border-purple-100 flex items-center gap-3">
               <ShieldCheck size={22} className="text-[#6d28d9] shrink-0" />
               <div>
                 <h4 className="font-extrabold text-xs text-gray-900">Vendeurs Vérifiés</h4>
@@ -286,7 +335,7 @@ export default function DedicatedWebCategoryPage() {
           {/* RIGHT MAIN CONTENT AREA (Products Grid & Filters) */}
           <div className="flex-1 min-w-0 w-full">
 
-            {/* Controls Bar: Sub-category Title & Sort Select */}
+            {/* Controls Bar: Sub-category Title, Mobile Price Filter & Sort Select */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-base font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -300,20 +349,63 @@ export default function DedicatedWebCategoryPage() {
                 </p>
               </div>
 
-              {/* Sort By Dropdown */}
-              <div className="flex items-center gap-2 shrink-0">
-                <SlidersHorizontal size={14} className="text-gray-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "recent" | "price-asc" | "price-desc")}
-                  className="bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                {/* Mobile Filter Trigger Button */}
+                <button
+                  onClick={() => setIsMobilePriceModalOpen(true)}
+                  className={`lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                    isPriceFiltered
+                      ? "bg-[#6d28d9] text-white border-[#6d28d9]"
+                      : "bg-gray-50 text-gray-700 border-gray-200"
+                  }`}
                 >
-                  <option value="recent">Plus récents</option>
-                  <option value="price-asc">Prix : croissant</option>
-                  <option value="price-desc">Prix : décroissant</option>
-                </select>
+                  <Banknote size={14} />
+                  <span>
+                    {isPriceFiltered
+                      ? `Budget : ${formatFcfa(currentMinPrice)} - ${formatFcfa(currentMaxPrice)}`
+                      : "Filtrer par Prix"}
+                  </span>
+                  {isPriceFiltered && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                </button>
+
+                {/* Sort By Dropdown */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <SlidersHorizontal size={14} className="text-gray-400" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as "recent" | "price-asc" | "price-desc")}
+                    className="bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  >
+                    <option value="recent">Plus récents</option>
+                    <option value="price-asc">Prix : croissant</option>
+                    <option value="price-desc">Prix : décroissant</option>
+                  </select>
+                </div>
               </div>
             </div>
+
+            {/* Mobile Price Modal Drawer */}
+            {isMobilePriceModalOpen && (
+              <PriceRangeFilter
+                minPrice={currentMinPrice}
+                maxPrice={currentMaxPrice}
+                minLimit={minPossiblePrice}
+                maxLimit={maxPossiblePrice}
+                productCount={filteredProducts.length}
+                isMobileModal={true}
+                onCloseMobile={() => setIsMobilePriceModalOpen(false)}
+                onChange={(min, max) => {
+                  setCustomMinPrice(min);
+                  setCustomMaxPrice(max);
+                }}
+                onReset={() => {
+                  setCustomMinPrice(null);
+                  setCustomMaxPrice(null);
+                }}
+              />
+            )}
 
             {/* Product Cards Grid */}
             {isLoading ? (

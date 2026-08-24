@@ -38,8 +38,80 @@ export default function NewProductPage() {
   const [oldPrice, setOldPrice] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
+  const [targetGenders, setTargetGenders] = useState<string[]>(["femme"]);
   const [stock, setStock] = useState("0");
   const [sku, setSku] = useState("");
+
+  const toggleGender = (g: string) => {
+    if (g === "unisexe") {
+      setTargetGenders((prev) => {
+        const isUnisex = prev.includes("unisexe") || (prev.includes("homme") && prev.includes("femme"));
+        if (isUnisex) {
+          return prev.filter((item) => item !== "unisexe" && item !== "homme");
+        } else {
+          return Array.from(new Set([...prev, "homme", "femme", "unisexe"]));
+        }
+      });
+      return;
+    }
+
+    setTargetGenders((prev) => {
+      let updated = prev.includes(g) ? prev.filter((item) => item !== g) : [...prev, g];
+      if (updated.includes("homme") && updated.includes("femme")) {
+        if (!updated.includes("unisexe")) updated.push("unisexe");
+      } else {
+        updated = updated.filter((item) => item !== "unisexe");
+      }
+      return updated.length > 0 ? updated : [g];
+    });
+  };
+
+  const buildCategoryString = (selectedCat: string, customCat: string, genders: string[]) => {
+    if (selectedCat === "autre") {
+      const base = customCat.trim() || "Autre";
+      return `${base},${genders.join(",")}`;
+    }
+
+    const tokens = new Set<string>();
+    if (selectedCat) tokens.add(selectedCat);
+
+    let coreType = selectedCat;
+    if (selectedCat.startsWith("vetements")) coreType = "vetements";
+    else if (selectedCat.startsWith("chaussures")) coreType = "chaussures";
+    else if (selectedCat.startsWith("accessoires")) coreType = "accessoires";
+    else if (selectedCat.startsWith("beaute-et-soins")) coreType = "beaute-et-soins";
+
+    if (genders.includes("homme")) {
+      tokens.add("homme");
+      if (coreType === "vetements") tokens.add("vetements-hommes");
+      if (coreType === "chaussures") tokens.add("chaussures-hommes");
+      if (coreType === "accessoires") tokens.add("accessoires-hommes");
+      if (coreType === "beaute-et-soins") tokens.add("beaute-et-soins-hommes");
+    }
+
+    if (genders.includes("femme")) {
+      tokens.add("femme");
+      if (coreType === "vetements") tokens.add("vetements-femmes");
+      if (coreType === "chaussures") tokens.add("chaussures-femmes");
+      if (coreType === "accessoires") tokens.add("accessoires-femmes");
+      if (coreType === "beaute-et-soins") tokens.add("beaute-et-soins-femmes");
+    }
+
+    if (genders.includes("enfants")) {
+      tokens.add("enfants");
+      if (coreType === "vetements") tokens.add("vetements-enfants");
+      if (coreType === "chaussures") tokens.add("chaussures-enfants");
+      if (coreType === "accessoires") tokens.add("accessoires-enfants");
+      if (coreType === "beaute-et-soins") tokens.add("beaute-et-soins-enfants");
+    }
+
+    if (genders.includes("unisexe") || (genders.includes("homme") && genders.includes("femme"))) {
+      tokens.add("unisexe");
+      tokens.add("mixte");
+    }
+
+    return Array.from(tokens).join(",");
+  };
   
   // États Multi-Images & Studio IA
   const [images, setImages] = useState<ProductImage[]>([]);
@@ -85,7 +157,7 @@ export default function NewProductPage() {
           description,
           price: parseFloat(price) || 0,
           old_price: oldPrice ? parseFloat(oldPrice) : null,
-          category: category === "autre" ? (customCategory.trim() || "Autre") : category,
+          category: buildCategoryString(category, customCategory, targetGenders),
           stock_quantity: parseInt(stock) || 0,
           sku,
           status: 'pending',
@@ -562,6 +634,99 @@ export default function NewProductPage() {
                   />
                 </div>
               )}
+
+              {/* Public & Genres Cibles */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-gray-700">Public &amp; Genre Cible</label>
+                  {targetGenders.includes("homme") && targetGenders.includes("femme") && (
+                    <span className="text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      ✨ Visible Homme &amp; Femme
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 font-medium">
+                  Cochez les différents genres pouvant utiliser cet article :
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {/* Homme */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGender("homme")}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-left ${
+                      targetGenders.includes("homme")
+                        ? "bg-indigo-50/80 border-indigo-500 text-indigo-900 shadow-xs"
+                        : "bg-bg-app border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={targetGenders.includes("homme")}
+                      onChange={() => {}}
+                      className="rounded text-primary focus:ring-primary h-4 w-4 pointer-events-none"
+                    />
+                    <span>👨 Homme</span>
+                  </button>
+
+                  {/* Femme */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGender("femme")}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-left ${
+                      targetGenders.includes("femme")
+                        ? "bg-pink-50/80 border-pink-500 text-pink-900 shadow-xs"
+                        : "bg-bg-app border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={targetGenders.includes("femme")}
+                      onChange={() => {}}
+                      className="rounded text-pink-600 focus:ring-pink-500 h-4 w-4 pointer-events-none"
+                    />
+                    <span>👩 Femme</span>
+                  </button>
+
+                  {/* Unisexe / Mixte */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGender("unisexe")}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-left ${
+                      targetGenders.includes("unisexe") || (targetGenders.includes("homme") && targetGenders.includes("femme"))
+                        ? "bg-purple-50/80 border-purple-500 text-purple-900 shadow-xs"
+                        : "bg-bg-app border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={targetGenders.includes("unisexe") || (targetGenders.includes("homme") && targetGenders.includes("femme"))}
+                      onChange={() => {}}
+                      className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4 pointer-events-none"
+                    />
+                    <span>🔄 Unisexe / Mixte</span>
+                  </button>
+
+                  {/* Enfants */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGender("enfants")}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-left ${
+                      targetGenders.includes("enfants")
+                        ? "bg-amber-50/80 border-amber-500 text-amber-900 shadow-xs"
+                        : "bg-bg-app border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={targetGenders.includes("enfants")}
+                      onChange={() => {}}
+                      className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4 pointer-events-none"
+                    />
+                    <span>🧒 Enfants</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

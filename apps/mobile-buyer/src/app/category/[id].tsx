@@ -248,12 +248,21 @@ export default function CategoryJumiaStyleScreen() {
     const subIds = activeParent.subCategories.map((s) => s.id.toLowerCase());
 
     let matchesCat = false;
+    const isUnisex = prodCat.includes('unisexe') || prodCat.includes('mixte');
+    const isParentGender = activeParent.id === 'homme' || activeParent.id === 'femme';
+
     if (selectedSubId !== 'all') {
-      matchesCat = prodCat.includes(selectedSubId.toLowerCase()) || prodCat.includes(selectedSubId.replace(/-/g, ' '));
+      const subLower = selectedSubId.toLowerCase();
+      const baseSub = subLower.replace('-hommes', '').replace('-femmes', '').replace('-enfants', '');
+      matchesCat = 
+        prodCat.includes(subLower) || 
+        prodCat.includes(subLower.replace(/-/g, ' ')) ||
+        (isUnisex && isParentGender && prodCat.includes(baseSub));
     } else {
       matchesCat =
         prodCat.includes(activeParent.id) ||
-        subIds.some((sId) => prodCat.includes(sId));
+        subIds.some((sId) => prodCat.includes(sId)) ||
+        (isParentGender && isUnisex);
     }
 
     return matchesSearch && matchesCat;
