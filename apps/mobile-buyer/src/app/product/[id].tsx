@@ -12,6 +12,7 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,11 +28,17 @@ import {
   Truck,
   RotateCcw,
   Sparkles,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw as ResetZoom,
+  X,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
+import { getSafeImageUrl, DEFAULT_PRODUCT_FALLBACK } from '@/lib/image-utils';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 interface ProductDetail {
   id: string;
@@ -61,6 +68,10 @@ export default function ProductDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState('M');
   const [addedNotice, setAddedNotice] = useState(false);
+
+  // Zoom Modal State
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -99,8 +110,8 @@ export default function ProductDetailScreen() {
       const mediaList = data.product_media && (data.product_media as any[]).length > 0
         ? [...(data.product_media as any[])]
             .sort((a, b) => (a.position || 0) - (b.position || 0))
-            .map((m) => m.url)
-        : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80'];
+            .map((m) => getSafeImageUrl(m.url))
+        : [DEFAULT_PRODUCT_FALLBACK];
 
       if (data) {
         setProduct({
@@ -137,7 +148,7 @@ export default function ProductDetailScreen() {
         title: product.title,
         price: product.price,
         old_price: product.old_price,
-        image_url: product.images[0] || '',
+        image_url: product.images[0] || DEFAULT_PRODUCT_FALLBACK,
         shop_id: product.shop_id,
         shop_name: product.shop_name,
         max_stock: product.stock_quantity,
@@ -156,6 +167,18 @@ export default function ProductDetailScreen() {
 
   const formatPrice = (amount: number) => {
     return amount.toLocaleString('fr-FR') + ' FCFA';
+  };
+
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.5, 3.5));
+  };
+
+  const handleZoomOut = () => {
+    setZoomScale((prev) => Math.max(prev - 0.5, 1));
+  };
+
+  const handleResetZoom = () => {
+    setZoomScale(1);
   };
 
   if (loading) {
@@ -178,7 +201,7 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const currentImage = product.images[selectedImageIndex] || product.images[0];
+  const currentImage = product.images[selectedImageIndex] || product.images[0] || DEFAULT_PRODUCT_FALLBACK;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -205,9 +228,26 @@ export default function ProductDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + bottomPadding }]}>
-        {/* Main Product Image */}
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: currentImage }} style={styles.mainImage} resizeMode="cover" />
+        {/* Main Product Image with Tap to Zoom */}
+        <TouchableOpacity
+          style={styles.imageContainer}
+          activeOpacity={0.95}
+          onPress={() => {
+            setZoomScale(1);
+            setIsZoomOpen(true);
+          }}
+        >
+          <Image
+            source={{ uri: currentImage }}
+            style={styles.mainImage}
+            resizeMode="cover"
+          />
+
+          {/* Floating Tap to Zoom Badge */}
+          <View style={styles.zoomHintBadge}>
+            <Maximize2 size={13} color="#FFFFFF" />
+            <Text style={styles.zoomHintText}>Toucher pour zoomer</Text>
+          </View>
 
           {product.old_price && (
             <View style={styles.discountBadge}>
@@ -224,7 +264,7 @@ export default function ProductDetailScreen() {
               </Text>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
 
         {/* Thumbnails Gallery */}
         {product.images.length > 1 && (
@@ -340,7 +380,7 @@ export default function ProductDetailScreen() {
           {/* Description */}
           {product.description ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Description du produit</Text>
+        <Text style={styles.sectionTitle}>Description du produit</Text>
               <Text style={styles.descriptionText}>{product.description}</Text>
             </View>
           ) : null}
@@ -372,6 +412,127 @@ export default function ProductDetailScreen() {
           <Text style={styles.buyNowText}>Acheter Maintenant</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Interactive Fullscreen Zoom Modal */}
+      <Modal
+        visible={isZoomOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsZoomOpen(false)}
+      >
+        <SafeAreaView style={styles.zoomModalBackdrop}>
+          <StatusBar barStyle="light-content" backgroundColor="#0B0F19" />
+
+          {/* Modal Top Bar */}
+          <View style={[styles.zoomHeader, { paddingTop: topPadding + 6 }]}>
+            <TouchableOpacity
+              style={styles.zoomCloseBtn}
+              onPress={() => setIsZoomOpen(false)}
+              activeOpacity={0.8}
+            >
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.zoomCounterBadge}>
+              <Text style={styles.zoomCounterText}>
+                {selectedImageIndex + 1} / {product.images.length}
+              </Text>
+            </View>
+
+            {/* Zoom Controls */}
+            <View style={styles.zoomControlsGroup}>
+              <TouchableOpacity
+                style={styles.zoomControlBtn}
+                onPress={handleZoomOut}
+                disabled={zoomScale <= 1}
+                activeOpacity={0.7}
+              >
+                <ZoomOut size={18} color={zoomScale <= 1 ? '#64748B' : '#FFFFFF'} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.zoomScalePill}
+                onPress={handleResetZoom}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.zoomScaleText}>{Math.round(zoomScale * 100)}%</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.zoomControlBtn}
+                onPress={handleZoomIn}
+                disabled={zoomScale >= 3.5}
+                activeOpacity={0.7}
+              >
+                <ZoomIn size={18} color={zoomScale >= 3.5 ? '#64748B' : '#FFFFFF'} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Center Scaled Image Area */}
+          <ScrollView
+            style={styles.zoomScrollArea}
+            contentContainerStyle={styles.zoomScrollContent}
+            maximumZoomScale={4.0}
+            minimumZoomScale={1.0}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {
+                if (zoomScale > 1) {
+                  setZoomScale(1);
+                } else {
+                  setZoomScale(2);
+                }
+              }}
+            >
+              <Image
+                source={{ uri: currentImage }}
+                style={[
+                  styles.zoomedImage,
+                  {
+                    transform: [{ scale: zoomScale }],
+                  },
+                ]}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Bottom Thumbnails Strip in Zoom Mode */}
+          {product.images.length > 1 && (
+            <View style={[styles.zoomBottomStrip, { paddingBottom: bottomPadding + 10 }]}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.zoomThumbnailsList}
+              >
+                {product.images.map((imgUri, idx) => {
+                  const isSelected = selectedImageIndex === idx;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        styles.zoomThumbWrap,
+                        isSelected && styles.zoomThumbWrapActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedImageIndex(idx);
+                        setZoomScale(1);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Image source={{ uri: imgUri }} style={styles.zoomThumbImg} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -394,10 +555,11 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   headerTitle: {
     fontSize: 16,
@@ -406,19 +568,18 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 10,
-    textTransform: 'capitalize',
   },
   cartBadge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
+    top: -4,
+    right: -4,
     backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     minWidth: 18,
-    height: 18,
-    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
   },
   cartBadgeText: {
     color: '#FFFFFF',
@@ -430,7 +591,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: width,
-    height: width,
+    height: width * 0.95,
     backgroundColor: '#F8FAFC',
     position: 'relative',
   },
@@ -438,13 +599,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  zoomHintBadge: {
+    position: 'absolute',
+    bottom: 12,
+    left: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  zoomHintText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   discountBadge: {
     position: 'absolute',
     top: 14,
     left: 14,
     backgroundColor: '#EF4444',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   discountText: {
@@ -454,9 +632,9 @@ const styles = StyleSheet.create({
   },
   imageCounter: {
     position: 'absolute',
-    bottom: 14,
+    bottom: 12,
     right: 14,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -464,27 +642,25 @@ const styles = StyleSheet.create({
   imageCounterText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   thumbnailsContainer: {
-    flexDirection: 'row',
-    gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    gap: 8,
   },
   thumbnailWrap: {
     width: 60,
     height: 60,
     borderRadius: 12,
-    overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#E2E8F0',
+    borderColor: 'transparent',
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
     position: 'relative',
   },
   thumbnailWrapActive: {
     borderColor: '#4F46E5',
-    transform: [{ scale: 1.05 }],
   },
   thumbnailImg: {
     width: '100%',
@@ -492,42 +668,43 @@ const styles = StyleSheet.create({
   },
   primaryBadge: {
     position: 'absolute',
-    top: 2,
-    left: 2,
+    top: 3,
+    right: 3,
     backgroundColor: '#4F46E5',
-    borderRadius: 4,
+    borderRadius: 6,
     padding: 2,
   },
   detailsContainer: {
-    padding: 20,
+    padding: 18,
     gap: 16,
   },
   shopBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     backgroundColor: '#F8FAFC',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
   shopIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   shopName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
   shopVerified: {
     fontSize: 11,
     color: '#64748B',
+    fontWeight: '500',
   },
   productTitle: {
     fontSize: 20,
@@ -547,43 +724,51 @@ const styles = StyleSheet.create({
   },
   oldPrice: {
     fontSize: 16,
-    fontWeight: '700',
     color: '#94A3B8',
     textDecorationLine: 'line-through',
+    fontWeight: '600',
   },
   featuresRow: {
-    flexDirection: 'column',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    backgroundColor: '#F8FAFC',
-    padding: 14,
-    borderRadius: 14,
+    paddingVertical: 4,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   featureText: {
     fontSize: 12,
-    fontWeight: '700',
     color: '#334155',
+    fontWeight: '600',
   },
   sectionBlock: {
     gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sizeRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   sizeChip: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -594,8 +779,8 @@ const styles = StyleSheet.create({
   },
   sizeText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#334155',
+    fontWeight: '700',
+    color: '#475569',
   },
   sizeTextSelected: {
     color: '#FFFFFF',
@@ -712,5 +897,99 @@ const styles = StyleSheet.create({
   backHomeText: {
     color: '#FFFFFF',
     fontWeight: '800',
+  },
+  // Zoom Modal Styles
+  zoomModalBackdrop: {
+    flex: 1,
+    backgroundColor: '#0B0F19',
+    justifyContent: 'space-between',
+  },
+  zoomHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    zIndex: 10,
+  },
+  zoomCloseBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomCounterBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  zoomCounterText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  zoomControlsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    gap: 4,
+  },
+  zoomControlBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomScalePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  zoomScaleText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  zoomScrollArea: {
+    flex: 1,
+  },
+  zoomScrollContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomedImage: {
+    width: width,
+    height: height * 0.65,
+  },
+  zoomBottomStrip: {
+    backgroundColor: 'rgba(11, 15, 25, 0.95)',
+    paddingTop: 12,
+  },
+  zoomThumbnailsList: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  zoomThumbWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+    backgroundColor: '#1E293B',
+  },
+  zoomThumbWrapActive: {
+    borderColor: '#6366F1',
+  },
+  zoomThumbImg: {
+    width: '100%',
+    height: '100%',
   },
 });

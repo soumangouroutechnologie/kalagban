@@ -263,7 +263,8 @@ export default function SellerProductsScreen() {
         ) : (
           <View style={styles.productList}>
             {filteredProducts.map(p => {
-              const imgUrl = p.product_media?.[0]?.url;
+              const rawUrl = p.product_media?.[0]?.url;
+              const imgUrl = rawUrl && (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:image')) ? rawUrl : null;
               return (
                 <View key={p.id} style={styles.productCard}>
                   {imgUrl ? (

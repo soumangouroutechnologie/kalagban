@@ -47,6 +47,8 @@ export default function OrderStatusTimeline({
     ? new Date(createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
     : "Aujourd'hui";
 
+  const isHomeDelivery = deliveryType === "home_delivery";
+
   const steps = [
     {
       id: 1,
@@ -71,25 +73,29 @@ export default function OrderStatusTimeline({
     },
     {
       id: 4,
-      title: "EN COURS D'EXPÉDITION",
-      description: "Le livreur achemine votre colis vers votre Point Relais de proximité.",
+      title: isHomeDelivery ? "EN ROUTE AVEC LE COURSIER" : "EN COURS D'EXPÉDITION",
+      description: isHomeDelivery
+        ? "Le livreur / coursier a pris en charge votre colis et fait route vers votre adresse de livraison."
+        : "Le livreur achemine votre colis vers votre Point Relais de proximité.",
       date: currentStep >= 4 ? formattedDate : "--",
       icon: Truck
     },
     {
       id: 5,
-      title: deliveryType === "pickup_point" ? "PRÊT À RÉCUPÉRER AU POINT RELAIS" : "ARRIVÉE CENTRE DE DISTRIBUTION",
-      description: deliveryType === "pickup_point" 
-        ? "Votre colis est stocké en étagère sécurisée. Présentez votre Code OTP au gérant."
-        : "Le coursier est en route vers votre adresse de livraison.",
+      title: isHomeDelivery ? "LIVRAISON IMMINENTE" : "PRÊT À RÉCUPÉRER AU POINT RELAIS",
+      description: isHomeDelivery 
+        ? "Le coursier est dans votre secteur et effectue la remise en main propre à votre domicile."
+        : "Votre colis est stocké en étagère sécurisée. Présentez votre Code OTP au gérant.",
       date: currentStep >= 5 ? formattedDate : "--",
       icon: MapPin,
-      showOtp: deliveryType === "pickup_point" && pickupCode
+      showOtp: !isHomeDelivery && Boolean(pickupCode)
     },
     {
       id: 6,
-      title: "COLIS LIVRÉ",
-      description: "Votre commande a été remise en main propre. Merci pour votre confiance !",
+      title: isHomeDelivery ? "COLIS LIVRÉ À DOMICILE" : "COLIS RETIRÉ AU POINT RELAIS",
+      description: isHomeDelivery
+        ? "Votre commande a été remise en main propre à votre domicile. Merci pour votre confiance !"
+        : "Votre commande a été remise en main propre au Point Relais. Merci pour votre confiance !",
       date: currentStep >= 6 ? formattedDate : "--",
       icon: CheckCircle2
     }

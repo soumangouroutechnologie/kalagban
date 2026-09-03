@@ -30,6 +30,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
 import { useFavorites } from '@/context/favorites-context';
+import { getSafeImageUrl } from '@/lib/image-utils';
 
 const { width } = Dimensions.get('window');
 
@@ -174,7 +175,7 @@ export default function CategoryJumiaStyleScreen() {
           price: Number(item.price),
           old_price: item.old_price ? Number(item.old_price) : undefined,
           stock_quantity: Number(item.stock_quantity ?? 0),
-          image_url: item.product_media && item.product_media.length > 0 ? item.product_media[0].url : '',
+          image_url: getSafeImageUrl(item.product_media && item.product_media.length > 0 ? item.product_media[0].url : null),
           shop_name: item.shops?.name || 'Vendeur Certifié',
           shop_id: item.shop_id,
         }));

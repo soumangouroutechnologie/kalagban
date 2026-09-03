@@ -99,28 +99,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (u) {
-        fetchUserData(u);
+    let isMounted = true;
+
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const u = session?.user ?? null;
+        if (isMounted) setUser(u);
+        if (u) {
+          await fetchUserData(u);
+        }
+      } catch (err) {
+        console.error('Error initializing seller auth:', err);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initAuth();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user ?? null;
-      setUser(u);
+      if (isMounted) setUser(u);
       if (u) {
         await fetchUserData(u);
       } else {
-        setShop(null);
-        setProfile(null);
+        if (isMounted) {
+          setShop(null);
+          setProfile(null);
+        }
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     });
 
     return () => {
+      isMounted = false;
       listener.subscription.unsubscribe();
     };
   }, []);

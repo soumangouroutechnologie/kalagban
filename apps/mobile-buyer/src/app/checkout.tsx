@@ -73,7 +73,7 @@ export default function MobileCheckoutScreen() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const communesList = [
+  const [communesList, setCommunesList] = useState<string[]>([
     'Cocody',
     'Yopougon',
     'Abobo',
@@ -84,7 +84,7 @@ export default function MobileCheckoutScreen() {
     'Treichville',
     'Plateau',
     'Attécoubé'
-  ];
+  ]);
 
   const shippingFee = deliveryType === 'pickup_point' ? 500 : 1500;
   const rawSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -117,22 +117,38 @@ export default function MobileCheckoutScreen() {
         const { data, error } = await supabase
           .from('pickup_points')
           .select('*')
-          .eq('is_active', true)
+          .eq('status', 'active')
           .order('name');
-        
-        if (!error && data && data.length > 0) {
-          setAvailableRelays(data);
-          const cocodyRelay = data.find((r: any) => r.commune.toLowerCase() === 'cocody');
-          if (cocodyRelay) {
-            setSelectedRelayId(cocodyRelay.id);
-            setSelectedCommune('Cocody');
-          } else {
-            setSelectedRelayId(data[0].id);
-            setSelectedCommune(data[0].commune);
+
+        const { data: dbCommunes } = await supabase
+          .from('communes')
+          .select('name')
+          .order('display_order', { ascending: true });
+
+        const rawPoints = ((data || []) as PickupPoint[]);
+        setAvailableRelays(rawPoints);
+
+        if (dbCommunes && dbCommunes.length > 0) {
+          setCommunesList(dbCommunes.map((c: any) => c.name));
+        } else if (rawPoints.length > 0) {
+          const uniqueCommunes = Array.from(new Set(rawPoints.map((r: any) => r.commune).filter(Boolean)));
+          if (uniqueCommunes.length > 0) {
+            setCommunesList(uniqueCommunes);
           }
         }
-      } catch {
-        setAvailableRelays([]);
+
+        if (rawPoints.length > 0) {
+          const cocodyRelay = rawPoints.find((r: any) => r.commune?.toLowerCase() === 'cocody');
+          if (cocodyRelay) {
+            setSelectedRelayId(cocodyRelay.id);
+            setSelectedCommune(cocodyRelay.commune || 'Cocody');
+          } else {
+            setSelectedRelayId(rawPoints[0].id);
+            setSelectedCommune(rawPoints[0].commune || 'Cocody');
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching pickup points:', err);
       }
     };
 
@@ -273,7 +289,7 @@ export default function MobileCheckoutScreen() {
   };
 
   const filteredRelays = availableRelays.filter(
-    (r) => !selectedCommune || r.commune.toLowerCase() === selectedCommune.toLowerCase()
+    (r) => !selectedCommune || (r.commune && r.commune.toLowerCase() === selectedCommune.toLowerCase())
   );
 
   return (

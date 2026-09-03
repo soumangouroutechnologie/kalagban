@@ -33,6 +33,7 @@ import {
 } from 'lucide-react-native';
 import { useFavorites } from '@/context/favorites-context';
 import { useCart } from '@/context/cart-context';
+import { getSafeImageUrl } from '@/lib/image-utils';
 import { supabase } from '@/lib/supabase';
 
 export default function FavoritesScreen() {
@@ -193,7 +194,7 @@ export default function FavoritesScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {favorites.map((item) => (
             <View key={item.id} style={styles.favCard}>
-              <Image source={{ uri: item.image_url }} style={styles.favImage} />
+              <Image source={{ uri: getSafeImageUrl(item.image_url) }} style={styles.favImage} />
 
               <View style={styles.favInfo}>
                 <Text style={styles.shopName}>{item.shop_name || 'Boutique Kalagban'}</Text>

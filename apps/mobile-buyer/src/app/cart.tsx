@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { useCart } from '@/context/cart-context';
 import { calculateApplicationFee } from '@/lib/fee';
+import { getSafeImageUrl } from '@/lib/image-utils';
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
@@ -93,7 +94,7 @@ export default function CartScreen() {
             <View style={styles.itemsList}>
               {items.map((item) => (
                 <View key={item.id} style={styles.itemCard}>
-                  <Image source={{ uri: item.image_url }} style={styles.itemImage} />
+                  <Image source={{ uri: getSafeImageUrl(item.image_url) }} style={styles.itemImage} />
 
                   <View style={styles.itemDetails}>
                     <View style={styles.itemHeaderRow}>

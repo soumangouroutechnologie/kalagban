@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { ChevronLeft, Sparkles, ShoppingBag, Check, Tag } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
+import { getSafeImageUrl } from '@/lib/image-utils';
 
 const { width } = Dimensions.get('window');
 
@@ -131,7 +132,7 @@ export default function FlashSalesScreen() {
             price: Number(p.price),
             old_price: p.old_price ? Number(p.old_price) : Number(p.price) * 1.3,
             stock_quantity: p.stock_quantity || 5,
-            image_url: p.product_media && p.product_media.length > 0 ? p.product_media[0].url : '/cousel1.jpg',
+            image_url: getSafeImageUrl(p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null),
           }));
 
         setProducts(formatted);

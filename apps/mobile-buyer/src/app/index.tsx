@@ -38,6 +38,7 @@ import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
 import { useFavorites } from '@/context/favorites-context';
 import { PARENT_CATEGORIES } from '@/constants/categories';
+import { getSafeImageUrl } from '@/lib/image-utils';
 
 const { width } = Dimensions.get('window');
 
@@ -262,10 +263,9 @@ export default function MarketplaceHomeScreen() {
           price: Number(p.price),
           old_price: p.old_price ? Number(p.old_price) : undefined,
           stock_quantity: p.stock_quantity || 0,
-          image_url:
-            p.product_media && p.product_media.length > 0
-              ? p.product_media[0].url
-              : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80',
+          image_url: getSafeImageUrl(
+            p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null
+          ),
         }));
         setProducts(formatted);
       } else {

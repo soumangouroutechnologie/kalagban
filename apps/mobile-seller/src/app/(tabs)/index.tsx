@@ -300,7 +300,8 @@ export default function SellerDashboardScreen() {
         ) : (
           <View style={styles.productsGrid}>
             {recentProducts.map(item => {
-              const imgUrl = item.product_media?.[0]?.url;
+              const rawUrl = item.product_media?.[0]?.url;
+              const imgUrl = rawUrl && (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:image')) ? rawUrl : null;
               return (
                 <View key={item.id} style={styles.productCardItem}>
                   {imgUrl ? (
