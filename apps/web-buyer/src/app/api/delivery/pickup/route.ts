@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -10,11 +10,11 @@ export async function POST(req: Request) {
     }
 
     // 1. Récupérer la commande
-    const { data: order, error: orderErr } = await supabase
+    const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .select("id, customer_id, shop_id, customer_name, status, pickup_code, delivery_otp")
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
 
     if (orderErr || !order) {
       return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const orderCode = `KB-${order.id.slice(0, 8).toUpperCase()}`;
 
     // 2. Mettre à jour la commande à 'in_transit'
-    await supabase
+    await supabaseAdmin
       .from("orders")
       .update({
         status: "in_transit",
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       .eq("id", orderId);
 
     // 3. Mettre à jour l'assignation du coursier
-    await supabase
+    await supabaseAdmin
       .from("courier_assignments")
       .update({
         status: "in_transit",
@@ -52,11 +52,11 @@ export async function POST(req: Request) {
     // 4. Récupérer les infos du coursier si dispo
     let courierName = "votre livreur dédié";
     if (courierId) {
-      const { data: courier } = await supabase
+      const { data: courier } = await supabaseAdmin
         .from("couriers")
         .select("full_name")
         .eq("id", courierId)
-        .single();
+        .maybeSingle();
       if (courier?.full_name) {
         courierName = courier.full_name;
       }
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     // 5. Notifier le client
     if (order.customer_id) {
-      await supabase.from("customer_notifications").insert({
+      await supabaseAdmin.from("customer_notifications").insert({
         customer_id: order.customer_id,
         order_id: order.id,
         title: "Colis en Route vers votre Domicile 🛵",
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
     // 6. Notifier le vendeur
     if (order.shop_id) {
-      await supabase.from("seller_notifications").insert({
+      await supabaseAdmin.from("seller_notifications").insert({
         shop_id: order.shop_id,
         title: "Colis Remis au Livreur 📦",
         message: `Le coursier ${courierName} a pris en charge le colis de la commande #${orderCode}.`,
@@ -94,3 +94,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Erreur serveur lors de la prise en charge." }, { status: 500 });
   }
 }
+

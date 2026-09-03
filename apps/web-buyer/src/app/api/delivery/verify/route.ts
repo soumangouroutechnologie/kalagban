@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -16,11 +16,11 @@ export async function POST(req: Request) {
     const trimmedOtp = String(otp).trim();
 
     // 1. Récupérer la commande
-    const { data: order, error: orderErr } = await supabase
+    const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
       .select("id, status, pickup_code, delivery_otp, customer_id, shop_id, customer_name, total_amount")
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
 
     if (orderErr || !order) {
       return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
 
     // 3. Mise à jour de la commande vers 'delivered'
-    const { error: updateOrderErr } = await supabase
+    const { error: updateOrderErr } = await supabaseAdmin
       .from("orders")
       .update({
         status: "delivered",
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     // 4. Mise à jour de l'assignation coursier
     try {
-      await supabase
+      await supabaseAdmin
         .from("courier_assignments")
         .update({
           status: "delivered",
@@ -87,14 +87,14 @@ export async function POST(req: Request) {
 
       // Si un coursier est identifié, mettre à jour ses livraisons
       if (courierId) {
-        const { data: courier } = await supabase
+        const { data: courier } = await supabaseAdmin
           .from("couriers")
           .select("total_deliveries")
           .eq("id", courierId)
-          .single();
+          .maybeSingle();
 
         if (courier) {
-          await supabase
+          await supabaseAdmin
             .from("couriers")
             .update({
               total_deliveries: (courier.total_deliveries || 0) + 1,
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
       // A. Client
       if (order.customer_id) {
-        await supabase.from("customer_notifications").insert({
+        await supabaseAdmin.from("customer_notifications").insert({
           customer_id: order.customer_id,
           order_id: order.id,
           title: "Colis Livré avec Succès ! 🎉",
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
       // B. Vendeur
       if (order.shop_id) {
-        await supabase.from("seller_notifications").insert({
+        await supabaseAdmin.from("seller_notifications").insert({
           shop_id: order.shop_id,
           title: "Commande Livrée au Client 📦",
           message: `La commande #${orderShort} a été remise au client. Vos gains sont débloqués.`,
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       }
 
       // C. Admin
-      await supabase.from("admin_notifications").insert({
+      await supabaseAdmin.from("admin_notifications").insert({
         title: "Livraison à Domicile Effectuée",
         message: `La commande #${orderShort} (${order.customer_name}) a été livrée avec succès par le coursier.`,
         notification_type: "info",
