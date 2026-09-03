@@ -260,7 +260,7 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
 
               <div className="flex justify-between items-center pb-2 border-b border-slate-800">
                 <span className="text-slate-400 font-bold uppercase">Adresse livrée :</span>
-                <span className="font-medium text-slate-300 text-right max-w-[200px] truncate">{course.shippingAddress}</span>
+                <span className="font-medium text-slate-300 text-right max-w-50 truncate">{course.shippingAddress}</span>
               </div>
 
               {course.assignment?.couriers && (
