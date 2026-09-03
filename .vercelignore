@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Mobile Apps & Android/iOS Builds
+build-apks
+apps/mobile-buyer
+apps/mobile-seller
+android
+ios
+*.apk
+*.aab
+.gradle
+gradle
+build
+
+# Next.js & Build Outputs
+.next
+out
+dist
+.turbo
+.cache
+
+# Environment & Git
+.git
+.github
+.env*.local
