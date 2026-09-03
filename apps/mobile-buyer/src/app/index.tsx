@@ -92,11 +92,11 @@ export default function MarketplaceHomeScreen() {
   });
 
   const [flashSaleConfig, setFlashSaleConfig] = useState({
-    enabled: true,
+    enabled: false,
     title: "VENTES FLASH DU MOMENT",
     subtitle: "Offres exclusives limitées dans le temps !",
   });
-  const [timeLeft, setTimeLeft] = useState({ hours: 12, minutes: 0, seconds: 0 });
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [activeFlashSale, setActiveFlashSale] = useState<any>(null);
 
   const [adBanner, setAdBanner] = useState<PromoBannerConfig>({
@@ -504,7 +504,7 @@ export default function MarketplaceHomeScreen() {
         )}
 
         {/* DYNAMIC VENTES FLASH SECTION WITH COUNTDOWN TIMER */}
-        {flashSaleConfig.enabled !== false && (
+        {Boolean(flashSaleConfig.enabled && activeFlashSale) && (
           <View style={styles.flashSaleBox}>
             <TouchableOpacity 
               style={styles.flashHeaderRow}

@@ -70,8 +70,16 @@ export default function SellerDashboardScreen() {
 
   const fetchDashboardData = async () => {
     try {
-      if (!shop?.id && !user?.id) return;
-      const targetShopId = shop?.id || user?.id;
+      let targetShopId = shop?.id || user?.id;
+      if (!targetShopId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        targetShopId = session?.user?.id;
+      }
+      if (!targetShopId) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       // 1. Fetch Orders for this shop
       const { data: orders } = await supabase

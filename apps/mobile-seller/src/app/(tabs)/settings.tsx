@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/auth-context';
@@ -27,6 +28,9 @@ import {
   Mail,
   Building2,
   HelpCircle,
+  PhoneCall,
+  MessageCircle,
+  ChevronRight,
 } from 'lucide-react-native';
 
 export default function SellerSettingsScreen() {
@@ -380,11 +384,56 @@ export default function SellerSettingsScreen() {
         )}
 
         {/* Support Box */}
-        <View style={styles.supportBox}>
-          <HelpCircle size={24} color="#4F46E5" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.supportTitle}>Besoin d'assistance ?</Text>
-            <Text style={styles.supportDesc}>Contactez l'équipe support Kalagban Vendeurs.</Text>
+        <View style={styles.supportSectionCard}>
+          <View style={styles.supportSectionHeader}>
+            <View style={[styles.supportIconCircle, { backgroundColor: '#EEF2FF' }]}>
+              <HelpCircle size={22} color="#4F46E5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.supportSectionTitle}>Centre d'Assistance Vendeur</Text>
+              <Text style={styles.supportSectionSub}>Une question ou un blocage sur votre boutique ?</Text>
+            </View>
+          </View>
+
+          <View style={styles.supportActionsList}>
+            <TouchableOpacity
+              style={styles.supportRowBtn}
+              onPress={() => Linking.openURL('tel:+2252520006161').catch(() => Alert.alert('Appel', 'Composez le +225 25 20 00 61 61'))}
+              activeOpacity={0.8}
+            >
+              <PhoneCall size={18} color="#4F46E5" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.supportRowTitle}>Ligne Directe Vendeurs</Text>
+                <Text style={styles.supportRowSub}>+225 25 20 00 61 61 (7j/7)</Text>
+              </View>
+              <ChevronRight size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.supportRowBtn}
+              onPress={() => Linking.openURL('https://wa.me/2252520006161').catch(() => Alert.alert('WhatsApp', 'Service WhatsApp : +225 25 20 00 61 61'))}
+              activeOpacity={0.8}
+            >
+              <MessageCircle size={18} color="#16A34A" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.supportRowTitle}>Support WhatsApp Direct</Text>
+                <Text style={styles.supportRowSub}>Assistance immédiate 8h - 20h</Text>
+              </View>
+              <ChevronRight size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.supportRowBtn}
+              onPress={() => Linking.openURL('mailto:vendeur@kalagban.ci').catch(() => Alert.alert('Email', 'Écrivez à vendeur@kalagban.ci'))}
+              activeOpacity={0.8}
+            >
+              <Mail size={18} color="#64748B" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.supportRowTitle}>Email Support Marchand</Text>
+                <Text style={styles.supportRowSub}>vendeur@kalagban.ci</Text>
+              </View>
+              <ChevronRight size={16} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -629,24 +678,62 @@ const styles = StyleSheet.create({
   activeOperatorChipText: {
     color: '#FFFFFF',
   },
-  supportBox: {
+  supportSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  supportSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  supportTitle: {
-    fontSize: 14,
+  supportIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportSectionTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    color: '#1E1B4B',
+    color: '#0F172A',
   },
-  supportDesc: {
+  supportSectionSub: {
     fontSize: 12,
-    color: '#4F46E5',
+    color: '#64748B',
     marginTop: 2,
+  },
+  supportActionsList: {
+    marginTop: 12,
+    gap: 10,
+  },
+  supportRowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  supportRowTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  supportRowSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
   logoutBtn: {
     flexDirection: 'row',

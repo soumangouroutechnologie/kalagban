@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Platform,
   Alert,
   Modal,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -68,10 +70,6 @@ export default function ProductDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState('M');
   const [addedNotice, setAddedNotice] = useState(false);
-
-  // Zoom Modal State
-  const [isZoomOpen, setIsZoomOpen] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -169,17 +167,78 @@ export default function ProductDetailScreen() {
     return amount.toLocaleString('fr-FR') + ' FCFA';
   };
 
+  // Zoom Modal State & 2D Pan Gestures
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const resetPan = () => {
+    pan.setValue({ x: 0, y: 0 });
+    pan.setOffset({ x: 0, y: 0 });
+  };
+
   const handleZoomIn = () => {
-    setZoomScale((prev) => Math.min(prev + 0.5, 3.5));
+    setZoomScale((prev) => Math.min(prev + 0.5, 4.0));
   };
 
   const handleZoomOut = () => {
-    setZoomScale((prev) => Math.max(prev - 0.5, 1));
+    setZoomScale((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next <= 1) resetPan();
+      return next;
+    });
   };
 
   const handleResetZoom = () => {
     setZoomScale(1);
+    resetPan();
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value || 0,
+          y: (pan.y as any)._value || 0,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, gestureState) => {
+        pan.flattenOffset();
+        if (zoomScale <= 1) {
+          if (gestureState.dx < -50 && selectedImageIndex < (product?.images?.length || 1) - 1) {
+            setSelectedImageIndex((idx) => idx + 1);
+          } else if (gestureState.dx > 50 && selectedImageIndex > 0) {
+            setSelectedImageIndex((idx) => idx - 1);
+          }
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }).start();
+        } else {
+          const maxDragX = (width * (zoomScale - 1)) / 2 + 60;
+          const maxDragY = (height * 0.65 * (zoomScale - 1)) / 2 + 60;
+          let currentX = (pan.x as any)._value || 0;
+          let currentY = (pan.y as any)._value || 0;
+
+          if (Math.abs(currentX) > maxDragX) currentX = Math.sign(currentX) * maxDragX;
+          if (Math.abs(currentY) > maxDragY) currentY = Math.sign(currentY) * maxDragY;
+
+          Animated.spring(pan, {
+            toValue: { x: currentX, y: currentY },
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   if (loading) {
     return (
@@ -469,37 +528,39 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {/* Center Scaled Image Area */}
-          <ScrollView
-            style={styles.zoomScrollArea}
-            contentContainerStyle={styles.zoomScrollContent}
-            maximumZoomScale={4.0}
-            minimumZoomScale={1.0}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-          >
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => {
-                if (zoomScale > 1) {
-                  setZoomScale(1);
-                } else {
-                  setZoomScale(2);
-                }
-              }}
+          {/* Center Scaled & Draggable Image Area */}
+          <View style={styles.zoomCenterContainer}>
+            <Animated.View
+              {...panResponder.panHandlers}
+              style={[
+                styles.zoomDraggableWrapper,
+                {
+                  transform: [
+                    { translateX: pan.x },
+                    { translateY: pan.y },
+                    { scale: zoomScale },
+                  ],
+                },
+              ]}
             >
-              <Image
-                source={{ uri: currentImage }}
-                style={[
-                  styles.zoomedImage,
-                  {
-                    transform: [{ scale: zoomScale }],
-                  },
-                ]}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
-          </ScrollView>
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => {
+                  if (zoomScale > 1) {
+                    handleResetZoom();
+                  } else {
+                    setZoomScale(2);
+                  }
+                }}
+              >
+                <Image
+                  source={{ uri: currentImage }}
+                  style={styles.zoomedImage}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
 
           {/* Bottom Thumbnails Strip in Zoom Mode */}
           {product.images.length > 1 && (
@@ -956,11 +1017,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  zoomScrollArea: {
+  zoomCenterContainer: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  zoomScrollContent: {
-    flex: 1,
+  zoomDraggableWrapper: {
+    width: width,
+    height: height * 0.65,
     alignItems: 'center',
     justifyContent: 'center',
   },

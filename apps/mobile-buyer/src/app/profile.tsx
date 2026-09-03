@@ -13,6 +13,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -30,6 +31,12 @@ import {
   Mail,
   Eye,
   EyeOff,
+  PhoneCall,
+  MessageCircle,
+  X,
+  CheckCircle2,
+  Clock,
+  Sparkles,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useFavorites } from '@/context/favorites-context';
@@ -62,6 +69,10 @@ export default function ProfileScreen() {
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
+
+  // Info & Support Modals
+  const [isOtpInfoModalOpen, setIsOtpInfoModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -432,7 +443,11 @@ export default function ProfileScreen() {
         <View style={styles.menuSection}>
           <Text style={styles.menuSectionTitle}>AIDE &amp; SÉCURITÉ KALAGBAN</Text>
 
-          <View style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setIsOtpInfoModalOpen(true)}
+            activeOpacity={0.7}
+          >
             <View style={[styles.menuIconCircle, { backgroundColor: '#ECFDF5' }]}>
               <ShieldCheck size={20} color="#10B981" />
             </View>
@@ -440,9 +455,14 @@ export default function ProfileScreen() {
               <Text style={styles.menuItemTitle}>Achat Sécurisé par OTP</Text>
               <Text style={styles.menuItemSub}>Vendeurs certifiés &amp; retrait vérifié en Point Relais</Text>
             </View>
-          </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
 
-          <View style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => setIsSupportModalOpen(true)}
+            activeOpacity={0.7}
+          >
             <View style={[styles.menuIconCircle, { backgroundColor: '#FEF3C7' }]}>
               <Headphones size={20} color="#D97706" />
             </View>
@@ -450,7 +470,8 @@ export default function ProfileScreen() {
               <Text style={styles.menuItemTitle}>Support Client Abidjan</Text>
               <Text style={styles.menuItemSub}>Assistance 7j/7 au +225 25 20 00 61 61</Text>
             </View>
-          </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
         </View>
 
         {user ? (
@@ -753,6 +774,190 @@ export default function ProfileScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 1: ACHAT SÉCURISÉ PAR OTP */}
+      <Modal
+        visible={isOtpInfoModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsOtpInfoModalOpen(false)}
+      >
+        <View style={styles.infoModalBackdrop}>
+          <View style={styles.infoModalSheet}>
+            <View style={styles.infoModalHeader}>
+              <View style={[styles.menuIconCircle, { backgroundColor: '#ECFDF5', marginRight: 10 }]}>
+                <ShieldCheck size={24} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoModalTitle}>Achat Sécurisé par OTP</Text>
+                <Text style={styles.infoModalSub}>Votre protection à 100% sur Kalagban</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.infoModalCloseBtn}
+                onPress={() => setIsOtpInfoModalOpen(false)}
+              >
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380, marginTop: 14 }}>
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepNumber}>
+                  <Text style={styles.otpStepNumberText}>1</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpStepTitle}>Vendeurs Certifiés</Text>
+                  <Text style={styles.otpStepDesc}>
+                    Tous nos marchands sont enregistrés avec identité vérifiée et caution professionnelle à Abidjan.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepNumber}>
+                  <Text style={styles.otpStepNumberText}>2</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpStepTitle}>Génération de votre Code Secret</Text>
+                  <Text style={styles.otpStepDesc}>
+                    Dès que votre commande est expédiée, un Code OTP unique (ex: #7492) est réservé exclusivement pour vous.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepNumber}>
+                  <Text style={styles.otpStepNumberText}>3</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpStepTitle}>Suivi &amp; Traçabilité en Direct</Text>
+                  <Text style={styles.otpStepDesc}>
+                    Suivez le déplacement du livreur ou la mise en étagère sécurisée dans votre Point Relais de quartier.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.otpStepCard}>
+                <View style={styles.otpStepNumber}>
+                  <Text style={styles.otpStepNumberText}>4</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpStepTitle}>Remise en Main Propre</Text>
+                  <Text style={styles.otpStepDesc}>
+                    Le colis ne peut être remis à personne d'autre sans la validation exacte de votre code OTP secret.
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.infoModalPrimaryBtn}
+              onPress={() => setIsOtpInfoModalOpen(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.infoModalPrimaryBtnText}>J'ai compris, merci !</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 2: SUPPORT CLIENT ABIDJAN */}
+      <Modal
+        visible={isSupportModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsSupportModalOpen(false)}
+      >
+        <View style={styles.infoModalBackdrop}>
+          <View style={styles.infoModalSheet}>
+            <View style={styles.infoModalHeader}>
+              <View style={[styles.menuIconCircle, { backgroundColor: '#FEF3C7', marginRight: 10 }]}>
+                <Headphones size={24} color="#D97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoModalTitle}>Support Client Abidjan</Text>
+                <Text style={styles.infoModalSub}>Une équipe dévouée à votre service 7j/7</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.infoModalCloseBtn}
+                onPress={() => setIsSupportModalOpen(false)}
+              >
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginTop: 16, gap: 12 }}>
+              {/* Call support */}
+              <TouchableOpacity
+                style={styles.supportActionCard}
+                onPress={() => {
+                  Linking.openURL('tel:+2252520006161').catch(() => {
+                    Alert.alert('Appel', 'Veuillez composer le +225 25 20 00 61 61.');
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                  <PhoneCall size={20} color="#4F46E5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.supportActionTitle}>Appeler le Service Client</Text>
+                  <Text style={styles.supportActionDesc}>+225 25 20 00 61 61 (Appel direct)</Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* WhatsApp Support */}
+              <TouchableOpacity
+                style={styles.supportActionCard}
+                onPress={() => {
+                  Linking.openURL('https://wa.me/2252520006161').catch(() => {
+                    Alert.alert('WhatsApp', 'Service WhatsApp disponible au +225 25 20 00 61 61.');
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                  <MessageCircle size={20} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.supportActionTitle}>Discuter sur WhatsApp</Text>
+                  <Text style={styles.supportActionDesc}>Réponse rapide 7j/7 de 8h à 20h</Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* Email Support */}
+              <TouchableOpacity
+                style={styles.supportActionCard}
+                onPress={() => {
+                  Linking.openURL('mailto:contact@kalagban.ci').catch(() => {
+                    Alert.alert('Email', 'Écrivez-nous à contact@kalagban.ci.');
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F8FAFC' }]}>
+                  <Mail size={20} color="#64748B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.supportActionTitle}>Envoyer un Email</Text>
+                  <Text style={styles.supportActionDesc}>contact@kalagban.ci</Text>
+                </View>
+                <ChevronRight size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.infoModalPrimaryBtn, { backgroundColor: '#F1F5F9', marginTop: 18 }]}
+              onPress={() => setIsSupportModalOpen(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.infoModalPrimaryBtnText, { color: '#475569' }]}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1145,5 +1350,110 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 13,
     fontWeight: '600',
+  },
+  infoModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  infoModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'android' ? 24 : 36,
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  infoModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  infoModalSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  infoModalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpStepCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+  },
+  otpStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpStepNumberText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 13,
+  },
+  otpStepTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  otpStepDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  infoModalPrimaryBtn: {
+    backgroundColor: '#10B981',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  infoModalPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  supportActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+  },
+  supportActionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  supportActionDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
 });

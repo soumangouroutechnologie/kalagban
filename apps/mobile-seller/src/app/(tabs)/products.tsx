@@ -59,8 +59,16 @@ export default function SellerProductsScreen() {
 
   const fetchProducts = async () => {
     try {
-      const targetShopId = shop?.id || user?.id;
-      if (!targetShopId) return;
+      let targetShopId = shop?.id || user?.id;
+      if (!targetShopId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        targetShopId = session?.user?.id;
+      }
+      if (!targetShopId) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('products')
