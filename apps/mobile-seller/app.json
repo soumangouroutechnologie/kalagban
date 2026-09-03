@@ -27,13 +27,24 @@
         {
           "photosPermission": "L'application a besoin d'accéder à vos photos pour ajouter des produits."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#16a34a"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
     },
+    "owner": "soumangouroutechnologie",
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "f4554dff-554d-449c-af1c-5091e1669423"
+      }
     }
   }
 }

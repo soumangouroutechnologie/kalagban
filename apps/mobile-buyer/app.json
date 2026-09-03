@@ -25,14 +25,25 @@
           "image": "./assets/images/icon.png",
           "imageWidth": 120
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#16a34a"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "owner": "soumangouroutechnologie",
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "0c107dca-a4d2-44d2-8930-288d6a9872f0"
+      }
     }
   }
 }

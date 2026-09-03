@@ -5,12 +5,16 @@ import { useColorScheme } from 'react-native';
 import { CartProvider } from '@/context/cart-context';
 import { FavoritesProvider } from '@/context/favorites-context';
 import SplashScreen from '@/components/SplashScreen';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 SplashScreenNative.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Initialisation et écoute des notifications push natives Expo
+  usePushNotifications();
 
   useEffect(() => {
     // Masquer immédiatement l'écran bleu natif d'Expo pour afficher notre splash animé Kalagban
