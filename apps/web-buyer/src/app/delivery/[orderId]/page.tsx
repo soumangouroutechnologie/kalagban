@@ -229,14 +229,55 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
         
         {/* STATUS BANNER */}
         {verifySuccess || course.status === "delivered" ? (
-          <div className="bg-linear-to-br from-emerald-900/60 to-emerald-800/40 border-2 border-emerald-500/40 rounded-3xl p-6 text-center shadow-xl">
-            <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-500/30">
+          <div className="bg-linear-to-br from-emerald-950/80 via-emerald-900/60 to-slate-900 border-2 border-emerald-500/50 rounded-3xl p-6 text-center shadow-2xl space-y-4">
+            <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/30">
               <CheckCircle2 size={36} />
             </div>
-            <h2 className="text-2xl font-black text-white mb-1">Livraison Confirmée ! 🎉</h2>
-            <p className="text-emerald-200 text-sm font-medium">
-              Le code OTP a été validé. La commande a été clôturée avec succès dans le système.
-            </p>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full inline-block">
+                🔒 COURSE TERMINÉE &amp; VERROUILLÉE
+              </span>
+              <h2 className="text-xl font-black text-white leading-snug pt-1">
+                Course terminée, le client a validé le colis envoyé par le livreur
+              </h2>
+              <p className="text-xs text-emerald-200/80 font-medium max-w-xs mx-auto">
+                Ce lien de livraison a été clôturé suite à la validation du Code OTP secret. Aucune modification ultérieure n&apos;est possible.
+              </p>
+            </div>
+
+            {/* AUDIT DETAILS SUMMARY */}
+            <div className="bg-slate-950/80 rounded-2xl p-4 text-left border border-emerald-500/20 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <span className="text-slate-400 font-bold uppercase">Réf. Commande :</span>
+                <span className="font-mono font-extrabold text-amber-400">#{course.orderCode}</span>
+              </div>
+
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <span className="text-slate-400 font-bold uppercase">Destinataire :</span>
+                <span className="font-bold text-slate-200">{course.customerName || "Client"} ({course.customerPhone || "N/A"})</span>
+              </div>
+
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <span className="text-slate-400 font-bold uppercase">Adresse livrée :</span>
+                <span className="font-medium text-slate-300 text-right max-w-[200px] truncate">{course.shippingAddress}</span>
+              </div>
+
+              {course.assignment?.couriers && (
+                <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                  <span className="text-slate-400 font-bold uppercase">Livreur :</span>
+                  <span className="font-bold text-emerald-300">{course.assignment.couriers.full_name} ({course.assignment.couriers.vehicle_type?.toUpperCase() || "MOTO"})</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-1 text-[11px] text-emerald-400 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck size={14} />
+                  Validation OTP Certifiée
+                </span>
+                <span>Archivé Logistique ✓</span>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5">

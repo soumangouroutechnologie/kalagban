@@ -6,13 +6,14 @@ import {
   ScrollView, 
   TouchableOpacity, 
   ActivityIndicator, 
-  SafeAreaView,
-  Alert,
+  SafeAreaView, 
+  Alert, 
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CheckCircle2, KeyRound, Package, Home, XCircle } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, KeyRound, Package, Home, XCircle, Truck, MessageCircle, PhoneCall, Send, MapPin, ExternalLink } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 
@@ -42,6 +43,7 @@ export default function OrderDetailsReceiptScreen() {
   const router = useRouter();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [courier, setCourier] = useState<{ id: string; full_name: string; phone: string; vehicle_type?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -131,6 +133,28 @@ export default function OrderDetailsReceiptScreen() {
 
       if (data) {
         setOrder(data);
+
+        // Fetch assigned courier if any
+        const { data: assignData } = await supabase
+          .from('courier_assignments')
+          .select(`
+            id,
+            status,
+            couriers (
+              id,
+              full_name,
+              phone,
+              vehicle_type
+            )
+          `)
+          .eq('order_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (assignData?.couriers) {
+          setCourier(assignData.couriers as any);
+        }
       }
       setIsLoading(false);
     };
@@ -222,6 +246,45 @@ export default function OrderDetailsReceiptScreen() {
             <View style={styles.addressBox}>
               <Text style={styles.addressLabel}>DESTINATION DE LIVRAISON :</Text>
               <Text style={styles.addressText}>{order.shipping_address}</Text>
+            </View>
+          )}
+
+          {/* Home Delivery Courier & WhatsApp GPS Sharing Card */}
+          {(order.delivery_type === 'home_delivery' || order.delivery_type === 'home') && order.status !== 'delivered' && order.status !== 'cancelled' && (
+            <View style={styles.courierCard}>
+              <View style={styles.courierHeader}>
+                <View style={styles.courierIconWrap}>
+                  <Truck size={18} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.courierTitle}>
+                    {courier ? 'Livreur KALAGBAN en route' : 'Livraison à Domicile Directe'}
+                  </Text>
+                  <Text style={styles.courierSub}>
+                    {courier ? `${courier.full_name} (${courier.phone})` : 'Prise en charge par le service logistique'}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.whatsappLocationBtn}
+                onPress={() => {
+                  const targetPhone = (courier?.phone || '2252520006161').replace(/[^0-9]/g, '');
+                  const cleanPhone = targetPhone.startsWith('225') ? targetPhone : `225${targetPhone}`;
+                  const orderCode = order.id.slice(0, 8).toUpperCase();
+                  const text = encodeURIComponent(
+                    `Bonjour 👋,\nJe souhaite vous partager ma position géographique WhatsApp pour la livraison de ma commande #${orderCode}.\nDestinataire : ${order.customer_name || 'Client'}\nAdresse : ${order.shipping_address || 'Abidjan'}\nMerci !`
+                  );
+                  Linking.openURL(`https://wa.me/${cleanPhone}?text=${text}`).catch(() => {
+                    Alert.alert('WhatsApp', `Veuillez envoyer votre localisation au +${cleanPhone}.`);
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <MessageCircle size={18} color="#FFFFFF" />
+                <Text style={styles.whatsappLocationBtnText}>📍 Partager ma localisation WhatsApp</Text>
+                <ExternalLink size={14} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -487,6 +550,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  courierCard: {
+    width: '100%',
+    backgroundColor: '#F0FDF4',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#BBF7D0',
+    gap: 12,
+  },
+  courierHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  courierIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  courierTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  courierSub: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 1,
+  },
+  whatsappLocationBtn: {
+    backgroundColor: '#16A34A',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  whatsappLocationBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   summaryCard: {
     backgroundColor: '#FFFFFF',
