@@ -340,14 +340,20 @@ export default function CouriersPage() {
 
   const handleDeleteCourier = async (courier: CourierItem) => {
     try {
+      // 1. Supprimer d'éventuelles assignations liées
+      await supabase.from("courier_assignments").delete().eq("courier_id", courier.id);
+
+      // 2. Supprimer la fiche du livreur
       const { error } = await supabase.from("couriers").delete().eq("id", courier.id);
       if (error) throw error;
-      alert(`🗑️ Le livreur "${courier.full_name}" a été retiré définitivement.`);
+
+      alert(`🗑️ Le livreur "${courier.full_name}" a été retiré définitivement de la base.`);
       setDeleteConfirmCourier(null);
       setSelectedCourier(null);
       fetchCouriers();
     } catch (err: any) {
-      alert("Erreur lors de la suppression : " + err.message);
+      console.error("Error deleting courier:", err);
+      alert("Erreur lors de la suppression : " + (err.message || "Impossible de supprimer ce livreur."));
     }
   };
 
@@ -597,11 +603,19 @@ export default function CouriersPage() {
                     className={`p-2 rounded-xl transition-colors cursor-pointer ${
                       courier.status === "suspended" 
                         ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" 
-                        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        : "bg-amber-50 text-amber-700 hover:bg-amber-100"
                     }`}
                     title={courier.status === "suspended" ? "Réactiver le livreur" : "Suspendre le livreur"}
                   >
                     {courier.status === "suspended" ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                  </button>
+
+                  <button
+                    onClick={() => setDeleteConfirmCourier(courier)}
+                    className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                    title="Supprimer définitivement le livreur"
+                  >
+                    <Trash2 size={15} />
                   </button>
                 </div>
               </div>
