@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -151,7 +152,38 @@ export default function CouriersPage() {
   }, []);
 
   useEffect(() => {
-    fetchCouriers();
+    let isMounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("couriers")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!isMounted) return;
+
+        if (!error && data) {
+          const formatted: CourierItem[] = data.map((c: Record<string, unknown>) => ({
+            ...(c as unknown as CourierItem),
+            coverage_type: (c.coverage_type as "all_abidjan" | "specific_communes") || "all_abidjan",
+            preferred_communes: Array.isArray(c.preferred_communes) ? (c.preferred_communes as string[]) : [],
+            preferred_zone: (c.preferred_zone as string) || "Abidjan",
+            id_card_type: (c.id_card_type as string) || "cni",
+            is_partner_company: Boolean(c.is_partner_company)
+          }));
+          setCouriers(formatted);
+        } else {
+          setCouriers([]);
+        }
+      } catch (err) {
+        console.error("Error loading couriers:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadInitialData();
 
     const channelId = `admin_couriers_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
@@ -162,6 +194,7 @@ export default function CouriersPage() {
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, [fetchCouriers]);
