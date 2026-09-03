@@ -1,23 +1,53 @@
--- ==============================================================================
--- Migration: Consolidation Complète Tables Livraison Domicile, Coursiers & Traçabilité OTP
--- Date: 2026-09-03
--- ==============================================================================
-
 -- 1. Table des Coursiers / Livreurs (couriers)
 CREATE TABLE IF NOT EXISTS public.couriers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     full_name VARCHAR(255) NOT NULL,
     phone VARCHAR(50) NOT NULL,
-    vehicle_type VARCHAR(50) DEFAULT 'moto', -- moto, voiture, tricycle, velo
+    secondary_phone VARCHAR(50),
+    photo_url TEXT,
+    vehicle_type VARCHAR(50) DEFAULT 'moto',
     license_plate VARCHAR(50),
+    coverage_type VARCHAR(50) DEFAULT 'all_abidjan',
+    preferred_communes JSONB DEFAULT '[]'::jsonb,
     preferred_zone VARCHAR(100) DEFAULT 'Abidjan',
-    status VARCHAR(50) DEFAULT 'available', -- available, on_delivery, offline, suspended
+    id_card_type VARCHAR(50) DEFAULT 'cni',
+    id_card_number VARCHAR(100),
+    id_card_front_url TEXT,
+    id_card_back_url TEXT,
+    is_partner_company BOOLEAN DEFAULT false,
+    company_name VARCHAR(255),
+    company_manager VARCHAR(255),
+    company_phone VARCHAR(50),
+    registered_by VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'available',
     rating NUMERIC(3, 2) DEFAULT 5.00,
     total_deliveries INT DEFAULT 0,
+    is_verified BOOLEAN DEFAULT true,
+    verified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    terms_accepted BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ajouter toutes les colonnes manquantes si la table existait déjà
+ALTER TABLE public.couriers 
+    ADD COLUMN IF NOT EXISTS secondary_phone VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS photo_url TEXT,
+    ADD COLUMN IF NOT EXISTS coverage_type VARCHAR(50) DEFAULT 'all_abidjan',
+    ADD COLUMN IF NOT EXISTS preferred_communes JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS id_card_type VARCHAR(50) DEFAULT 'cni',
+    ADD COLUMN IF NOT EXISTS id_card_number VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS id_card_front_url TEXT,
+    ADD COLUMN IF NOT EXISTS id_card_back_url TEXT,
+    ADD COLUMN IF NOT EXISTS is_partner_company BOOLEAN DEFAULT false,
+    ADD COLUMN IF NOT EXISTS company_name VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS company_manager VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS company_phone VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS registered_by VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT true,
+    ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN DEFAULT true;
 
 -- 2. Table des Assignations de Courses (courier_assignments)
 CREATE TABLE IF NOT EXISTS public.courier_assignments (
@@ -189,10 +219,16 @@ BEGIN
 END;
 $$;
 
--- 7. Insertion de livreurs de test disponibles à Abidjan pour démarrer la phase pilote
-INSERT INTO public.couriers (id, full_name, phone, vehicle_type, license_plate, preferred_zone, status, rating, total_deliveries)
-VALUES 
-    ('11111111-1111-1111-1111-111111111101', 'Amadou Diallo (Express Moto)', '+225 07 77 62 08 64', 'moto', 'CI-7489-AB', 'Cocody / Riviera', 'available', 4.95, 128),
-    ('11111111-1111-1111-1111-111111111102', 'Koffi Jean-Luc (Coursier Kalagban)', '+225 05 55 44 33 22', 'moto', 'CI-1029-CD', 'Yopougon / Attécoubé', 'available', 4.88, 94),
-    ('11111111-1111-1111-1111-111111111103', 'Mamadou Traoré (Livraison Abidjan)', '+225 01 02 03 04 05', 'tricycle', 'CI-8833-EF', 'Plateau / Treichville', 'available', 5.00, 67)
-ON CONFLICT (id) DO NOTHING;
+-- 7. Nettoyage des livreurs de test éventuels
+DELETE FROM public.couriers 
+WHERE id IN (
+    '11111111-1111-1111-1111-111111111101', 
+    '11111111-1111-1111-1111-111111111102', 
+    '11111111-1111-1111-1111-111111111103'
+) 
+OR full_name LIKE '%(Express Moto)%' 
+OR full_name LIKE '%(Coursier Kalagban)%' 
+OR full_name LIKE '%(Livraison Abidjan)%';
+
+-- 8. Forcer le rafraîchissement immédiat du cache de schéma Supabase (PostgREST)
+NOTIFY pgrst, 'reload schema';
