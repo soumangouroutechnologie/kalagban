@@ -68,6 +68,46 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
   const [verifySuccess, setVerifySuccess] = useState(false);
   const [verifyError, setVerifyError] = useState("");
 
+  // Seller Pickup State
+  const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
+  const [pickupSuccess, setPickupSuccess] = useState(false);
+  const [pickupError, setPickupError] = useState("");
+
+  const handleConfirmPickup = async () => {
+    setIsConfirmingPickup(true);
+    setPickupError("");
+
+    try {
+      const res = await fetch("/api/delivery/pickup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          courierId: course?.assignment?.couriers?.id || null
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setPickupError(data.error || "Impossible de valider la prise en charge.");
+        return;
+      }
+
+      setPickupSuccess(true);
+      setCourse((prev) => prev ? { 
+        ...prev, 
+        status: "in_transit",
+        assignment: prev.assignment ? { ...prev.assignment, status: "in_transit" } : prev.assignment 
+      } : prev);
+    } catch (err: unknown) {
+      console.error("Erreur lors de la prise en charge:", err);
+      setPickupError("Erreur réseau lors de la validation de prise en charge.");
+    } finally {
+      setIsConfirmingPickup(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -204,6 +244,8 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
     );
   }
 
+  const isPickedUp = course.status === "in_transit" || course.status === "delivered" || course.assignment?.status === "in_transit" || course.assignment?.status === "delivered" || pickupSuccess;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* HEADER APP-LIKE */}
@@ -295,10 +337,19 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
         )}
 
         {/* 1. RETRAIT VENDEUR */}
-        <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-            <Store size={16} />
-            <span>1. Point de Retrait (Boutique Marchande)</span>
+        <section className={`bg-slate-900 border rounded-3xl p-5 space-y-3.5 transition-all ${
+          isPickedUp ? "border-emerald-500/30 bg-slate-900/60" : "border-amber-500/50 ring-2 ring-amber-500/20 shadow-xl"
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+              <Store size={16} />
+              <span>1. Point de Retrait (Boutique Marchande)</span>
+            </div>
+            {isPickedUp && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                <CheckCircle2 size={12} /> Colis Récupéré ✓
+              </span>
+            )}
           </div>
 
           <div className="bg-slate-950/60 rounded-2xl p-3.5 border border-slate-800/60">
@@ -328,13 +379,52 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
               </a>
             </div>
           )}
+
+          {/* BOUTON CLÉ : CONFIRMER RÉCUPÉRATION CHEZ LE VENDEUR */}
+          {!isPickedUp && course.status !== "delivered" && (
+            <div className="pt-2">
+              {pickupError && (
+                <div className="bg-red-950/60 border border-red-800/60 rounded-xl p-2.5 mb-2 text-center">
+                  <p className="text-xs font-bold text-red-300">{pickupError}</p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleConfirmPickup}
+                disabled={isConfirmingPickup}
+                className="w-full flex items-center justify-center gap-2.5 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black py-3.5 px-4 rounded-2xl shadow-xl shadow-amber-500/25 transition transform active:scale-95 text-sm cursor-pointer disabled:opacity-50"
+              >
+                {isConfirmingPickup ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>Confirmation en cours...</span>
+                  </>
+                ) : (
+                  <>
+                    <Package size={18} />
+                    <span>J&apos;ai récupéré le colis chez le vendeur</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </section>
 
         {/* 2. DESTINATION CLIENT */}
-        <section className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
-            <MapPin size={16} />
-            <span>2. Destination & Client</span>
+        <section className={`bg-slate-900 border rounded-3xl p-5 space-y-3.5 transition-all ${
+          isPickedUp ? "border-indigo-500/50 shadow-xl ring-2 ring-indigo-500/20" : "border-slate-800 opacity-60"
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-wider">
+              <MapPin size={16} />
+              <span>2. Destination &amp; Client</span>
+            </div>
+            {!isPickedUp && (
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">
+                En attente du retrait boutique
+              </span>
+            )}
           </div>
 
           <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/60 space-y-2">
@@ -351,7 +441,7 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
             </div>
 
             <div>
-              <span className="text-xs text-slate-400 uppercase font-bold block">Adresse & Repères indiqués</span>
+              <span className="text-xs text-slate-400 uppercase font-bold block">Adresse &amp; Repères indiqués</span>
               <p className="text-sm font-semibold text-amber-200 mt-0.5 bg-amber-950/30 p-2.5 rounded-xl border border-amber-800/30">
                 📍 {course.shippingAddress || "Abidjan (Adresse non spécifiée)"}
               </p>
@@ -364,7 +454,9 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
               href={getClientWhatsappUrl()}
               target="_blank"
               rel="noreferrer"
-              className="w-full flex items-center justify-center gap-2.5 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold py-3.5 px-4 rounded-2xl shadow-lg shadow-emerald-600/30 transition transform active:scale-95 text-sm"
+              className={`w-full flex items-center justify-center gap-2.5 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold py-3.5 px-4 rounded-2xl shadow-lg shadow-emerald-600/30 transition transform active:scale-95 text-sm ${
+                !isPickedUp ? "pointer-events-none opacity-50" : ""
+              }`}
             >
               <Send size={18} />
               <span>Demander la Position GPS sur WhatsApp</span>

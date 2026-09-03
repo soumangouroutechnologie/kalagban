@@ -49,53 +49,91 @@ export default function OrderStatusTimeline({
 
   const isHomeDelivery = deliveryType === "home_delivery";
 
-  const steps = [
+  const steps = isHomeDelivery ? [
     {
       id: 1,
-      title: "COMMANDE EFFECTUÉE",
+      title: "COMMANDE VALIDÉE",
+      description: "Votre commande a été confirmée et transmise à la boutique marchande.",
+      date: formattedDate,
+      icon: CheckCircle2
+    },
+    {
+      id: 2,
+      title: "PRÉPARATION EN BOUTIQUE",
+      description: "Le vendeur prépare et emballe vos articles pour le livreur.",
+      date: currentStep >= 2 ? formattedDate : "--",
+      icon: Package
+    },
+    {
+      id: 3,
+      title: "LIVREUR EN ROUTE VERS LA BOUTIQUE",
+      description: "Un livreur dédié fait route vers la boutique du vendeur pour collecter votre colis.",
+      date: currentStep >= 3 ? formattedDate : "--",
+      icon: Clock
+    },
+    {
+      id: 4,
+      title: "COLIS COLLECTÉ & EN ROUTE CHEZ VOUS",
+      description: "Le livreur a récupéré votre colis chez le vendeur et fait route vers votre adresse de livraison.",
+      date: currentStep >= 4 ? formattedDate : "--",
+      icon: Truck
+    },
+    {
+      id: 5,
+      title: "LIVRAISON IMMINENTE (REMISE OTP)",
+      description: "Le livreur est dans votre secteur / devant votre porte. Transmettez-lui votre Code OTP secret pour valider la remise.",
+      date: currentStep >= 5 ? formattedDate : "--",
+      icon: MapPin,
+      showOtp: Boolean(pickupCode)
+    },
+    {
+      id: 6,
+      title: "COLIS LIVRÉ EN MAIN PROPRE",
+      description: "Le code OTP a été validé. Votre colis a été remis en main propre à votre domicile. Merci !",
+      date: currentStep >= 6 ? formattedDate : "--",
+      icon: CheckCircle2
+    }
+  ] : [
+    {
+      id: 1,
+      title: "COMMANDE VALIDÉE",
       description: "Votre commande a été enregistrée avec succès sur Kalagban.",
       date: formattedDate,
       icon: CheckCircle2
     },
     {
       id: 2,
-      title: "EN ATTENTE DE CONFIRMATION",
-      description: "La boutique partenaire valide la disponibilité de vos articles.",
+      title: "PRÉPARATION EN BOUTIQUE",
+      description: "La boutique partenaire valide et emballe votre commande.",
       date: currentStep >= 2 ? formattedDate : "--",
-      icon: Clock
+      icon: Package
     },
     {
       id: 3,
       title: "EN ATTENTE D'EXPÉDITION",
-      description: "Le vendeur prépare votre colis et édite le bordereau de livraison.",
+      description: "Le colis est étiqueté et prêt pour l'acheminement vers le Point Relais.",
       date: currentStep >= 3 ? formattedDate : "--",
-      icon: Package
+      icon: Clock
     },
     {
       id: 4,
-      title: isHomeDelivery ? "EN ROUTE AVEC LE COURSIER" : "EN COURS D'EXPÉDITION",
-      description: isHomeDelivery
-        ? "Le livreur / coursier a pris en charge votre colis et fait route vers votre adresse de livraison."
-        : "Le livreur achemine votre colis vers votre Point Relais de proximité.",
+      title: "ACHEMINEMENT VERS LE POINT RELAIS",
+      description: "Le transporteur achemine votre colis vers le Point Relais de proximité.",
       date: currentStep >= 4 ? formattedDate : "--",
       icon: Truck
     },
     {
       id: 5,
-      title: isHomeDelivery ? "LIVRAISON IMMINENTE" : "PRÊT À RÉCUPÉRER AU POINT RELAIS",
-      description: isHomeDelivery 
-        ? "Le coursier est dans votre secteur et effectue la remise en main propre à votre domicile."
-        : "Votre colis est stocké en étagère sécurisée. Présentez votre Code OTP au gérant.",
+      title: "PRÊT À RÉCUPÉRER AU POINT RELAIS",
+      description: "Votre colis est stocké en étagère sécurisée. Présentez votre Code OTP au gérant.",
       date: currentStep >= 5 ? formattedDate : "--",
       icon: MapPin,
-      showOtp: !isHomeDelivery && Boolean(pickupCode)
+      showOtp: Boolean(pickupCode)
     },
     {
       id: 6,
-      title: isHomeDelivery ? "COLIS LIVRÉ À DOMICILE" : "COLIS RETIRÉ AU POINT RELAIS",
-      description: isHomeDelivery
-        ? "Votre commande a été remise en main propre à votre domicile. Merci pour votre confiance !"
-        : "Votre commande a été remise en main propre au Point Relais. Merci pour votre confiance !",
+      title: "COLIS RETIRÉ AU POINT RELAIS",
+      description: "Votre commande a été retirée au Point Relais. Merci pour votre confiance !",
       date: currentStep >= 6 ? formattedDate : "--",
       icon: CheckCircle2
     }
