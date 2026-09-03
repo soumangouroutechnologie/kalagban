@@ -3,12 +3,32 @@
 import React from "react";
 import { CheckCircle2, Clock, Truck, Package, MapPin, KeyRound, Sparkles } from "lucide-react";
 
+/**
+ * @file OrderStatusTimeline.tsx
+ * @description Composant d'affichage dynamique du suivi de commande (Timeline verticale interactive).
+ * 
+ * Architecture & Fonctionnement :
+ * - Gère deux parcours distincts : "pickup_point" (Point Relais) et "home_delivery" (Livraison à Domicile).
+ * - Machine à 6 états séquentiels calculée à partir des statuts combinés de la commande (orderStatus)
+ *   et de la logistique relais (relayStatus).
+ * - Affiche automatiquement le code PIN / OTP secret sécurisé à l'étape 5 pour la remise du colis.
+ * 
+ * Utilisé dans :
+ * - apps/web-buyer (Suivi client dans /orders, /checkout/success et recherche publique par téléphone)
+ */
+
 interface OrderStatusTimelineProps {
-  orderStatus: string; // 'pending' | 'confirmed' | 'preparing' | 'in_transit' | 'delivered' | 'cancelled'
-  relayStatus?: string | null; // 'pending_deposit' | 'deposited' | 'picked_up'
+  /** Statut principal de la commande dans la table `orders` */
+  orderStatus: string; // 'pending' | 'confirmed' | 'preparing' | 'in_transit' | 'shipped' | 'delivered' | 'cancelled'
+  /** Statut logistique spécifique au point relais dans `relay_orders` */
+  relayStatus?: string | null; // 'pending_deposit' | 'deposited' | 'ready_for_pickup' | 'picked_up'
+  /** Mode de livraison choisi par l'acheteur */
   deliveryType?: string | null; // 'pickup_point' | 'home_delivery'
+  /** Code PIN à 4 chiffres généré pour le retrait ou la remise */
   pickupCode?: string | null;
+  /** Date de création de la commande */
   createdAt?: string;
+  /** Date de dernière mise à jour */
   updatedAt?: string;
 }
 
@@ -19,13 +39,13 @@ export default function OrderStatusTimeline({
   pickupCode,
   createdAt,
 }: OrderStatusTimelineProps) {
-  // Determine Step Index (1 to 6)
-  // Step 1: COMMANDE EFFECTUÉE
-  // Step 2: EN ATTENTE DE CONFIRMATION
-  // Step 3: EN ATTENTE D'EXPÉDITION
-  // Step 4: EN COURS D'EXPÉDITION
-  // Step 5: PRÊT À RÉCUPÉRER (POINT RELAIS)
-  // Step 6: COLIS LIVRÉ
+  // Calcul dynamique de l'étape active (1 à 6) :
+  // Étape 1 : Commande validée
+  // Étape 2 : Préparation boutique
+  // Étape 3 : Acheminement / En route
+  // Étape 4 : En transit vers le point de remise
+  // Étape 5 : Prêt pour retrait / Présentation Code OTP
+  // Étape 6 : Colis livré / validé en main propre
 
   let currentStep = 1;
 
