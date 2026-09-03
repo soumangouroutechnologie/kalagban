@@ -15,7 +15,8 @@ import {
   Store, 
   User, 
   Eye, 
-  Phone
+  Phone,
+  ExternalLink
 } from "lucide-react";
 import AssignCourierModal from "@/components/AssignCourierModal";
 
@@ -44,6 +45,7 @@ interface AdminOrder {
   pickup_code?: string;
   relay_status?: string;
   pickup_point_id?: string;
+  assigned_courier_id?: string;
   shop_id?: string;
   shops?: {
     id: string;
@@ -57,6 +59,17 @@ interface AdminOrder {
     code?: string;
   };
   order_items?: AdminOrderItem[];
+  courier_assignments?: {
+    id: string;
+    status: string;
+    courier_id: string;
+    couriers?: {
+      id: string;
+      full_name: string;
+      phone: string;
+      vehicle_type: string;
+    };
+  }[];
   shipping_address?: string | {
     full_name?: string;
     phone?: string;
@@ -81,7 +94,8 @@ export default function AdminOrdersPage() {
           *,
           shops ( id, name, payout_phone ),
           pickup_points ( id, name, commune, code ),
-          order_items ( id, quantity, unit_price, products ( title ) )
+          order_items ( id, quantity, unit_price, products ( title ) ),
+          courier_assignments ( id, status, courier_id, couriers ( id, full_name, phone, vehicle_type ) )
         `)
         .order("created_at", { ascending: false });
 
@@ -106,7 +120,8 @@ export default function AdminOrdersPage() {
             *,
             shops ( id, name, payout_phone ),
             pickup_points ( id, name, commune, code ),
-            order_items ( id, quantity, unit_price, products ( title ) )
+            order_items ( id, quantity, unit_price, products ( title ) ),
+            courier_assignments ( id, status, courier_id, couriers ( id, full_name, phone, vehicle_type ) )
           `)
           .order("created_at", { ascending: false });
 
@@ -306,6 +321,12 @@ export default function AdminOrdersPage() {
 
               const isHomeDelivery = order.delivery_type === "home" || (!order.pickup_point_id && order.delivery_type !== "pickup_point");
 
+              const activeAssignment = Array.isArray(order.courier_assignments) && order.courier_assignments.length > 0 
+                ? order.courier_assignments[0] 
+                : null;
+              const isAlreadyAssigned = Boolean(activeAssignment || order.assigned_courier_id || order.status === "processing" || order.status === "in_transit");
+              const assignedCourierName = activeAssignment?.couriers?.full_name || null;
+
               return (
                 <div 
                   key={order.id} 
@@ -365,15 +386,38 @@ export default function AdminOrdersPage() {
                       </p>
                     </div>
 
-                    {/* ASSIGN COURIER BUTTON FOR HOME DELIVERY */}
+                    {/* ASSIGN COURIER / TRACKING BUTTON FOR HOME DELIVERY */}
                     {isHomeDelivery && order.status !== "delivered" && order.status !== "cancelled" && (
-                      <button
-                        onClick={() => setAssignModalOrder(order)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-transform active:scale-95 cursor-pointer"
-                      >
-                        <Truck size={14} />
-                        Assigner Livreur
-                      </button>
+                      isAlreadyAssigned ? (
+                        <div className="flex items-center gap-2">
+                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                            <Truck size={14} className="text-emerald-600 shrink-0" />
+                            <span className="truncate max-w-28 sm:max-w-36">
+                              {assignedCourierName ? assignedCourierName : "Livreur Assigné"}
+                            </span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                          </div>
+
+                          <a
+                            href={`https://www.kalagban.com/delivery/${order.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold px-3 py-2 rounded-xl text-xs flex items-center gap-1 transition-colors shadow-xs"
+                            title="Suivre la feuille de route du livreur"
+                          >
+                            <ExternalLink size={13} />
+                            Suivi Course
+                          </a>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAssignModalOrder(order)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-transform active:scale-95 cursor-pointer"
+                        >
+                          <Truck size={14} />
+                          Assigner Livreur
+                        </button>
+                      )
                     )}
 
                     <button

@@ -50,6 +50,7 @@ export default function AssignCourierModal({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Load couriers
   useEffect(() => {
@@ -107,6 +108,15 @@ export default function AssignCourierModal({
       `👉 *Cliquez sur votre lien pour démarrer la course et valider le code OTP :*\n` +
       `${deliveryUrl}\n\n` +
       `_SOUMANGOUROU TECHNOLOGIE - Plateforme KALAGBAN_`;
+  };
+
+  const handleOpenConfirm = () => {
+    if (!selectedCourierId) {
+      setErrorMsg("Veuillez sélectionner un livreur.");
+      return;
+    }
+    setErrorMsg("");
+    setShowConfirmDialog(true);
   };
 
   const handleConfirmAssignment = async () => {
@@ -182,6 +192,7 @@ export default function AssignCourierModal({
         window.open(waUrl, "_blank");
       }
 
+      setShowConfirmDialog(false);
       onAssignedSuccess();
       onClose();
     } catch (err: unknown) {
@@ -194,7 +205,7 @@ export default function AssignCourierModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative">
         
         {/* HEADER */}
         <div className="bg-slate-900 text-white p-6 flex items-center justify-between border-b border-slate-800">
@@ -209,7 +220,7 @@ export default function AssignCourierModal({
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition"
+            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -251,42 +262,71 @@ export default function AssignCourierModal({
 
           {/* SÉLECTION DU LIVREUR */}
           <div className="space-y-2">
-            <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
-              Sélectionner le Livreur Disponible
+            <label className="block text-xs font-bold text-slate-700 uppercase">
+              Sélectionner le Coursier Disponible *
             </label>
-            
+
             {loadingCouriers ? (
-              <div className="flex items-center justify-center p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                <Loader2 className="w-6 h-6 text-indigo-600 animate-spin mr-2" />
-                <span className="text-xs font-bold text-slate-500">Chargement de la flotte de livreurs...</span>
+              <div className="p-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <Loader2 size={16} className="animate-spin text-indigo-600" />
+                Chargement des coursiers...
               </div>
             ) : couriers.length === 0 ? (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-1">
-                <p className="text-xs font-bold text-amber-800">Aucun livreur enregistré dans la base.</p>
-                <p className="text-xs text-amber-600">Enregistrez d&apos;abord des livreurs dans l&apos;onglet Flotte de Livreurs.</p>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                Aucun livreur enregistré. Veuillez d&apos;abord enregistrer des livreurs dans l&apos;onglet <strong>Gestion des Livreurs</strong>.
               </div>
             ) : (
-              <select
-                value={selectedCourierId}
-                onChange={(e) => setSelectedCourierId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-600 focus:bg-white text-slate-900 text-sm font-semibold rounded-2xl py-3 px-4 outline-none transition"
-              >
-                {couriers.map((courier) => (
-                  <option key={courier.id} value={courier.id}>
-                    {courier.full_name} ({courier.vehicle_type?.toUpperCase() || "MOTO"}) - {courier.phone} {courier.preferred_zone ? `[${courier.preferred_zone}]` : ""} - ({courier.status === "available" ? "Disponible 🟢" : "En course 🟠"})
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {couriers.map((c) => {
+                  const isSelected = c.id === selectedCourierId;
+                  const isAvailable = c.status === "available";
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedCourierId(c.id)}
+                      className={`p-3 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition ${
+                        isSelected
+                          ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-slate-900">{c.full_name}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
+                            {c.vehicle_type}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">{c.phone} • {c.preferred_zone || "Abidjan"}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                          isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {isAvailable ? "Disponible" : "Occupé"}
+                        </span>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                          isSelected ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300"
+                        }`}>
+                          {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* PRÉVISUALISATION MESSAGE WHATSAPP */}
+          {/* APERÇU MESSAGE WHATSAPP */}
           {selectedCourier && (
-            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-800 uppercase tracking-wider">
-                <Send size={14} />
-                <span>Message WhatsApp envoyé au Livreur</span>
-              </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                <Send size={13} className="text-emerald-600" />
+                Aperçu de la Feuille de Route WhatsApp
+              </span>
               <pre className="bg-white/80 p-3 rounded-xl border border-emerald-100 text-xs font-sans text-slate-700 whitespace-pre-wrap leading-relaxed">
                 {generateWhatsAppMessage()}
               </pre>
@@ -320,30 +360,77 @@ export default function AssignCourierModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition"
+            className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
           >
             Annuler
           </button>
           
           <button
             type="button"
-            onClick={handleConfirmAssignment}
+            onClick={handleOpenConfirm}
             disabled={isSubmitting || !selectedCourierId}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 transition transform active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 transition transform active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>Assignation en cours...</span>
-              </>
-            ) : (
-              <>
-                <Send size={16} />
-                <span>Confirmer & Notifier sur WhatsApp</span>
-              </>
-            )}
+            <Send size={16} />
+            <span>Assigner &amp; Notifier sur WhatsApp</span>
           </button>
         </div>
+
+        {/* POPUP DE CONFIRMATION DE SÉCURITÉ */}
+        {showConfirmDialog && selectedCourier && (
+          <div className="absolute inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 text-center space-y-5">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner border border-emerald-200">
+                <Truck size={28} />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-black text-gray-900">
+                  Confirmer l&apos;assignation du livreur ?
+                </h3>
+                <p className="text-xs text-gray-500 font-medium">
+                  Voulez-vous confier la commande <strong>#{orderCode}</strong> à :
+                </p>
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-left space-y-1 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-slate-900">{selectedCourier.full_name}</span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 uppercase">
+                      {selectedCourier.vehicle_type}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-slate-600">📞 {selectedCourier.phone}</p>
+                  <p className="text-[11px] text-slate-500">📍 Zone : {selectedCourier.preferred_zone || "Abidjan"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDialog(false)}
+                  disabled={isSubmitting}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmAssignment}
+                  disabled={isSubmitting}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Validation...</span>
+                    </>
+                  ) : (
+                    <span>Oui, Assigner 🚀</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
