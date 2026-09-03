@@ -1,35 +1,31 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Truck, 
   Search, 
   Phone, 
   CheckCircle2, 
-  Clock, 
   AlertTriangle, 
   UserPlus, 
   X, 
   Trash2, 
-  MapPin,
-  FileText,
-  Printer,
-  Camera,
-  UploadCloud,
-  Eye,
-  ShieldCheck,
-  Building2,
-  Check,
-  ArrowRight,
-  ArrowLeft,
-  Loader2,
-  ExternalLink,
-  Lock
+  FileText, 
+  Printer, 
+  Camera, 
+  UploadCloud, 
+  Eye, 
+  ShieldCheck, 
+  Building2, 
+  Check, 
+  ArrowRight, 
+  ArrowLeft, 
+  Loader2, 
+  ExternalLink 
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
-import { printCourierBadge, CourierPdfData } from "@/lib/courier-pdf";
+import { printCourierBadge } from "@/lib/courier-pdf";
 
 export interface CourierItem {
   id: string;
@@ -77,7 +73,7 @@ const ABIDJAN_COMMUNES = [
 ];
 
 export default function CouriersPage() {
-  const { isSuperAdmin, user: adminUser } = useAdminAuth();
+  const { user: adminUser } = useAdminAuth();
 
   const [couriers, setCouriers] = useState<CourierItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +122,7 @@ export default function CouriersPage() {
   const [selectedCourier, setSelectedCourier] = useState<CourierItem | null>(null);
   const [deleteConfirmCourier, setDeleteConfirmCourier] = useState<CourierItem | null>(null);
 
-  const fetchCouriers = async () => {
+  const fetchCouriers = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -135,13 +131,13 @@ export default function CouriersPage() {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        const formatted: CourierItem[] = data.map((c: any) => ({
-          ...c,
-          coverage_type: c.coverage_type || "all_abidjan",
-          preferred_communes: Array.isArray(c.preferred_communes) ? c.preferred_communes : [],
-          preferred_zone: c.preferred_zone || "Abidjan",
-          id_card_type: c.id_card_type || "cni",
-          is_partner_company: !!c.is_partner_company
+        const formatted: CourierItem[] = data.map((c: Record<string, unknown>) => ({
+          ...(c as unknown as CourierItem),
+          coverage_type: (c.coverage_type as "all_abidjan" | "specific_communes") || "all_abidjan",
+          preferred_communes: Array.isArray(c.preferred_communes) ? (c.preferred_communes as string[]) : [],
+          preferred_zone: (c.preferred_zone as string) || "Abidjan",
+          id_card_type: (c.id_card_type as string) || "cni",
+          is_partner_company: Boolean(c.is_partner_company)
         }));
         setCouriers(formatted);
       } else {
@@ -152,7 +148,7 @@ export default function CouriersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCouriers();
@@ -160,13 +156,15 @@ export default function CouriersPage() {
     const channelId = `admin_couriers_${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
       .channel(channelId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "couriers" }, () => fetchCouriers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "couriers" }, () => {
+        fetchCouriers();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchCouriers]);
 
   // Upload file helper to Supabase Storage
   const uploadCourierFile = async (file: File, prefix: string): Promise<string> => {
@@ -321,9 +319,10 @@ export default function CouriersPage() {
 
       fetchCouriers();
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error creating courier:", err);
-      alert("Erreur lors de l'enregistrement : " + err.message);
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      alert("Erreur lors de l'enregistrement : " + msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -351,9 +350,10 @@ export default function CouriersPage() {
       setDeleteConfirmCourier(null);
       setSelectedCourier(null);
       fetchCouriers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error deleting courier:", err);
-      alert("Erreur lors de la suppression : " + (err.message || "Impossible de supprimer ce livreur."));
+      const msg = err instanceof Error ? err.message : "Impossible de supprimer ce livreur.";
+      alert("Erreur lors de la suppression : " + msg);
     }
   };
 
@@ -852,7 +852,7 @@ export default function CouriersPage() {
                       <label className="text-xs font-black uppercase tracking-wider text-gray-700">Type de Véhicule / Engin *</label>
                       <select
                         value={vehicleType}
-                        onChange={(e) => setVehicleType(e.target.value as any)}
+                        onChange={(e) => setVehicleType(e.target.value as CourierItem["vehicle_type"])}
                         className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl p-3.5 focus:ring-2 focus:ring-orange-600/40 text-sm font-semibold"
                       >
                         <option value="moto">🛵 Moto (Deux-roues)</option>
