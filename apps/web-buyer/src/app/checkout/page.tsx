@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Ticket,
   Tag,
+  Sparkles,
   X as XIcon
 } from "lucide-react";
 
@@ -46,12 +47,33 @@ export default function CheckoutPage() {
   // Promo Code / Coupon state
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
     code: string;
     discount_type: "percentage" | "fixed_amount";
     discount_value: number;
     max_discount_amount?: number;
+    used_count: number;
   } | null>(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+
+  // Loyalty Points State (Kalagban Club)
+  const [loyaltyAccount, setLoyaltyAccount] = useState<{
+    points_balance: number;
+    lifetime_points: number;
+    tier: string;
+    referral_code: string;
+  } | null>(null);
+  const [loyaltySettings, setLoyaltySettings] = useState<{
+    point_value_cfa: number;
+    min_points_to_redeem: number;
+    max_discount_pct: number;
+  }>({
+    point_value_cfa: 5,
+    min_points_to_redeem: 100,
+    max_discount_pct: 30,
+  });
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
 
   const calculateDiscount = () => {
     if (!appliedCoupon) return 0;
@@ -66,6 +88,16 @@ export default function CheckoutPage() {
   };
 
   const discountAmount = calculateDiscount();
+
+  const calculateLoyaltyDiscount = () => {
+    if (!useLoyaltyPoints || !loyaltyAccount || pointsToRedeem <= 0) return 0;
+    const maxDiscountAllowed = (totalPrice * loyaltySettings.max_discount_pct) / 100;
+    const rawDiscount = pointsToRedeem * loyaltySettings.point_value_cfa;
+    return Math.round(Math.min(rawDiscount, maxDiscountAllowed, Math.max(0, totalPrice - discountAmount)));
+  };
+
+  const loyaltyDiscountAmount = calculateLoyaltyDiscount();
+  const totalCombinedDiscount = discountAmount + loyaltyDiscountAmount;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -89,6 +121,30 @@ export default function CheckoutPage() {
         if (profile) {
           if (profile.full_name) setCustomerName(profile.full_name);
           if (profile.phone) setCustomerPhone(profile.phone);
+        }
+
+        // Fetch or initialize Loyalty Account (Kalagban Club)
+        try {
+          const { data: loyaltyRes } = await supabase.rpc("fn_get_or_create_loyalty_account", {
+            p_user_id: session.user.id
+          });
+          if (loyaltyRes) {
+            setLoyaltyAccount(loyaltyRes);
+          }
+
+          const { data: settingsRes } = await supabase
+            .from("loyalty_settings")
+            .select("*")
+            .single();
+          if (settingsRes) {
+            setLoyaltySettings({
+              point_value_cfa: Number(settingsRes.point_value_cfa) || 5,
+              min_points_to_redeem: Number(settingsRes.min_points_to_redeem) || 100,
+              max_discount_pct: Number(settingsRes.max_discount_pct) || 30,
+            });
+          }
+        } catch (loyaltyErr) {
+          console.warn("Loyalty initialization note:", loyaltyErr);
         }
       }
 
@@ -189,11 +245,28 @@ export default function CheckoutPage() {
         return;
       }
 
+      // Check if user already redeemed this coupon
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const { count, error: countErr } = await supabase
+          .from("coupon_redemptions")
+          .select("id", { count: "exact", head: true })
+          .eq("coupon_id", coupon.id)
+          .eq("user_id", session.user.id);
+
+        if (!countErr && count && count >= 1) {
+          toast.warning("Vous avez déjà bénéficié de ce code promo.");
+          return;
+        }
+      }
+
       setAppliedCoupon({
+        id: coupon.id,
         code: coupon.code,
         discount_type: coupon.discount_type,
         discount_value: Number(coupon.discount_value),
-        max_discount_amount: coupon.max_discount_amount ? Number(coupon.max_discount_amount) : undefined
+        max_discount_amount: coupon.max_discount_amount ? Number(coupon.max_discount_amount) : undefined,
+        used_count: Number(coupon.used_count) || 0,
       });
 
       toast.success(`Code ${coupon.code} appliqué avec succès !`, "Réduction accordée 🎉");
@@ -253,13 +326,33 @@ export default function CheckoutPage() {
       });
 
       let grandTotal = 0;
+      let remainingCouponDisc = discountAmount;
+      let remainingLoyaltyDisc = loyaltyDiscountAmount;
+      let remainingPoints = useLoyaltyPoints ? pointsToRedeem : 0;
 
       for (const [shopId, items] of Object.entries(shopGroups)) {
         const groupSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-        const feeCalc = calculateApplicationFee(groupSubtotal, 0);
+
+        // Allocate discounts
+        const groupCoupon = Math.min(groupSubtotal, remainingCouponDisc);
+        remainingCouponDisc -= groupCoupon;
+
+        const subtotalAfterCoupon = Math.max(0, groupSubtotal - groupCoupon);
+        const groupLoyalty = Math.min(subtotalAfterCoupon, remainingLoyaltyDisc);
+        remainingLoyaltyDisc -= groupLoyalty;
+
+        const groupPoints = (loyaltySettings.point_value_cfa > 0 && groupLoyalty > 0)
+          ? Math.min(remainingPoints, Math.ceil(groupLoyalty / loyaltySettings.point_value_cfa))
+          : 0;
+        remainingPoints = Math.max(0, remainingPoints - groupPoints);
+
+        const netSubtotal = Math.max(0, groupSubtotal - groupCoupon - groupLoyalty);
+        const feeCalc = calculateApplicationFee(netSubtotal, 0);
         grandTotal += feeCalc.total;
 
-        const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        const generatedOtp = deliveryType === "home_delivery"
+          ? Math.floor(1000 + Math.random() * 9000).toString()
+          : Math.floor(100000 + Math.random() * 900000).toString();
         const selectedRelay = availableRelays.find(r => (r.code || r.id) === selectedRelayId || r.id === selectedRelayId);
 
         // 1. Insert Order with full financial breakdown
@@ -279,10 +372,15 @@ export default function CheckoutPage() {
             application_fee_rate: feeCalc.rate,
             shipping_fee: 0,
             total_amount: feeCalc.total,
+            coupon_id: (groupCoupon > 0 && appliedCoupon) ? appliedCoupon.id : null,
+            discount_amount: groupCoupon,
+            loyalty_points_used: groupPoints,
+            loyalty_discount_amount: groupLoyalty,
             status: "pending",
             delivery_type: deliveryType,
             pickup_point_id: deliveryType === "pickup_point" ? (selectedRelay?.id || null) : null,
             pickup_code: generatedOtp,
+            delivery_otp: generatedOtp,
             relay_status: deliveryType === "pickup_point" ? "pending_deposit" : null
           })
           .select("id")
@@ -356,6 +454,37 @@ export default function CheckoutPage() {
 
         if (itemsError) {
           console.error("Error creating order items:", itemsError);
+        }
+
+        // 3. Track Coupon & Loyalty Points Redemptions
+        if (groupCoupon > 0 && appliedCoupon) {
+          try {
+            await supabase.from("coupon_redemptions").insert({
+              coupon_id: appliedCoupon.id,
+              user_id: session.user.id,
+              order_id: orderData.id,
+              discount_applied: groupCoupon
+            });
+            await supabase
+              .from("marketing_coupons")
+              .update({ used_count: (appliedCoupon.used_count || 0) + 1 })
+              .eq("id", appliedCoupon.id);
+          } catch (coupErr) {
+            console.warn("Coupon redemption tracking note:", coupErr);
+          }
+        }
+
+        if (groupPoints > 0) {
+          try {
+            await supabase.rpc("fn_redeem_loyalty_points", {
+              p_user_id: session.user.id,
+              p_points: groupPoints,
+              p_order_id: orderData.id,
+              p_discount_cfa: groupLoyalty
+            });
+          } catch (ptsErr) {
+            console.warn("Loyalty redemption note:", ptsErr);
+          }
         }
       }
 
@@ -880,8 +1009,83 @@ export default function CheckoutPage() {
                 )}
               </div>
 
+              {/* LOYALTY POINTS BOX (KALAGBAN CLUB) */}
+              {loyaltyAccount && loyaltyAccount.points_balance >= loyaltySettings.min_points_to_redeem && (
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="p-4 bg-linear-to-br from-amber-50 to-orange-50/60 border border-amber-200/80 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-xs">
+                          <Sparkles size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                            Club Kalagban 🌟
+                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-amber-200/90 text-amber-900 font-black tracking-wider">
+                              {loyaltyAccount.tier}
+                            </span>
+                          </h4>
+                          <p className="text-[11px] text-amber-800 font-medium">
+                            <strong className="font-extrabold">{loyaltyAccount.points_balance.toLocaleString("fr-FR")}</strong> points ({ (loyaltyAccount.points_balance * loyaltySettings.point_value_cfa).toLocaleString("fr-FR") } FCFA)
+                          </p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useLoyaltyPoints}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setUseLoyaltyPoints(checked);
+                            if (checked) {
+                              const maxPointsForCart = Math.floor(
+                                Math.min(
+                                  loyaltyAccount.points_balance,
+                                  ((totalPrice * loyaltySettings.max_discount_pct) / 100) / loyaltySettings.point_value_cfa
+                                )
+                              );
+                              setPointsToRedeem(Math.max(loyaltySettings.min_points_to_redeem, maxPointsForCart));
+                            } else {
+                              setPointsToRedeem(0);
+                            }
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                      </label>
+                    </div>
+
+                    {useLoyaltyPoints && (
+                      <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                        <div className="flex justify-between text-xs text-amber-950 font-bold">
+                          <span>Points convertis :</span>
+                          <span className="font-extrabold font-mono text-amber-950 bg-amber-200/60 px-2 py-0.5 rounded-md">
+                            {pointsToRedeem.toLocaleString("fr-FR")} pts (-{loyaltyDiscountAmount.toLocaleString("fr-FR")} FCFA)
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={loyaltySettings.min_points_to_redeem}
+                          max={Math.min(
+                            loyaltyAccount.points_balance,
+                            Math.floor(((totalPrice * loyaltySettings.max_discount_pct) / 100) / loyaltySettings.point_value_cfa)
+                          )}
+                          step={50}
+                          value={pointsToRedeem}
+                          onChange={(e) => setPointsToRedeem(Number(e.target.value))}
+                          className="w-full h-1.5 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                        />
+                        <p className="text-[10px] text-amber-700 font-medium">
+                          💡 Remise fidélité plafonnée à {loyaltySettings.max_discount_pct}% du montant de la commande.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {(() => {
-                const discountedSubtotal = Math.max(0, totalPrice - discountAmount);
+                const discountedSubtotal = Math.max(0, totalPrice - totalCombinedDiscount);
                 const summaryFee = calculateApplicationFee(discountedSubtotal, 0);
                 return (
                   <div className="border-t border-gray-100 pt-4 flex flex-col gap-3">
@@ -894,6 +1098,13 @@ export default function CheckoutPage() {
                       <div className="flex justify-between text-sm text-emerald-600 font-bold">
                         <span>Réduction code promo</span>
                         <span>-{discountAmount.toLocaleString("fr-FR")} FCFA</span>
+                      </div>
+                    )}
+
+                    {loyaltyDiscountAmount > 0 && (
+                      <div className="flex justify-between text-sm text-amber-700 font-bold">
+                        <span>Réduction Club ({pointsToRedeem.toLocaleString("fr-FR")} pts)</span>
+                        <span>-{loyaltyDiscountAmount.toLocaleString("fr-FR")} FCFA</span>
                       </div>
                     )}
 

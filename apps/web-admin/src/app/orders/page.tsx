@@ -17,6 +17,7 @@ import {
   Eye, 
   Phone
 } from "lucide-react";
+import AssignCourierModal from "@/components/AssignCourierModal";
 
 interface AdminOrderItem {
   id: string;
@@ -70,6 +71,7 @@ export default function AdminOrdersPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [inspectOrder, setInspectOrder] = useState<AdminOrder | null>(null);
+  const [assignModalOrder, setAssignModalOrder] = useState<AdminOrder | null>(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -108,25 +110,28 @@ export default function AdminOrdersPage() {
           `)
           .order("created_at", { ascending: false });
 
-        if (isMounted) {
-          if (!error && data) {
-            setOrders(data as unknown as AdminOrder[]);
-          }
-          setLoading(false);
+        if (isMounted && !error && data) {
+          setOrders(data as unknown as AdminOrder[]);
         }
       } catch (err) {
-        console.error("Error fetching admin orders:", err);
+        console.error("Error initial fetch orders:", err);
+      } finally {
         if (isMounted) setLoading(false);
       }
     };
 
     initFetch();
 
+    // Supabase Realtime Listener for Live Orders & Dispatch
     const channel = supabase
-      .channel("admin_orders_realtime_audit")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        fetchOrders();
-      })
+      .channel("admin_orders_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          fetchOrders();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -135,63 +140,65 @@ export default function AdminOrdersPage() {
     };
   }, [fetchOrders]);
 
-  const filteredOrders = orders.filter((o) => {
-    const q = searchTerm.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      o.id.toLowerCase().includes(q) ||
-      (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
-      (o.customer_phone && o.customer_phone.toLowerCase().includes(q)) ||
-      (o.shops?.name && o.shops.name.toLowerCase().includes(q)) ||
-      (o.pickup_points?.name && o.pickup_points.name.toLowerCase().includes(q)) ||
-      (typeof o.shipping_address === "string" && o.shipping_address.toLowerCase().includes(q));
+  const filteredOrders = orders.filter((order) => {
+    // 1. Status Filter
+    if (filterStatus === "pending" && order.status !== "pending") return false;
+    if (filterStatus === "processing" && order.status !== "processing" && order.status !== "preparing") return false;
+    if (filterStatus === "ready_for_pickup" && order.relay_status !== "deposited" && order.relay_status !== "ready_for_pickup") return false;
+    if (filterStatus === "in_transit" && order.status !== "in_transit" && order.relay_status !== "in_transit") return false;
+    if (filterStatus === "delivered" && order.status !== "delivered") return false;
+    if (filterStatus === "cancelled" && order.status !== "cancelled") return false;
 
-    if (!matchSearch) return false;
+    // 2. Search Term Filter
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const matchId = order.id.toLowerCase().includes(q);
+      const matchCustomer = (order.customer_name || "").toLowerCase().includes(q) || (order.customer_phone || "").includes(q);
+      const matchShop = (order.shops?.name || "").toLowerCase().includes(q);
+      const matchRelay = (order.pickup_points?.name || "").toLowerCase().includes(q) || (order.pickup_points?.commune || "").toLowerCase().includes(q);
+      const matchAddress = typeof order.shipping_address === "string" 
+        ? order.shipping_address.toLowerCase().includes(q)
+        : (order.shipping_address?.address_line || "").toLowerCase().includes(q);
 
-    if (filterStatus === "all") return true;
-    if (filterStatus === "cancelled") return o.status === "cancelled";
-    if (filterStatus === "pending") return o.status === "pending" || o.status === "pending_payment";
-    if (filterStatus === "processing") return o.status === "processing";
-    if (filterStatus === "ready_for_pickup") return o.relay_status === "ready_for_pickup" || o.relay_status === "deposited";
-    if (filterStatus === "in_transit") return o.status === "shipped" || o.status === "in_transit";
-    if (filterStatus === "delivered") return o.status === "delivered" || o.relay_status === "picked_up";
+      return matchId || matchCustomer || matchShop || matchRelay || matchAddress;
+    }
 
-    return o.status === filterStatus;
+    return true;
   });
 
   const getBadge = (order: AdminOrder) => {
     if (order.status === "cancelled") {
       return (
         <span className="bg-red-50 text-red-700 text-xs font-bold px-3 py-1 rounded-full border border-red-200 flex items-center gap-1">
-          <XCircle size={13} /> Annulée (Stock remis)
+          <XCircle size={13} /> Annulée ❌
         </span>
       );
     }
-    if (order.status === "delivered" || order.relay_status === "picked_up") {
+    if (order.status === "delivered") {
       return (
         <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
           <CheckCircle2 size={13} /> Livrée 🎉
         </span>
       );
     }
-    if (order.relay_status === "ready_for_pickup" || order.relay_status === "deposited") {
+    if (order.status === "in_transit" || order.relay_status === "in_transit") {
       return (
-        <span className="bg-amber-50 text-amber-800 text-xs font-bold px-3 py-1 rounded-full border border-amber-300 flex items-center gap-1">
+        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 flex items-center gap-1">
+          <Truck size={13} /> En livraison 🛵
+        </span>
+      );
+    }
+    if (order.relay_status === "deposited" || order.relay_status === "ready_for_pickup") {
+      return (
+        <span className="bg-purple-50 text-purple-700 text-xs font-bold px-3 py-1 rounded-full border border-purple-200 flex items-center gap-1">
           <MapPin size={13} /> Au Point Relais 📍
         </span>
       );
     }
-    if (order.status === "shipped" || order.status === "in_transit") {
-      return (
-        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 flex items-center gap-1">
-          <Truck size={13} /> En livraison 🚚
-        </span>
-      );
-    }
-    if (order.status === "processing") {
+    if (order.status === "processing" || order.status === "preparing") {
       return (
         <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-200 flex items-center gap-1">
-          <Package size={13} /> En préparation boutique 📦
+          <Package size={13} /> En préparation 📦
         </span>
       );
     }
@@ -297,6 +304,8 @@ export default function AdminOrdersPage() {
                 ? order.shipping_address
                 : `${order.shipping_address?.full_name || ""} ${order.shipping_address?.phone || ""} ${order.shipping_address?.address_line || ""}`;
 
+              const isHomeDelivery = order.delivery_type === "home" || (!order.pickup_point_id && order.delivery_type !== "pickup_point");
+
               return (
                 <div 
                   key={order.id} 
@@ -314,8 +323,8 @@ export default function AdminOrdersPage() {
                           📦 Point Relais {order.pickup_points?.name ? `(${order.pickup_points.name})` : ""}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                          🚚 Livraison Domicile
+                        <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1">
+                          🏠 Domicile Direct
                         </span>
                       )}
                     </div>
@@ -346,8 +355,8 @@ export default function AdminOrdersPage() {
                   </div>
 
                   {/* Right Financial & Actions */}
-                  <div className="flex items-center justify-between lg:justify-end gap-6 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-                    <div className="text-left lg:text-right">
+                  <div className="flex items-center justify-between lg:justify-end gap-3 sm:gap-4 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-gray-100">
+                    <div className="text-left lg:text-right pr-2">
                       <span className="text-lg font-black text-indigo-600">
                         {Number(order.total_amount || 0).toLocaleString("fr-FR")} FCFA
                       </span>
@@ -355,6 +364,17 @@ export default function AdminOrdersPage() {
                         {new Date(order.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
                       </p>
                     </div>
+
+                    {/* ASSIGN COURIER BUTTON FOR HOME DELIVERY */}
+                    {isHomeDelivery && order.status !== "delivered" && order.status !== "cancelled" && (
+                      <button
+                        onClick={() => setAssignModalOrder(order)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-transform active:scale-95 cursor-pointer"
+                      >
+                        <Truck size={14} />
+                        Assigner Livreur
+                      </button>
+                    )}
 
                     <button
                       onClick={() => setInspectOrder(order)}
@@ -373,7 +393,7 @@ export default function AdminOrdersPage() {
 
       {/* INSPECT ORDER AUDIT MODAL */}
       {inspectOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto space-y-6">
             
             {/* Modal Header */}
@@ -403,7 +423,7 @@ export default function AdminOrdersPage() {
               </div>
               {inspectOrder.pickup_code && (
                 <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase text-amber-600">Code OTP Retrait :</span>
+                  <span className="text-[10px] font-bold uppercase text-amber-600">Code Secret OTP :</span>
                   <p className="text-base font-black font-mono text-amber-700">{inspectOrder.pickup_code}</p>
                 </div>
               )}
@@ -435,51 +455,94 @@ export default function AdminOrdersPage() {
                     <Phone size={12} /> {inspectOrder.customer_phone}
                   </p>
                 )}
+                {inspectOrder.customer_email && (
+                  <p className="text-gray-400 text-[11px] truncate">{inspectOrder.customer_email}</p>
+                )}
               </div>
             </div>
 
-            {/* Articles List */}
-            <div>
-              <h4 className="font-bold text-xs uppercase text-gray-400 mb-2">Articles commandés :</h4>
-              <div className="space-y-2">
-                {inspectOrder.order_items?.map((item) => (
-                  <div key={item.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between text-xs font-medium">
-                    <span className="font-bold text-gray-900">{item.products?.title || "Produit"}</span>
-                    <span className="text-gray-600">{item.quantity} x {Number(item.unit_price).toLocaleString()} FCFA</span>
-                  </div>
-                ))}
-              </div>
+            {/* Adresse & Mode de Livraison */}
+            <div className="p-4 rounded-2xl border border-gray-100 bg-gray-50 space-y-2 text-xs">
+              <span className="font-extrabold text-gray-700 flex items-center gap-1.5">
+                <MapPin size={14} className="text-indigo-600" /> Destination &amp; Repères de Livraison
+              </span>
+              <p className="text-gray-800 font-medium bg-white p-3 rounded-xl border border-gray-200">
+                {typeof inspectOrder.shipping_address === "string" 
+                  ? inspectOrder.shipping_address 
+                  : `${inspectOrder.shipping_address?.full_name || ""} ${inspectOrder.shipping_address?.phone || ""} ${inspectOrder.shipping_address?.address_line || "Abidjan"}`}
+              </p>
             </div>
+
+            {/* Articles Details */}
+            {inspectOrder.order_items && inspectOrder.order_items.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs font-extrabold text-gray-700 uppercase tracking-wider block">
+                  Articles Commandés ({inspectOrder.order_items.length})
+                </span>
+                <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-gray-50">
+                  {inspectOrder.order_items.map((item) => (
+                    <div key={item.id} className="p-3 flex items-center justify-between text-xs bg-white">
+                      <span className="font-bold text-gray-900">{item.products?.title || "Article"}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-500">Qté: <strong>{item.quantity}</strong></span>
+                        <span className="font-black text-indigo-600 font-mono">
+                          {(item.unit_price * item.quantity).toLocaleString("fr-FR")} FCFA
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Financial Summary */}
-            <div className="border-t border-gray-100 pt-4 space-y-1 text-xs text-gray-500">
-              <div className="flex justify-between">
-                <span>Sous-total articles :</span>
-                <strong className="text-gray-900">{Number(inspectOrder.subtotal || 0).toLocaleString()} FCFA</strong>
+            <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-indigo-900 font-bold block">Total Règlement</span>
+                <span className="text-xs text-indigo-600 font-medium">Inclut frais de service et livraison</span>
               </div>
-              <div className="flex justify-between">
-                <span>Frais d&apos;application Kalagban :</span>
-                <strong className="text-indigo-600">+{Number(inspectOrder.application_fee || 0).toLocaleString()} FCFA</strong>
-              </div>
-              <div className="flex justify-between text-sm font-black text-gray-900 pt-2 border-t border-gray-100">
-                <span>Montant Total :</span>
-                <span className="text-indigo-600">{Number(inspectOrder.total_amount || 0).toLocaleString()} FCFA</span>
-              </div>
+              <span className="text-xl font-black text-indigo-700 font-mono">
+                {Number(inspectOrder.total_amount || 0).toLocaleString("fr-FR")} FCFA
+              </span>
             </div>
 
-            {/* Footer Close */}
-            <div className="pt-2">
+            {/* Action Footer */}
+            <div className="pt-2 flex items-center justify-end gap-3">
+              {(inspectOrder.delivery_type === "home" || !inspectOrder.pickup_point_id) && inspectOrder.status !== "delivered" && inspectOrder.status !== "cancelled" && (
+                <button
+                  onClick={() => {
+                    const o = inspectOrder;
+                    setInspectOrder(null);
+                    setAssignModalOrder(o);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-transform active:scale-95 cursor-pointer"
+                >
+                  <Truck size={14} />
+                  Assigner un Livreur sur WhatsApp
+                </button>
+              )}
+              
               <button
                 onClick={() => setInspectOrder(null)}
-                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 rounded-2xl text-xs transition-colors cursor-pointer"
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-5 py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
               >
-                Fermer l&apos;inspection
+                Fermer
               </button>
             </div>
 
           </div>
         </div>
       )}
+
+      {/* POPUP DE SÉCURITÉ ASSIGNATION COURSIER */}
+      <AssignCourierModal
+        isOpen={!!assignModalOrder}
+        order={assignModalOrder}
+        onClose={() => setAssignModalOrder(null)}
+        onAssignedSuccess={() => {
+          fetchOrders();
+        }}
+      />
 
     </main>
   );

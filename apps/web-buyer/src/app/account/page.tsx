@@ -22,11 +22,52 @@ import {
   Plus, 
   Trash2,
   ChevronRight,
-  Save
+  Save,
+  Award,
+  Sparkles,
+  Gift,
+  Share2,
+  Copy,
+  Check,
+  Coins
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/context/ToastContext";
 import OrderStatusTimeline from "@/components/OrderStatusTimeline";
+
+interface LoyaltyAccount {
+  user_id: string;
+  points_balance: number;
+  lifetime_points: number;
+  tier: "bronze" | "silver" | "gold" | "platinum";
+  referral_code: string;
+}
+
+interface LoyaltyTransaction {
+  id: string;
+  points: number;
+  transaction_type: string;
+  description: string;
+  balance_after: number;
+  created_at: string;
+}
+
+interface ReferralItem {
+  id: string;
+  referral_code: string;
+  status: string;
+  reward_points_referrer: number;
+  created_at: string;
+}
+
+interface LoyaltySettings {
+  points_per_1000_cfa: number;
+  point_value_cfa: number;
+  min_points_to_redeem: number;
+  max_discount_pct: number;
+  referral_reward_referrer: number;
+  referral_reward_referred: number;
+}
 
 interface CustomerOrder {
   id: string;
@@ -80,7 +121,7 @@ export default function CustomerAccountPage() {
   const { addToCart } = useCart();
   const { toast, confirm } = useToast();
 
-  const [activeTab, setActiveTab] = useState<"orders" | "wishlist" | "addresses" | "profile">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "wishlist" | "addresses" | "profile" | "loyalty">("orders");
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<{ full_name?: string; phone?: string; email?: string } | null>(null);
 
@@ -89,6 +130,14 @@ export default function CustomerAccountPage() {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+
+  // Loyalty & Referral States (Kalagban Club)
+  const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
+  const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransaction[]>([]);
+  const [referrals, setReferrals] = useState<ReferralItem[]>([]);
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Profile Edit State
   const [editFullName, setEditFullName] = useState("");
@@ -159,6 +208,37 @@ export default function CustomerAccountPage() {
           .order("created_at", { ascending: false });
 
         if (addressData) setAddresses(addressData as CustomerAddress[]);
+
+        // 5. Fetch Loyalty Account & Rewards (Kalagban Club)
+        try {
+          const { data: loyaltyAccountData } = await supabase.rpc("fn_get_or_create_loyalty_account", {
+            p_user_id: session.user.id
+          });
+          if (loyaltyAccountData) setLoyalty(loyaltyAccountData as LoyaltyAccount);
+
+          const { data: txData } = await supabase
+            .from("loyalty_transactions")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .order("created_at", { ascending: false })
+            .limit(20);
+          if (txData) setLoyaltyTransactions(txData as LoyaltyTransaction[]);
+
+          const { data: refData } = await supabase
+            .from("referrals")
+            .select("*")
+            .eq("referrer_id", session.user.id)
+            .order("created_at", { ascending: false });
+          if (refData) setReferrals(refData as ReferralItem[]);
+
+          const { data: setts } = await supabase
+            .from("loyalty_settings")
+            .select("*")
+            .single();
+          if (setts) setLoyaltySettings(setts as LoyaltySettings);
+        } catch (loyaltyLoadErr) {
+          console.warn("Loyalty data loading note:", loyaltyLoadErr);
+        }
 
       } catch (err) {
         console.error("Error loading account data:", err);
@@ -470,6 +550,25 @@ export default function CustomerAccountPage() {
           >
             <User size={18} />
             Mon Profil
+          </button>
+
+          <button
+            onClick={() => setActiveTab("loyalty")}
+            className={`px-5 py-3 rounded-2xl font-black text-sm transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${
+              activeTab === "loyalty" 
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30" 
+                : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200/80"
+            }`}
+          >
+            <Award size={18} />
+            Club &amp; Parrainage
+            {loyalty && loyalty.points_balance > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === "loyalty" ? "bg-amber-400 text-slate-900" : "bg-amber-100 text-amber-800"
+              }`}>
+                {loyalty.points_balance.toLocaleString("fr-FR")} pts
+              </span>
+            )}
           </button>
         </div>
 
@@ -808,6 +907,262 @@ export default function CustomerAccountPage() {
                 {isSavingProfile ? "Enregistrement..." : "Enregistrer les modifications"}
               </button>
             </form>
+          </div>
+        )}
+
+        {/* TAB 5: KALAGBAN CLUB & PARRAINAGE */}
+        {activeTab === "loyalty" && (
+          <div className="space-y-8 animate-in fade-in">
+            {/* VIP CARD */}
+            <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-10 shadow-2xl border border-indigo-900/50">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+              
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-black tracking-wider uppercase text-amber-300">
+                    <Sparkles size={14} className="text-amber-400" />
+                    Carte Membre Kalagban Club
+                  </div>
+                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+                    {profile?.full_name || "Membre Privilège"}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-indigo-200 font-medium">
+                    Statut actuel : <span className="font-extrabold uppercase text-amber-300">{loyalty?.tier || "bronze"} 🌟</span> • Cumul historique : <span className="font-bold text-white">{(loyalty?.lifetime_points || 0).toLocaleString("fr-FR")} pts</span>
+                  </p>
+                </div>
+
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl min-w-56 text-center space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">Solde de Points</span>
+                  <div className="text-3xl sm:text-4xl font-black text-white font-mono">
+                    {(loyalty?.points_balance || 0).toLocaleString("fr-FR")}
+                  </div>
+                  <p className="text-xs text-emerald-300 font-bold">
+                    Valeur : {((loyalty?.points_balance || 0) * (loyaltySettings?.point_value_cfa || 5)).toLocaleString("fr-FR")} FCFA de remise
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress to Next Tier */}
+              {(() => {
+                const currentLifetime = loyalty?.lifetime_points || 0;
+                let nextTierName = "Silver";
+                let targetPoints = 2000;
+
+                if (currentLifetime >= 5000) {
+                  nextTierName = "Platinum";
+                  targetPoints = 10000;
+                } else if (currentLifetime >= 2000) {
+                  nextTierName = "Gold";
+                  targetPoints = 5000;
+                }
+
+                const progressPct = Math.min(100, Math.round((currentLifetime / targetPoints) * 100));
+
+                return (
+                  <div className="mt-8 pt-6 border-t border-white/10 space-y-2 relative z-10">
+                    <div className="flex justify-between text-xs font-bold text-indigo-200">
+                      <span>Niveau {loyalty?.tier?.toUpperCase() || "BRONZE"}</span>
+                      {currentLifetime < 10000 ? (
+                        <span>Objectif {nextTierName} : {currentLifetime.toLocaleString("fr-FR")} / {targetPoints.toLocaleString("fr-FR")} pts ({progressPct}%)</span>
+                      ) : (
+                        <span className="text-amber-300 font-black">Niveau Maximum VIP Platine Atteint 💎</span>
+                      )}
+                    </div>
+                    <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-linear-to-r from-amber-400 to-yellow-300 rounded-full transition-all duration-500" 
+                        style={{ width: `${progressPct}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* HOW IT WORKS */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                  <Coins size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-900">Cumulez à chaque achat</h4>
+                  <p className="text-xs text-gray-500 font-medium mt-1">
+                    Gagnez {loyaltySettings?.points_per_1000_cfa || 10} points automatiques pour chaque tranche de 1 000 FCFA dépensés.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black shrink-0">
+                  <Gift size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-900">Parrainez vos proches</h4>
+                  <p className="text-xs text-gray-500 font-medium mt-1">
+                    Recevez +{loyaltySettings?.referral_reward_referrer || 500} points dès la 1ère commande finalisée de chacun de vos filleuls.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black shrink-0">
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-900">Déduisez au paiement</h4>
+                  <p className="text-xs text-gray-500 font-medium mt-1">
+                    1 point = {loyaltySettings?.point_value_cfa || 5} FCFA. Déduisez vos points directement de votre panier lors de la commande !
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* REFERRAL BOX (PARRAINAGE) */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-pink-600 bg-pink-50 px-2.5 py-1 rounded-full border border-pink-100">
+                    Programme de Parrainage
+                  </span>
+                  <h3 className="text-xl font-black text-gray-900 mt-2">Invitez vos amis &amp; gagnez des récompenses</h3>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    Partagez votre code exclusif. Votre ami gagne {loyaltySettings?.referral_reward_referred || 250} points et vous recevez {loyaltySettings?.referral_reward_referrer || 500} points !
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="px-4 py-2 bg-gray-50 rounded-2xl border border-gray-200 font-mono font-black text-base text-gray-900">
+                    {loyalty?.referral_code || "KLG-VIP"}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (loyalty?.referral_code) {
+                        navigator.clipboard.writeText(loyalty.referral_code);
+                        setCopiedCode(true);
+                        toast.success("Code parrain copié !");
+                        setTimeout(() => setCopiedCode(false), 2500);
+                      }
+                    }}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl transition-colors cursor-pointer"
+                    title="Copier le code"
+                  >
+                    {copiedCode ? <Check size={18} className="text-emerald-600" /> : <Copy size={18} />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (loyalty?.referral_code) {
+                        const link = `${typeof window !== "undefined" ? window.location.origin : "https://kalagban.com"}/login?ref=${loyalty.referral_code}`;
+                        navigator.clipboard.writeText(link);
+                        setCopiedLink(true);
+                        toast.success("Lien d'invitation copié !");
+                        setTimeout(() => setCopiedLink(false), 2500);
+                      }
+                    }}
+                    className="p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                    title="Copier le lien d'invitation"
+                  >
+                    {copiedLink ? <Check size={16} className="text-emerald-600" /> : <Share2 size={16} />}
+                    <span className="hidden sm:inline">Lien</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const shareMsg = `Rejoins-moi sur Kalagban, la marketplace de référence en Côte d'Ivoire ! Utilise mon code parrain ${loyalty?.referral_code || ""} pour profiter de remises immédiates : ${typeof window !== "undefined" ? window.location.origin : "https://kalagban.com"}`;
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareMsg)}`, "_blank");
+                    }}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-2xl flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  >
+                    <Share2 size={16} />
+                    WhatsApp
+                  </button>
+                </div>
+              </div>
+
+              {/* Referrals list */}
+              <div className="pt-4 border-t border-gray-100">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-gray-600 mb-3">
+                  Vos filleuls ({referrals.length})
+                </h4>
+
+                {referrals.length === 0 ? (
+                  <p className="text-xs text-gray-400 font-medium py-3">
+                    Aucun filleul inscrit pour le moment. Partagez votre code dès aujourd&apos;hui !
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {referrals.map((ref) => (
+                      <div key={ref.id} className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-gray-800">Filleul #{ref.id.slice(0, 6).toUpperCase()}</span>
+                          <p className="text-[10px] text-gray-400">Inscrit le {new Date(ref.created_at).toLocaleDateString("fr-FR")}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                          ref.status === "rewarded" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-800"
+                        }`}>
+                          {ref.status === "rewarded" ? `+${ref.reward_points_referrer} pts validés` : "En attente commande"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* TRANSACTIONS HISTORY */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-xs space-y-4">
+              <h3 className="text-lg font-black text-gray-900">Historique des points de fidélité</h3>
+
+              {loyaltyTransactions.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 space-y-2">
+                  <Coins size={36} className="mx-auto text-gray-300" />
+                  <p className="text-xs font-bold">Aucune transaction de points enregistrée</p>
+                  <p className="text-[11px] text-gray-400">Vos points apparaîtront ici dès vos premiers achats ou parrainages.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-gray-400 font-extrabold text-[10px] uppercase tracking-wider">
+                        <th className="pb-3">Date</th>
+                        <th className="pb-3">Type</th>
+                        <th className="pb-3">Description</th>
+                        <th className="pb-3 text-right">Points</th>
+                        <th className="pb-3 text-right">Solde Après</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {loyaltyTransactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
+                          <td className="py-3 text-gray-500 font-medium">
+                            {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className="py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              tx.points > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                            }`}>
+                              {tx.transaction_type === "purchase_earn" ? "Achat 🛍️" :
+                               tx.transaction_type === "checkout_redeem" ? "Remise 🏷️" :
+                               tx.transaction_type === "referral_bonus" ? "Parrainage 👥" :
+                               tx.transaction_type === "admin_adjustment" ? "Geste Admin 🎁" : tx.transaction_type}
+                            </span>
+                          </td>
+                          <td className="py-3 text-gray-800 font-semibold">{tx.description}</td>
+                          <td className={`py-3 text-right font-black font-mono ${tx.points > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {tx.points > 0 ? `+${tx.points.toLocaleString("fr-FR")}` : tx.points.toLocaleString("fr-FR")} pts
+                          </td>
+                          <td className="py-3 text-right text-gray-700 font-bold font-mono">
+                            {tx.balance_after.toLocaleString("fr-FR")} pts
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

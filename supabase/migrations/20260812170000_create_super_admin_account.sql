@@ -4,6 +4,8 @@
 -- Identifiants: admin@kalagban.ci / password123
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 DO $$
 DECLARE
     admin_uid UUID := 'a0000000-0000-0000-0000-000000000001';
@@ -28,7 +30,7 @@ BEGIN
         admin_uid,
         '00000000-0000-0000-0000-000000000000',
         admin_email,
-        crypt(admin_pwd, gen_salt('bf')),
+        extensions.crypt(admin_pwd, extensions.gen_salt('bf')),
         NOW(),
         NOW(),
         NOW(),
@@ -38,7 +40,7 @@ BEGIN
         'authenticated'
     )
     ON CONFLICT (id) DO UPDATE
-    SET encrypted_password = crypt(admin_pwd, gen_salt('bf')),
+    SET encrypted_password = extensions.crypt(admin_pwd, extensions.gen_salt('bf')),
         email = admin_email,
         email_confirmed_at = NOW(),
         raw_user_meta_data = '{"full_name":"Super Administrateur Kalagban","role":"admin","admin_role":"super_admin"}'::jsonb;

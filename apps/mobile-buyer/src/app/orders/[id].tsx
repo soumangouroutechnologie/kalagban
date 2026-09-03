@@ -195,16 +195,24 @@ export default function OrderDetailsReceiptScreen() {
             <Text style={styles.refCode}>#{order.id.slice(0, 8).toUpperCase()}</Text>
           </View>
 
-          {/* Golden OTP Security Box */}
-          {order.pickup_code && (
-            <View style={styles.otpCard}>
+          {/* OTP Code Box (Point Relais ou Domicile) */}
+          {Boolean(order.pickup_code) && (
+            <View style={[styles.otpCard, order.delivery_type === 'home' && { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
               <View style={styles.otpCardHeader}>
-                <KeyRound size={16} color="#0F172A" />
-                <Text style={styles.otpCardLabel}>CODE DE SÉCURITÉ OTP (RETRAIT POINT RELAIS)</Text>
+                <KeyRound size={16} color={order.delivery_type === 'home' ? '#4338CA' : '#0F172A'} />
+                <Text style={[styles.otpCardLabel, order.delivery_type === 'home' && { color: '#3730A3' }]}>
+                  {order.delivery_type === 'home' 
+                    ? 'CODE SECRET DE REMISE À DOMICILE' 
+                    : 'CODE DE SÉCURITÉ OTP (RETRAIT POINT RELAIS)'}
+                </Text>
               </View>
-              <Text style={styles.otpCardCode}>{order.pickup_code}</Text>
-              <Text style={styles.otpCardDesc}>
-                Présentez ce code de sécurité au gérant du Point Relais pour récupérer votre colis.
+              <Text style={[styles.otpCardCode, order.delivery_type === 'home' && { color: '#312E81' }]}>
+                {order.pickup_code}
+              </Text>
+              <Text style={[styles.otpCardDesc, order.delivery_type === 'home' && { color: '#4338CA' }]}>
+                {order.delivery_type === 'home'
+                  ? 'Communiquez ce code au livreur UNIQUEMENT au moment où vous recevez votre colis.'
+                  : 'Présentez ce code de sécurité au gérant du Point Relais pour récupérer votre colis.'}
               </Text>
             </View>
           )}

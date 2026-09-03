@@ -12,7 +12,9 @@ import {
   Package, 
   ArrowRight, 
   Loader2,
-  XCircle
+  XCircle,
+  Truck,
+  Send
 } from "lucide-react";
 
 interface OrderDetail {
@@ -28,7 +30,9 @@ interface OrderDetail {
   shop_id: string;
   delivery_type?: string;
   pickup_code?: string;
+  delivery_otp?: string;
   relay_status?: string;
+  shipping_address?: string;
 }
 
 interface OrderItem {
@@ -40,6 +44,14 @@ interface OrderItem {
   };
 }
 
+interface AssignedCourier {
+  id: string;
+  full_name: string;
+  phone: string;
+  vehicle_type: string;
+  license_plate?: string | null;
+}
+
 export default function OrderSuccessPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast, confirm } = useToast();
@@ -47,6 +59,7 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [shop, setShop] = useState<{ name?: string; payout_phone?: string } | null>(null);
+  const [courier, setCourier] = useState<AssignedCourier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -116,7 +129,7 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     let isMounted = true;
 
-    const fetchOrder = async () => {
+    const loadOrderData = async () => {
       try {
         // 1. Fetch Order
         const { data: orderData, error: orderErr } = await supabase
@@ -141,7 +154,8 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
           .select("*, products(title)")
           .eq("order_id", id);
 
-        if (itemsData && isMounted) setItems(itemsData);
+        if (!isMounted) return;
+        if (itemsData) setItems(itemsData);
 
         // 3. Fetch Shop
         const { data: shopData } = await supabase
@@ -150,23 +164,85 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
           .eq("id", orderData.shop_id)
           .maybeSingle();
 
-        if (isMounted && shopData) {
+        if (!isMounted) return;
+        if (shopData) {
           setShop(shopData);
         }
 
+        // 4. Fetch Assigned Courier
+        const { data: assignmentData } = await supabase
+          .from("courier_assignments")
+          .select(`
+            id,
+            status,
+            couriers (
+              id,
+              full_name,
+              phone,
+              vehicle_type,
+              license_plate
+            )
+          `)
+          .eq("order_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!isMounted) return;
+        if (assignmentData?.couriers) {
+          const c = Array.isArray(assignmentData.couriers) 
+            ? assignmentData.couriers[0] 
+            : assignmentData.couriers;
+          if (c) setCourier(c as unknown as AssignedCourier);
+        }
+
       } catch (err) {
+        if (!isMounted) return;
         console.error("Error loading order:", err);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    fetchOrder();
+    loadOrderData();
+
+    // Supabase Realtime for order updates
+    const channel = supabase
+      .channel(`order_tracking_${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${id}` },
+        () => {
+          if (isMounted) loadOrderData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "courier_assignments", filter: `order_id=eq.${id}` },
+        () => {
+          if (isMounted) loadOrderData();
+        }
+      )
+      .subscribe();
 
     return () => {
       isMounted = false;
+      supabase.removeChannel(channel);
     };
   }, [id]);
+
+  // WhatsApp Link to send GPS to Courier
+  const getWhatsappToCourierUrl = () => {
+    if (!courier?.phone) return "#";
+    const phoneClean = courier.phone.replace(/[^0-9]/g, "");
+    const waPhone = phoneClean.startsWith("225") ? phoneClean : `225${phoneClean}`;
+    const text = encodeURIComponent(
+      `Bonjour ${courier.full_name} 👋, je suis ${order?.customer_name || "le client"} pour la commande KALAGBAN #${order?.id?.slice(0, 8).toUpperCase()}.\n\nVoici ma position géographique pour la livraison : [Veuillez joindre votre localisation WhatsApp ici]`
+    );
+    return `https://wa.me/${waPhone}?text=${text}`;
+  };
 
   if (isLoading) {
     return (
@@ -197,6 +273,8 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
     );
   }
 
+  const activeOtp = order.delivery_otp || order.pickup_code;
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
@@ -211,11 +289,11 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
           </div>
 
           <span className="text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-100 mb-4 inline-block">
-            Commande Confirmée
+            {order.status === "delivered" ? "Colis Livré avec Succès 🎉" : "Commande Confirmée"}
           </span>
 
           <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mb-3">
-            Merci pour votre commande ! 🎉
+            {order.status === "delivered" ? "Merci pour votre achat ! 🎉" : "Merci pour votre commande ! 🎉"}
           </h1>
           <p className="text-gray-500 font-medium text-base max-w-md mx-auto mb-6">
             Votre commande a été transmise à la boutique <strong>{shop?.name || "partenaire"}</strong>.
@@ -226,28 +304,76 @@ export default function OrderSuccessPage({ params }: { params: Promise<{ id: str
             <span className="font-mono font-extrabold text-indigo-600 text-sm">#{order.id}</span>
           </div>
 
-          {/* POINT RELAIS OTP CODE BOX */}
-          {order.pickup_code && (
-            <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-6 mb-8 text-center shadow-md">
-              <span className="text-xs font-black uppercase text-amber-900 tracking-wider">
-                📍 Code de Sécurité OTP (Retrait Point Relais)
+          {/* CODE DE SÉCURITÉ OTP : POINT RELAIS OU DOMICILE */}
+          {activeOtp && order.status !== "delivered" && (
+            <div className={`border-2 rounded-3xl p-6 mb-8 text-center shadow-md ${
+              order.delivery_type === "pickup_point" 
+                ? "bg-amber-50 border-amber-300" 
+                : "bg-linear-to-br from-indigo-50 to-blue-50 border-indigo-300"
+            }`}>
+              <span className={`text-xs font-black uppercase tracking-wider block ${
+                order.delivery_type === "pickup_point" ? "text-amber-900" : "text-indigo-900"
+              }`}>
+                {order.delivery_type === "pickup_point" 
+                  ? "📍 Code de Sécurité OTP (Retrait Point Relais)" 
+                  : "🔒 Code Secret de Remise à Domicile"}
               </span>
-              <h2 className="text-4xl font-black text-amber-950 font-mono tracking-widest my-3">
-                {order.pickup_code}
+              
+              <h2 className={`text-4xl font-black font-mono tracking-widest my-3 ${
+                order.delivery_type === "pickup_point" ? "text-amber-950" : "text-indigo-950"
+              }`}>
+                {activeOtp}
               </h2>
-              <p className="text-xs text-amber-800 font-bold max-w-sm mx-auto">
-                Présentez ce code de sécurité au gérant de votre Point Relais pour récupérer votre colis.
+              
+              <p className={`text-xs font-bold max-w-md mx-auto ${
+                order.delivery_type === "pickup_point" ? "text-amber-800" : "text-indigo-800"
+              }`}>
+                {order.delivery_type === "pickup_point"
+                  ? "Présentez ce code de sécurité au gérant de votre Point Relais pour récupérer votre colis."
+                  : "Communiquez ce code au livreur UNIQUEMENT au moment où vous tenez votre colis en main propre."}
               </p>
             </div>
           )}
 
-          {/* ANIMATED STATUS TIMELINE (JUMIA INSPIRED) */}
+          {/* FICHE LIVREUR ASSIGNÉ & PARTAGE POSITION WHATSAPP */}
+          {courier && order.status !== "delivered" && (
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-3xl p-5 mb-8 text-left space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-xs uppercase tracking-wider">
+                  <Truck size={16} />
+                  <span>Votre Livreur est en route</span>
+                </div>
+                <span className="text-[10px] font-bold bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full">
+                  {courier.vehicle_type?.toUpperCase() || "MOTO"}
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-emerald-100">
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm">{courier.full_name}</h4>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">Contact : {courier.phone}</p>
+                </div>
+
+                <a
+                  href={getWhatsappToCourierUrl()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-md shadow-emerald-600/20 transition transform active:scale-95"
+                >
+                  <Send size={14} />
+                  Partager ma position WhatsApp
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* ANIMATED STATUS TIMELINE */}
           <div className="mb-8 text-left">
             <OrderStatusTimeline
               orderStatus={order.status}
               relayStatus={order.relay_status}
               deliveryType={order.delivery_type}
-              pickupCode={order.pickup_code}
+              pickupCode={activeOtp}
               createdAt={order.created_at}
             />
           </div>
