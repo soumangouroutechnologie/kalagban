@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
-  Bell, 
   Send, 
   Users, 
   Store, 
@@ -58,6 +57,8 @@ interface SearchableShop {
   owner_name?: string;
 }
 
+type TargetType = "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "specific_seller";
+
 export default function NotificationsPage() {
   const { user } = useAdminAuth();
 
@@ -72,7 +73,7 @@ export default function NotificationsPage() {
   const [formData, setFormData] = useState({
     title: "",
     message: "",
-    target_type: "all_buyers" as "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "specific_seller",
+    target_type: "all_buyers" as TargetType,
     target_id: "",
     target_name: "",
     notification_type: "promo" as "promo" | "info" | "alert" | "support" | "system",
@@ -86,7 +87,7 @@ export default function NotificationsPage() {
   const [userSearchResults, setUserSearchResults] = useState<SearchableUser[]>([]);
   const [shopSearchResults, setShopSearchResults] = useState<SearchableShop[]>([]);
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -104,31 +105,63 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchCampaigns();
+    let isMounted = true;
+
+    const initFetch = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("push_campaigns")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (isMounted) {
+          if (!error && data) {
+            setCampaigns(data);
+          } else {
+            setCampaigns([]);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error("Error fetching campaigns:", err);
+          setLoading(false);
+        }
+      }
+    };
+
+    initFetch();
 
     const channel = supabase
       .channel("push_campaigns_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "push_campaigns" }, () => fetchCampaigns())
+      .on("postgres_changes", { event: "*", schema: "public", table: "push_campaigns" }, () => {
+        initFetch();
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, []);
 
   // Search users or shops when specific target selected
   useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.length < 2) {
-      setUserSearchResults([]);
-      setShopSearchResults([]);
-      return;
-    }
+    let isMounted = true;
 
     const timer = setTimeout(async () => {
-      setSearchingTargets(true);
+      if (!searchQuery.trim() || searchQuery.length < 2) {
+        if (isMounted) {
+          setUserSearchResults([]);
+          setShopSearchResults([]);
+        }
+        return;
+      }
+
+      if (isMounted) setSearchingTargets(true);
       try {
         if (formData.target_type === "specific_buyer") {
           const { data } = await supabase
@@ -136,23 +169,26 @@ export default function NotificationsPage() {
             .select("id, full_name, phone, email, role, expo_push_token")
             .or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
             .limit(8);
-          setUserSearchResults(data || []);
+          if (isMounted) setUserSearchResults(data || []);
         } else if (formData.target_type === "specific_seller") {
           const { data } = await supabase
             .from("shops")
             .select("id, name, owner_id")
             .ilike("name", `%${searchQuery}%`)
             .limit(8);
-          setShopSearchResults(data || []);
+          if (isMounted) setShopSearchResults(data || []);
         }
       } catch (err) {
         console.warn("Search target error:", err);
       } finally {
-        setSearchingTargets(false);
+        if (isMounted) setSearchingTargets(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [searchQuery, formData.target_type]);
 
   const handleSendNotification = async (e: React.FormEvent) => {
@@ -200,8 +236,9 @@ export default function NotificationsPage() {
       }, 1800);
 
       fetchCampaigns();
-    } catch (err: any) {
-      setSendError(err?.message || "Une erreur est survenue.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Une erreur est survenue.";
+      setSendError(errorMessage);
     } finally {
       setSending(false);
     }
@@ -227,7 +264,7 @@ export default function NotificationsPage() {
 
         <button
           onClick={() => setShowSendModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold rounded-xl shadow-md hover:from-indigo-700 hover:to-purple-700 transition-all active:scale-[0.98]"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold rounded-xl shadow-md hover:from-indigo-700 hover:to-purple-700 transition-all active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
           Créer une Diffusion Push
@@ -388,14 +425,14 @@ export default function NotificationsPage() {
             <form onSubmit={handleSendNotification} className="p-6 space-y-5">
               {sendSuccess && (
                 <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   <p className="font-semibold">{sendSuccess}</p>
                 </div>
               )}
 
               {sendError && (
                 <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
                   <p className="font-semibold">{sendError}</p>
                 </div>
               )}
@@ -450,7 +487,7 @@ export default function NotificationsPage() {
                   onChange={(e) => {
                     setFormData({
                       ...formData,
-                      target_type: e.target.value as any,
+                      target_type: e.target.value as TargetType,
                       target_id: "",
                       target_name: "",
                     });
@@ -639,7 +676,7 @@ export default function NotificationsPage() {
                 <button
                   type="submit"
                   disabled={sending || (formData.target_type.startsWith("specific") && !formData.target_id)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-xl shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-xl shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50"
                 >
                   {sending ? (
                     <>
