@@ -61,9 +61,23 @@ export async function POST(req: NextRequest) {
       recipientList = recipientList.filter((p) => p.id === target_id);
     }
 
+    interface InAppNotification {
+      title: string;
+      message: string;
+      type: string;
+      reference_id: string;
+      image_url: string | null;
+      data: Record<string, unknown>;
+      is_read: boolean;
+      created_at: string;
+      updated_at: string;
+      customer_id?: string;
+      seller_id?: string;
+    }
+
     const validPushTokens: { token: string; userId: string; role: string }[] = [];
-    const buyerNotificationsToInsert: any[] = [];
-    const sellerNotificationsToInsert: any[] = [];
+    const buyerNotificationsToInsert: InAppNotification[] = [];
+    const sellerNotificationsToInsert: InAppNotification[] = [];
 
     const nowIso = new Date().toISOString();
 

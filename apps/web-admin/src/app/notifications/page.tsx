@@ -20,7 +20,6 @@ import {
   Headphones,
   UserCheck,
   Radio,
-  Image as ImageIcon,
   UploadCloud,
   Trash2,
   Smile
