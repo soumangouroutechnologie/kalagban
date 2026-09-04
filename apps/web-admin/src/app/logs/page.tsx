@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Terminal,
   Search,
@@ -9,7 +9,6 @@ import {
   Info,
   CheckCircle2,
   RefreshCw,
-  Filter,
   Eye,
   X,
   Smartphone,
@@ -32,7 +31,7 @@ export interface SystemLogEntry {
   app: "mobile-buyer" | "mobile-seller" | "web-buyer" | "web-relay" | "web-admin" | "api" | "edge-function";
   message: string;
   stack_trace?: string | null;
-  context?: any;
+  context?: Record<string, unknown> | null;
   status: "open" | "investigating" | "resolved" | "ignored";
   resolved_by?: string | null;
   resolved_at?: string | null;
@@ -52,8 +51,7 @@ export default function SystemLogsDashboardPage() {
   const [isInjectingTest, setIsInjectingTest] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const fetchLogs = async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("system_logs")
@@ -71,10 +69,34 @@ export default function SystemLogsDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchLogs();
+    let isMounted = true;
+    
+    async function init() {
+      try {
+        const { data, error } = await supabase
+          .from("system_logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (isMounted) {
+          if (!error && data) {
+            setLogs(data as SystemLogEntry[]);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error("Error loading logs:", err);
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
 
     const channel = supabase
       .channel("system_logs_realtime")
@@ -88,9 +110,10 @@ export default function SystemLogsDashboardPage() {
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchLogs]);
 
   const handleUpdateStatus = async (logId: string, newStatus: "open" | "investigating" | "resolved" | "ignored") => {
     setActionLoadingId(logId);
