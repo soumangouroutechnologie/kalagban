@@ -59,16 +59,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (newItem: Omit<CartItem, 'quantity'>, qty = 1) => {
-    const maxAllowed = newItem.max_stock !== undefined ? Math.max(0, newItem.max_stock) : Infinity;
-    if (maxAllowed <= 0) return;
+    const maxAllowed = (newItem.max_stock !== undefined && newItem.max_stock !== null)
+      ? Math.max(1, newItem.max_stock)
+      : 99;
 
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex((item) => item.id === newItem.id);
       if (existingIndex > -1) {
         const updated = [...prevItems];
-        const currentCap = newItem.max_stock ?? updated[existingIndex].max_stock ?? Infinity;
+        const currentCap = newItem.max_stock ?? updated[existingIndex].max_stock ?? 99;
         const newTotal = updated[existingIndex].quantity + qty;
-        updated[existingIndex].quantity = Math.min(newTotal, currentCap);
+        updated[existingIndex].quantity = Math.min(newTotal, Math.max(1, currentCap));
         if (newItem.max_stock !== undefined) {
           updated[existingIndex].max_stock = newItem.max_stock;
         }

@@ -156,6 +156,12 @@ export default function MobileCheckoutScreen() {
   }, []);
 
   const handleInitiateOrder = () => {
+    if (items.length === 0) {
+      Alert.alert('Panier Vide', 'Votre panier est vide. Veuillez sélectionner un article avant de passer commande.');
+      router.push('/');
+      return;
+    }
+
     if (!customerName.trim() || !customerPhone.trim()) {
       Alert.alert('Champs requis', 'Veuillez renseigner votre Nom et votre Numéro de Téléphone.');
       return;
@@ -196,6 +202,11 @@ export default function MobileCheckoutScreen() {
   };
 
   const processOrderSubmission = async (paymentStatus: 'paid' | 'pending') => {
+    if (items.length === 0) {
+      Alert.alert('Panier Vide', 'Votre panier est vide.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -207,6 +218,13 @@ export default function MobileCheckoutScreen() {
         : `${selectedCommune} - ${addressLine}`;
 
       const { data: authUser } = await supabase.auth.getUser();
+
+      // Ensure valid shop_id
+      let targetShopId = items[0]?.shop_id;
+      if (!targetShopId || targetShopId === '00000000-0000-0000-0000-000000000000') {
+        const { data: defaultShop } = await supabase.from('shops').select('id').limit(1).maybeSingle();
+        targetShopId = defaultShop?.id || null;
+      }
 
       // Insert Order into Supabase
       const { data: orderData, error: orderError } = await supabase
@@ -227,51 +245,65 @@ export default function MobileCheckoutScreen() {
           pickup_code: generatedOtp,
           relay_status: deliveryType === 'pickup_point' ? 'pending_deposit' : 'processing',
           shipping_address: shippingAddress,
-          shop_id: items.length > 0 && items[0].shop_id ? items[0].shop_id : '00000000-0000-0000-0000-000000000000',
+          shop_id: targetShopId,
         })
         .select('id')
         .single();
 
-      if (!orderError && orderData) {
-        // Insert order items
-        const orderItemsPayload = items.map((it) => ({
-          order_id: orderData.id,
-          product_id: it.id,
-          shop_id: it.shop_id || (items[0]?.shop_id ?? null),
-          quantity: it.quantity,
-          unit_price: it.price,
-          total_price: it.price * it.quantity,
-          product_name: it.title,
-          product_image: it.image_url,
-        }));
+      if (orderError || !orderData) {
+        console.error('Erreur Supabase insertion commande:', orderError);
+        Alert.alert('Erreur', orderError?.message || "Impossible d'enregistrer la commande dans la base de données.");
+        setIsSubmitting(false);
+        return;
+      }
 
-        if (orderItemsPayload.length > 0) {
-          await supabase.from('order_items').insert(orderItemsPayload);
-        }
+      // Insert order items
+      const orderItemsPayload = items.map((it) => ({
+        order_id: orderData.id,
+        product_id: it.id,
+        shop_id: it.shop_id || targetShopId,
+        quantity: it.quantity,
+        unit_price: it.price,
+        total_price: it.price * it.quantity,
+        product_name: it.title,
+        product_image: it.image_url,
+      }));
 
-        const orderCode = orderData.id.slice(0, 8).toUpperCase();
+      if (orderItemsPayload.length > 0) {
+        await supabase.from('order_items').insert(orderItemsPayload);
+      }
 
-        if (deliveryType === 'pickup_point' && selectedRelay) {
+      const orderCode = orderData.id.slice(0, 8).toUpperCase();
+
+      if (deliveryType === 'pickup_point' && selectedRelay) {
+        try {
           await supabase.from('relay_notifications').insert({
             pickup_point_id: selectedRelay.id,
             title: 'Nouvelle Commande Client à Réceptionner',
             message: `La commande #${orderCode} de ${customerName} (${customerPhone}) est planifiée pour votre Point Relais "${selectedRelay.name}".`,
             type: 'pickup'
           });
+        } catch (e) {
+          console.warn('Relay notif error:', e);
         }
+      }
 
-        const primaryShopId = items.length > 0 && items[0].shop_id ? items[0].shop_id : null;
-        if (primaryShopId) {
+      if (targetShopId) {
+        try {
           await supabase.from('seller_notifications').insert({
-            shop_id: primaryShopId,
+            shop_id: targetShopId,
             title: 'Nouvelle Commande Reçue 🛍️',
-            message: `Nouvelle commande #${orderCode} de ${customerName} (${feeCalc.total.toLocaleString()} FCFA).`,
+            message: `Nouvelle commande #${orderCode} de ${customerName} (${feeCalc.total.toLocaleString('fr-FR')} FCFA).`,
             type: 'order',
             reference_id: orderData.id,
           });
+        } catch (e) {
+          console.warn('Seller notif error:', e);
         }
+      }
 
-        if (authUser?.user?.id) {
+      if (authUser?.user?.id) {
+        try {
           await supabase.from('customer_notifications').insert({
             customer_id: authUser.user.id,
             order_id: orderData.id,
@@ -279,24 +311,18 @@ export default function MobileCheckoutScreen() {
             message: `Votre commande #${orderCode} a été enregistrée avec succès.`,
             type: 'order',
           });
+        } catch (e) {
+          console.warn('Customer notif error:', e);
         }
-
-        clearCart();
-        setIsSubmitting(false);
-        router.push(`/orders/${orderData.id}`);
-        return;
       }
 
-      // Fallback
-      const fallbackId = `ORD-${Date.now()}`;
       clearCart();
       setIsSubmitting(false);
-      router.push(`/orders/${fallbackId}`);
-    } catch {
-      const fallbackId = `ORD-${Date.now()}`;
-      clearCart();
+      router.push(`/orders/${orderData.id}`);
+    } catch (err: any) {
+      console.error('Erreur inattendue création commande:', err);
+      Alert.alert('Erreur', err?.message || "Une erreur est survenue lors de l'enregistrement de votre commande.");
       setIsSubmitting(false);
-      router.push(`/orders/${fallbackId}`);
     }
   };
 
@@ -324,7 +350,7 @@ export default function MobileCheckoutScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <ShoppingBag size={18} color="#4F46E5" />
-            <Text style={styles.sectionTitle}>Articles à commander ({items.length || 1})</Text>
+            <Text style={styles.sectionTitle}>Articles à commander ({items.length})</Text>
           </View>
 
           {items.length > 0 ? (
@@ -338,8 +364,8 @@ export default function MobileCheckoutScreen() {
             ))
           ) : (
             <View style={styles.itemRow}>
-              <Text style={styles.itemTitle}>1x Commande Marketplace Kalagban</Text>
-              <Text style={styles.itemPrice}>{formatPrice(5000)}</Text>
+              <Text style={[styles.itemTitle, { color: '#DC2626' }]}>Aucun article dans le panier</Text>
+              <Text style={styles.itemPrice}>{formatPrice(0)}</Text>
             </View>
           )}
         </View>

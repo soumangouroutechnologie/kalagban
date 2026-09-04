@@ -137,8 +137,10 @@ export default function ProductDetailScreen() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    const cappedQty = Math.min(quantity, product.stock_quantity);
-    if (cappedQty <= 0) return;
+    const availableStock = (product.stock_quantity !== undefined && product.stock_quantity !== null)
+      ? Number(product.stock_quantity)
+      : 99;
+    const cappedQty = Math.min(quantity, Math.max(1, availableStock));
 
     addToCart(
       {
@@ -149,7 +151,7 @@ export default function ProductDetailScreen() {
         image_url: product.images[0] || DEFAULT_PRODUCT_FALLBACK,
         shop_id: product.shop_id,
         shop_name: product.shop_name,
-        max_stock: product.stock_quantity,
+        max_stock: availableStock,
         selected_variant: { Taille: selectedSize },
       },
       cappedQty
@@ -160,7 +162,9 @@ export default function ProductDetailScreen() {
 
   const handleBuyNow = () => {
     handleAddToCart();
-    router.push('/checkout');
+    setTimeout(() => {
+      router.push('/checkout');
+    }, 50);
   };
 
   const formatPrice = (amount: number) => {
