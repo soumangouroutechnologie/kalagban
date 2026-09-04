@@ -26,7 +26,8 @@ import {
   Menu, 
   X,
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Bug
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth, ROLE_LABELS, AdminPermissions } from "@/lib/rbac";
@@ -54,6 +55,7 @@ export default function AdminSidebar() {
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
   const [pendingPayoutsCount, setPendingPayoutsCount] = useState(0);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+  const [openBugsCount, setOpenBugsCount] = useState(0);
 
   useEffect(() => {
     const fetchCounters = async () => {
@@ -90,6 +92,18 @@ export default function AdminSidebar() {
         .from("admin_notifications")
         .select("*", { count: "exact", head: true });
       setUnreadNotifsCount(notifCount || 0);
+
+      // System bugs & error logs count
+      try {
+        const { count: bugCount } = await supabase
+          .from("system_logs")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "open")
+          .in("level", ["error", "critical"]);
+        setOpenBugsCount(bugCount || 0);
+      } catch {
+        setOpenBugsCount(0);
+      }
     };
 
     fetchCounters();
@@ -102,6 +116,7 @@ export default function AdminSidebar() {
       .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => fetchCounters())
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_notifications" }, () => fetchCounters())
+      .on("postgres_changes", { event: "*", schema: "public", table: "system_logs" }, () => fetchCounters())
       .subscribe();
 
     return () => {
@@ -162,6 +177,7 @@ export default function AdminSidebar() {
     {
       groupTitle: "⚙️ Pilotage & Système",
       items: [
+        { label: "Journal Logs & Bugs", href: "/logs", icon: Bug, permissionKey: "can_manage_team", badge: openBugsCount },
         { label: "Journal d'Audit", href: "/audit", icon: FileText, permissionKey: "can_manage_team" },
         { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, permissionKey: "can_edit_cms" },
         { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, permissionKey: "can_manage_team" },
