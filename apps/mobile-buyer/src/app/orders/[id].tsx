@@ -101,7 +101,6 @@ export default function OrderDetailsReceiptScreen() {
                     title: "Commande Annulée par le Client ❌",
                     message: `La commande #${order.id.slice(0, 8).toUpperCase()} a été annulée par l'acheteur.`,
                     type: "order",
-                    reference_id: order.id,
                   });
                 } catch (notifErr) {
                   console.warn("Notification error:", notifErr);

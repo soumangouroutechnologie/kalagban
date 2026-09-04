@@ -290,13 +290,16 @@ export default function MobileCheckoutScreen() {
 
       if (targetShopId) {
         try {
-          await supabase.from('seller_notifications').insert({
+          const { error: notifErr } = await supabase.from('seller_notifications').insert({
             shop_id: targetShopId,
             title: 'Nouvelle Commande Reçue 🛍️',
             message: `Nouvelle commande #${orderCode} de ${customerName} (${feeCalc.total.toLocaleString('fr-FR')} FCFA).`,
             type: 'order',
-            reference_id: orderData.id,
+            product_id: items[0]?.id || null,
           });
+          if (notifErr) {
+            console.warn('Seller notif warning:', notifErr.message);
+          }
         } catch (e) {
           console.warn('Seller notif error:', e);
         }
