@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Send, 
   Users, 
@@ -19,8 +19,13 @@ import {
   Megaphone,
   Headphones,
   UserCheck,
-  Radio
+  Radio,
+  Image as ImageIcon,
+  UploadCloud,
+  Trash2,
+  Smile
 } from "lucide-react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
 
@@ -38,6 +43,7 @@ interface PushCampaign {
   failed_count: number;
   status: string;
   url_redirect?: string;
+  image_url?: string;
   created_at: string;
 }
 
@@ -59,6 +65,8 @@ interface SearchableShop {
 
 type TargetType = "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "specific_seller";
 
+const QUICK_EMOJIS = ["🔥", "📦", "🎁", "⚡", "🎉", "🚀", "🔔", "🛍️", "📢", "🚚", "🏷️", "✨", "💎", "⏳"];
+
 export default function NotificationsPage() {
   const { user } = useAdminAuth();
 
@@ -78,8 +86,13 @@ export default function NotificationsPage() {
     target_name: "",
     notification_type: "promo" as "promo" | "info" | "alert" | "support" | "system",
     url_redirect: "",
+    image_url: "",
     sent_by_role: "marketing",
   });
+
+  // Image Upload state
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Target search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -191,6 +204,64 @@ export default function NotificationsPage() {
     };
   }, [searchQuery, formData.target_type]);
 
+  // Handle Image Upload to Supabase Storage
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setSendError("L'image ne doit pas dépasser 5 Mo.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setSendError(null);
+
+    try {
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const fileName = `banner_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `campaigns/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("notification-banners")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        // Fallback to cms_assets if notification-banners doesn't exist yet
+        const { error: fallbackError } = await supabase.storage
+          .from("cms_assets")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (fallbackError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("cms_assets")
+          .getPublicUrl(filePath);
+
+        setFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      } else {
+        const { data: publicUrlData } = supabase.storage
+          .from("notification-banners")
+          .getPublicUrl(filePath);
+
+        setFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Échec du téléchargement de l'image.";
+      setSendError(`Erreur upload image : ${msg}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
@@ -230,6 +301,7 @@ export default function NotificationsPage() {
           target_name: "",
           notification_type: "promo",
           url_redirect: "",
+          image_url: "",
           sent_by_role: "marketing",
         });
         setSearchQuery("");
@@ -241,6 +313,19 @@ export default function NotificationsPage() {
       setSendError(errorMessage);
     } finally {
       setSending(false);
+    }
+  };
+
+  // Append emoji helper
+  const addEmoji = (field: "title" | "message", emoji: string) => {
+    if (field === "title") {
+      if (formData.title.length + emoji.length <= 200) {
+        setFormData((prev) => ({ ...prev, title: prev.title + emoji }));
+      }
+    } else {
+      if (formData.message.length + emoji.length <= 500) {
+        setFormData((prev) => ({ ...prev, message: prev.message + emoji }));
+      }
     }
   };
 
@@ -258,7 +343,7 @@ export default function NotificationsPage() {
             Centre Push & Notifications
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Diffusion de notifications push natives et alertes in-app pour l&apos;Admin, le Marketing et le Support Client.
+            Diffusion de notifications push natives et alertes in-app avec bannières 500x500 pour le Marketing, le Support et l&apos;Admin.
           </p>
         </div>
 
@@ -325,6 +410,7 @@ export default function NotificationsPage() {
             <thead className="bg-gray-50/80 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
               <tr>
                 <th className="px-6 py-3">Titre & Message</th>
+                <th className="px-6 py-3">Illustration</th>
                 <th className="px-6 py-3">Cible</th>
                 <th className="px-6 py-3">Type</th>
                 <th className="px-6 py-3">Délivrés</th>
@@ -335,14 +421,14 @@ export default function NotificationsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                  <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" />
                     Chargement de l&apos;historique...
                   </td>
                 </tr>
               ) : campaigns.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                     <Megaphone className="w-8 h-8 mx-auto text-gray-300 mb-2" />
                     Aucune notification envoyée pour le moment.
                   </td>
@@ -353,6 +439,21 @@ export default function NotificationsPage() {
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-900">{c.title}</div>
                       <div className="text-xs text-gray-500 max-w-sm truncate mt-0.5">{c.message}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {c.image_url ? (
+                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 relative bg-gray-50">
+                          <Image
+                            src={c.image_url}
+                            alt="Banner"
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Sans image</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
@@ -411,7 +512,7 @@ export default function NotificationsPage() {
                   Diffuser une Notification Push
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Alertez instantanément vos utilisateurs sur mobile et web.
+                  Alertez instantanément vos utilisateurs avec texte, emojis et image 500x500.
                 </p>
               </div>
               <button
@@ -595,51 +696,158 @@ export default function NotificationsPage() {
                 </div>
               )}
 
-              {/* Titre & Message */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
+              {/* Titre avec Emojis et Limite 200 caractères */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase">
                     Titre de la Notification Push *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: 🔥 Vente Flash : -30% sur tous les Rayons !"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                  />
+                  <span className={`text-[11px] font-semibold ${formData.title.length >= 190 ? "text-red-500" : "text-gray-400"}`}>
+                    {formData.title.length} / 200
+                  </span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                    Corps du Message *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Ex: Profitez dès maintenant des promotions exceptionnelles sur Kalagban. Livraison garantie !"
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                    Lien de redirection / Page cible (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: /flash-sales ou /orders/XXX"
-                    value={formData.url_redirect}
-                    onChange={(e) => setFormData({ ...formData, url_redirect: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-                  />
+                <input
+                  type="text"
+                  required
+                  maxLength={200}
+                  placeholder="Ex: 🔥 Vente Flash : -30% sur tous les Rayons !"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                />
+                {/* Barre rapide d'Emojis */}
+                <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
+                  <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1 shrink-0">
+                    <Smile className="w-3.5 h-3.5" /> Emojis :
+                  </span>
+                  {QUICK_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => addEmoji("title", emoji)}
+                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-indigo-100 rounded-lg transition-colors shrink-0"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Aperçu en direct Smartphone */}
+              {/* Corps du Message avec Emojis et Limite 500 caractères */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase">
+                    Corps du Message (Texte) *
+                  </label>
+                  <span className={`text-[11px] font-semibold ${formData.message.length >= 480 ? "text-red-500" : "text-gray-400"}`}>
+                    {formData.message.length} / 500
+                  </span>
+                </div>
+                <textarea
+                  required
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Ex: Profitez dès maintenant des promotions exceptionnelles sur Kalagban. Livraison garantie !"
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all resize-none"
+                />
+                {/* Barre rapide d'Emojis pour le message */}
+                <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1">
+                  <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1 shrink-0">
+                    <Smile className="w-3.5 h-3.5" /> Emojis :
+                  </span>
+                  {QUICK_EMOJIS.map((emoji) => (
+                    <button
+                      key={`msg-${emoji}`}
+                      type="button"
+                      onClick={() => addEmoji("message", emoji)}
+                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-purple-100 rounded-lg transition-colors shrink-0"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Upload Image / Illustration (Recommandé 500x500) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
+                  Illustration / Bannière Push (Optionnel - Recommandé : 500 x 500 px)
+                </label>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/png, image/jpeg, image/webp"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+
+                {formData.image_url ? (
+                  <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden relative border border-gray-200 bg-white">
+                        <Image
+                          src={formData.image_url}
+                          alt="Banner Preview"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Image 500x500 liée
+                        </p>
+                        <p className="text-[11px] text-gray-500 truncate max-w-xs">{formData.image_url}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, image_url: "" }))}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-200 hover:border-indigo-400 bg-gray-50/50 hover:bg-indigo-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all"
+                  >
+                    {uploadingImage ? (
+                      <div className="flex items-center justify-center gap-2 text-xs font-semibold text-indigo-600 py-2">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Téléchargement de l&apos;image en cours...
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 py-1">
+                        <UploadCloud className="w-6 h-6 text-indigo-500" />
+                        <p className="text-xs font-bold text-gray-700">
+                          Cliquez pour ajouter une image (500x500 px carré)
+                        </p>
+                        <p className="text-[10px] text-gray-400">PNG, JPG, WEBP jusqu&apos;à 5 Mo</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Lien de redirection */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
+                  Lien de redirection / Page cible (optionnel)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: /flash-sales ou /orders/XXX"
+                  value={formData.url_redirect}
+                  onChange={(e) => setFormData({ ...formData, url_redirect: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              {/* Aperçu en direct Smartphone (avec Image 500x500) */}
               <div className="p-4 bg-slate-900 rounded-2xl text-white space-y-2">
                 <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
                   <span className="flex items-center gap-1.5">
@@ -649,18 +857,33 @@ export default function NotificationsPage() {
                   <span>Maintenant</span>
                 </div>
                 <div className="bg-slate-800/90 backdrop-blur rounded-xl p-3 border border-slate-700/60 shadow-lg">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-4 h-4 rounded bg-purple-600 flex items-center justify-center text-[10px] font-black">
                       K
                     </div>
                     <span className="text-xs font-bold text-slate-200">Kalagban</span>
                   </div>
-                  <p className="text-xs font-bold text-white">
-                    {formData.title || "Titre de votre notification"}
-                  </p>
-                  <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">
-                    {formData.message || "Le texte complet de votre message apparaîtra ici."}
-                  </p>
+                  <div className="flex gap-3 items-start">
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-white">
+                        {formData.title || "Titre de votre notification"}
+                      </p>
+                      <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">
+                        {formData.message || "Le texte complet de votre message apparaîtra ici."}
+                      </p>
+                    </div>
+                    {formData.image_url ? (
+                      <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-slate-600 relative bg-slate-700">
+                        <Image
+                          src={formData.image_url}
+                          alt="Push Thumbnail"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -675,7 +898,7 @@ export default function NotificationsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={sending || (formData.target_type.startsWith("specific") && !formData.target_id)}
+                  disabled={sending || uploadingImage || (formData.target_type.startsWith("specific") && !formData.target_id)}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-xl shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50"
                 >
                   {sending ? (

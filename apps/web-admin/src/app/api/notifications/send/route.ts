@@ -19,50 +19,53 @@ export async function POST(req: NextRequest) {
       target_name,
       notification_type = "info",
       url_redirect,
+      image_url,
       sent_by = "Admin Kalagban",
       sent_by_role = "admin",
     } = body;
 
     if (!title?.trim() || !message?.trim()) {
       return NextResponse.json(
-        { error: "Le titre et le message sont requis." },
+        { error: "Le titre et le message sont obligatoires." },
         { status: 400 }
       );
     }
 
-    // 1. Récupérer les profils ciblés
-    let profilesQuery = supabaseAdmin
+    // 1. Récupération robuste des profils cibles
+    const { data: allProfiles, error: fetchErr } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, phone, role, expo_push_token");
-
-    if (target_type === "all_buyers") {
-      profilesQuery = profilesQuery.or("role.eq.buyer,role.is.null");
-    } else if (target_type === "all_sellers") {
-      profilesQuery = profilesQuery.eq("role", "seller");
-    } else if (target_type === "specific_buyer" || target_type === "specific_seller") {
-      if (!target_id) {
-        return NextResponse.json(
-          { error: "L'identifiant du destinataire est requis." },
-          { status: 400 }
-        );
-      }
-      profilesQuery = profilesQuery.eq("id", target_id);
-    }
-
-    const { data: profiles, error: fetchErr } = await profilesQuery;
 
     if (fetchErr) {
       console.error("[Notifications API] Erreur récupération profils:", fetchErr);
       return NextResponse.json(
-        { error: "Erreur lors de la récupération des destinataires." },
+        { error: `Erreur base de données : ${fetchErr.message || "Impossible de lire les profils."}` },
         { status: 500 }
       );
     }
 
-    const recipientList = profiles || [];
+    let recipientList = allProfiles || [];
+
+    // Filtrage propre et sécurisé en mémoire
+    if (target_type === "all_buyers") {
+      recipientList = recipientList.filter((p) => p.role !== "seller" && p.role !== "admin" && p.role !== "courier");
+    } else if (target_type === "all_sellers") {
+      recipientList = recipientList.filter((p) => p.role === "seller");
+    } else if (target_type === "specific_buyer" || target_type === "specific_seller") {
+      if (!target_id) {
+        return NextResponse.json(
+          { error: "Veuillez sélectionner un destinataire spécifique." },
+          { status: 400 }
+        );
+      }
+      recipientList = recipientList.filter((p) => p.id === target_id);
+    }
+
     const validPushTokens: { token: string; userId: string; role: string }[] = [];
     const buyerNotificationsToInsert: any[] = [];
     const sellerNotificationsToInsert: any[] = [];
+
+    const nowIso = new Date().toISOString();
 
     for (const p of recipientList) {
       const notifItem = {
@@ -70,13 +73,16 @@ export async function POST(req: NextRequest) {
         message: message.trim(),
         type: notification_type,
         reference_id: `campaign_${Date.now()}`,
+        image_url: image_url || null,
         data: {
           url: url_redirect || null,
+          image: image_url || null,
           campaign: true,
           sent_by,
         },
         is_read: false,
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
+        updated_at: nowIso,
       };
 
       if (p.role === "seller") {
@@ -100,15 +106,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Insertion in-app par lots
+    // 2. Insertion in-app dans les tables respectives
     if (buyerNotificationsToInsert.length > 0) {
-      await supabaseAdmin.from("customer_notifications").insert(buyerNotificationsToInsert);
-    }
-    if (sellerNotificationsToInsert.length > 0) {
-      await supabaseAdmin.from("seller_notifications").insert(sellerNotificationsToInsert);
+      const { error: buyerInsertErr } = await supabaseAdmin
+        .from("customer_notifications")
+        .insert(buyerNotificationsToInsert);
+      if (buyerInsertErr) {
+        console.warn("[Notifications API] Avertissement insertion customer_notifications:", buyerInsertErr.message);
+      }
     }
 
-    // 3. Envoi via l'API Expo Push par lots de 100
+    if (sellerNotificationsToInsert.length > 0) {
+      const { error: sellerInsertErr } = await supabaseAdmin
+        .from("seller_notifications")
+        .insert(sellerNotificationsToInsert);
+      if (sellerInsertErr) {
+        console.warn("[Notifications API] Avertissement insertion seller_notifications:", sellerInsertErr.message);
+      }
+    }
+
+    // 3. Envoi via l'API officielle Expo Push par lots de 100
     let deliveredCount = 0;
     let failedCount = 0;
 
@@ -122,10 +139,11 @@ export async function POST(req: NextRequest) {
         channelId: "default",
         data: {
           url: url_redirect || null,
+          image: image_url || null,
           type: notification_type,
           title: title.trim(),
           message: message.trim(),
-          sentAt: new Date().toISOString(),
+          sentAt: nowIso,
         },
       }));
 
@@ -168,11 +186,17 @@ export async function POST(req: NextRequest) {
         message: message.trim(),
         target_type,
         target_id: target_id || null,
-        target_name: target_name || (target_type === "all" ? "Tous les utilisateurs" : target_type === "all_buyers" ? "Tous les clients" : "Tous les vendeurs"),
+        target_name: target_name || (
+          target_type === "all" ? "Tous les utilisateurs" :
+          target_type === "all_buyers" ? "Tous les clients" :
+          target_type === "all_sellers" ? "Tous les vendeurs" :
+          "Cible spécifique"
+        ),
         sent_by,
         sent_by_role,
         notification_type,
         url_redirect: url_redirect || null,
+        image_url: image_url || null,
         recipients_count: recipientList.length,
         delivered_count: deliveredCount,
         failed_count: failedCount,
@@ -189,10 +213,11 @@ export async function POST(req: NextRequest) {
       failed_count: failedCount,
       campaign: campaign || null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Erreur interne serveur";
     console.error("[Notifications API] Erreur interne:", error);
     return NextResponse.json(
-      { error: error?.message || "Erreur interne lors de l'envoi de la notification." },
+      { error: errorMsg },
       { status: 500 }
     );
   }

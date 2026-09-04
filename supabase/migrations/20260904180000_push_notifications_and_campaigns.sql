@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- Migration : Système Complet de Notifications Push & Campagnes Marketing / Support
--- Date : 2026-09-04
--- Version : Résolution robuste et idempotente (ADD COLUMN IF NOT EXISTS)
+-- Fichier : 20260904180000_push_notifications_and_campaigns.sql
+-- Version : Idempotente, Bucket Storage et Support Images Inclus
 -- ==============================================================================
 
 -- 1. Table profiles : s'assurer du champ expo_push_token
@@ -21,6 +21,7 @@ ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS message TEXT 
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'order_update';
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS order_id UUID;
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
+ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.customer_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -59,6 +60,7 @@ ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS shop_id UUID RE
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS product_id UUID REFERENCES public.products(id) ON DELETE CASCADE;
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS order_id UUID;
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
+ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.seller_notifications ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'order_update';
@@ -112,12 +114,15 @@ CREATE TABLE IF NOT EXISTS public.push_campaigns (
     sent_by_role TEXT DEFAULT 'admin',
     notification_type TEXT DEFAULT 'promo',
     url_redirect TEXT,
+    image_url TEXT,
     recipients_count INT DEFAULT 0,
     delivered_count INT DEFAULT 0,
     failed_count INT DEFAULT 0,
     status TEXT DEFAULT 'sent',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.push_campaigns ADD COLUMN IF NOT EXISTS image_url TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_push_campaigns_created_at ON public.push_campaigns(created_at DESC);
 
@@ -132,7 +137,26 @@ EXCEPTION WHEN OTHERS THEN
     NULL;
 END $$;
 
--- 5. Activation Temps Réel (Supabase Realtime)
+-- 5. Bucket de Stockage Supabase pour les Bannières de Notifications
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('notification-banners', 'notification-banners', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DO $$ 
+BEGIN
+  DROP POLICY IF EXISTS "Public view notification banners" ON storage.objects;
+  DROP POLICY IF EXISTS "Admins upload notification banners" ON storage.objects;
+
+  CREATE POLICY "Public view notification banners" ON storage.objects
+    FOR SELECT USING (bucket_id = 'notification-banners');
+
+  CREATE POLICY "Admins upload notification banners" ON storage.objects
+    FOR ALL USING (bucket_id = 'notification-banners') WITH CHECK (bucket_id = 'notification-banners');
+EXCEPTION WHEN OTHERS THEN 
+  NULL;
+END $$;
+
+-- 6. Activation du Temps Réel (Supabase Realtime)
 DO $$
 BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_notifications;
