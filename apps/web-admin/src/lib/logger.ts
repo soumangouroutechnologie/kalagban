@@ -7,7 +7,7 @@ export interface LogContext {
   userId?: string | null;
   route?: string;
   action?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -18,14 +18,23 @@ export async function logSystemError(
   options: {
     level?: LogLevel;
     app?: AppSource;
-    error?: Error | any;
+    error?: Error | unknown;
     context?: LogContext;
   } = {}
 ) {
   const { level = "error", app = "web-admin", error, context = {} } = options;
 
   try {
-    const stackTrace = error instanceof Error ? error.stack : (error?.message || null);
+    let stackTrace: string | null = null;
+    if (error instanceof Error) {
+      stackTrace = error.stack || error.message;
+    } else if (typeof error === "string") {
+      stackTrace = error;
+    } else if (error && typeof error === "object" && "message" in error) {
+      stackTrace = String((error as { message: unknown }).message);
+    } else if (error) {
+      stackTrace = String(error);
+    }
 
     const enrichedContext = {
       ...context,
