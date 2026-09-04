@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // 1. Récupération robuste des profils cibles
     const { data: allProfiles, error: fetchErr } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, phone, role, expo_push_token");
+      .select("id, full_name, phone, role, expo_push_token");
 
     if (fetchErr) {
       console.error("[Notifications API] Erreur récupération profils:", fetchErr);

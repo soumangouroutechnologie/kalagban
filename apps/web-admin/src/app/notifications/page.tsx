@@ -178,8 +178,8 @@ export default function NotificationsPage() {
         if (formData.target_type === "specific_buyer") {
           const { data } = await supabase
             .from("profiles")
-            .select("id, full_name, phone, email, role, expo_push_token")
-            .or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
+            .select("id, full_name, phone, role, expo_push_token")
+            .or(`full_name.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
             .limit(8);
           if (isMounted) setUserSearchResults(data || []);
         } else if (formData.target_type === "specific_seller") {

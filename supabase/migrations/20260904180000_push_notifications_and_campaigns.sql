@@ -4,8 +4,9 @@
 -- Version : Idempotente, Bucket Storage et Support Images Inclus
 -- ==============================================================================
 
--- 1. Table profiles : s'assurer du champ expo_push_token
+-- 1. Table profiles : s'assurer des champs expo_push_token et email
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS expo_push_token TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT;
 CREATE INDEX IF NOT EXISTS idx_profiles_expo_push_token ON public.profiles(expo_push_token) WHERE expo_push_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 
