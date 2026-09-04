@@ -11,18 +11,21 @@ export async function registerForPushNotificationsAsync(userId: string, expoPush
   try {
     const { error } = await supabase
       .from("profiles")
-      .update({
-        expo_push_token: expoPushToken,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", userId);
+      .upsert(
+        {
+          id: userId,
+          expo_push_token: expoPushToken,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
 
     if (error) {
       console.warn("Failed to register Expo push token:", error.message);
       return false;
     }
 
-    console.log("Expo Push Token successfully registered for user:", userId);
+    console.log("Expo Push Token successfully registered for user:", userId, expoPushToken);
     return true;
   } catch (err) {
     console.error("Error registering push token:", err);
@@ -49,7 +52,8 @@ export async function sendExpoPushNotification(
     title,
     body,
     data: data || {},
-    priority: "high"
+    priority: "high",
+    channelId: "default",
   };
 
   try {

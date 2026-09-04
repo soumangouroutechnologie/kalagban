@@ -22,7 +22,6 @@ Notifications.setNotificationHandler({
 
 /**
  * Hook pour initialiser, demander la permission et écouter les notifications push Expo (Acheteur)
- * Écoute automatiquement les changements de session Supabase pour associer le token dès la connexion.
  */
 export function usePushNotifications(initialUserId?: string | null) {
   const router = useRouter();
@@ -34,7 +33,26 @@ export function usePushNotifications(initialUserId?: string | null) {
   useEffect(() => {
     let currentToken: string | null = null;
 
-    async function registerToken() {
+    async function setupChannelAndToken() {
+      // 1. Configurer immédiatement le canal Android haute priorité avec son et vibration
+      if (Platform.OS === "android") {
+        try {
+          await Notifications.setNotificationChannelAsync("default", {
+            name: "Kalagban Notifications",
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: "#7c3aed",
+            sound: "default",
+            enableVibrate: true,
+            showBadge: true,
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            bypassDnd: false,
+          });
+        } catch (chanErr) {
+          console.warn("Erreur configuration canal Android:", chanErr);
+        }
+      }
+
       if (!Device.isDevice) {
         console.log("Les notifications push requièrent un appareil physique.");
         return;
@@ -45,7 +63,13 @@ export function usePushNotifications(initialUserId?: string | null) {
         let finalStatus = existingStatus;
 
         if (existingStatus !== "granted") {
-          const { status } = await Notifications.requestPermissionsAsync();
+          const { status } = await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+            },
+          });
           finalStatus = status;
         }
 
@@ -64,30 +88,18 @@ export function usePushNotifications(initialUserId?: string | null) {
         currentToken = token;
         setExpoPushToken(token);
 
-        // Récupérer l'utilisateur courant et enregistrer le token
+        // Récupérer la session active et sauvegarder le token
         const { data: { session } } = await supabase.auth.getSession();
         const activeUserId = initialUserId || session?.user?.id;
         if (activeUserId && token) {
           await registerForPushNotificationsAsync(activeUserId, token);
         }
       } catch (e) {
-        console.warn("Erreur lors de la récupération de l'Expo Push Token:", e);
-      }
-
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "Kalagban Notifications",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#7c3aed",
-          sound: "default",
-          enableVibrate: true,
-          showBadge: true,
-        });
+        console.warn("Erreur récupération Expo Push Token:", e);
       }
     }
 
-    registerToken();
+    setupChannelAndToken();
 
     // Écouteur d'authentification pour lier le token dès que le client se connecte
     const { data: authSub } = supabase.auth.onAuthStateChange(async (_event, session) => {

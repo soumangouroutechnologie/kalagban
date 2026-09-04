@@ -2,8 +2,7 @@ import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
 
 /**
- * Enregistre le token Expo Push dans la table profiles de Supabase
- * pour permettre l'envoi de notifications push aux boutiques vendeurs.
+ * Enregistre le token Expo Push dans la table profiles de Supabase (Vendeur)
  */
 export async function registerForPushNotificationsAsync(userId: string, expoPushToken: string): Promise<boolean> {
   if (!userId || !expoPushToken) return false;
@@ -11,18 +10,21 @@ export async function registerForPushNotificationsAsync(userId: string, expoPush
   try {
     const { error } = await supabase
       .from("profiles")
-      .update({
-        expo_push_token: expoPushToken,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", userId);
+      .upsert(
+        {
+          id: userId,
+          expo_push_token: expoPushToken,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
 
     if (error) {
-      console.warn("Failed to register Expo push token for seller:", error.message);
+      console.warn("Failed to register seller Expo push token:", error.message);
       return false;
     }
 
-    console.log("Expo Push Token successfully registered for seller:", userId);
+    console.log("Seller Expo Push Token successfully registered:", userId, expoPushToken);
     return true;
   } catch (err) {
     console.error("Error registering seller push token:", err);
@@ -49,7 +51,8 @@ export async function sendExpoPushNotification(
     title,
     body,
     data: data || {},
-    priority: "high"
+    priority: "high",
+    channelId: "default",
   };
 
   try {
