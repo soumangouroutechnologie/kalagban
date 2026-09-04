@@ -33,7 +33,12 @@ import {
   Megaphone,
   User,
   X,
+  Bell,
+  Package,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react-native';
+import { Modal } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
 import { useFavorites } from '@/context/favorites-context';
@@ -83,6 +88,50 @@ export default function MarketplaceHomeScreen() {
   const [selectedSubCat, setSelectedSubCat] = useState<string>('all');
   const [addedNotice, setAddedNotice] = useState<string | null>(null);
 
+  // In-App Notifications State
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
+
+  const fetchBuyerNotifications = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        setNotifications([]);
+        setUnreadNotifCount(0);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('customer_notifications')
+        .select('*')
+        .eq('customer_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (!error && data) {
+        setNotifications(data);
+        setUnreadNotifCount(data.filter((n) => !n.is_read).length);
+      }
+    } catch (e) {
+      console.warn('Error fetching notifications:', e);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+      await supabase
+        .from('customer_notifications')
+        .update({ is_read: true })
+        .eq('customer_id', session.user.id);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadNotifCount(0);
+    } catch (e) {
+      console.warn('Error marking all as read:', e);
+    }
+  };
+
   // Dynamic Admin CMS States
   const [topBanner, setTopBanner] = useState({
     enabled: true,
@@ -127,6 +176,16 @@ export default function MarketplaceHomeScreen() {
 
   useEffect(() => {
     fetchProducts();
+    fetchBuyerNotifications();
+
+    // Écouteur Supabase Realtime pour les nouvelles notifications client
+    const notifChannel = supabase
+      .channel('buyer_notifs_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_notifications' }, () => {
+        fetchBuyerNotifications();
+      })
+      .subscribe();
+
     fetchAdBanner();
 
     const channelName = 'public_mobile_cms_' + Math.random().toString(36).substring(7);
@@ -157,6 +216,7 @@ export default function MarketplaceHomeScreen() {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(notifChannel);
     };
   }, []);
 
@@ -423,8 +483,26 @@ export default function MarketplaceHomeScreen() {
           </View>
         </View>
 
-        {/* Header Actions (Profile & Cart) */}
+        {/* Header Actions (Notifications, Profile & Cart) */}
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.notifButton}
+            onPress={() => {
+              fetchBuyerNotifications();
+              setShowNotifModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Bell size={20} color="#0F172A" />
+            {unreadNotifCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() => router.push('/profile')}
@@ -810,6 +888,102 @@ export default function MarketplaceHomeScreen() {
           <Text style={styles.navLabel}>Favoris</Text>
         </TouchableOpacity>
       </View>
+      {/* Modal Centre de Notifications in-app */}
+      <Modal
+        visible={showNotifModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowNotifModal(false)}
+      >
+        <SafeAreaView style={styles.notifModalContainer}>
+          <View style={styles.notifModalHeader}>
+            <View>
+              <Text style={styles.notifModalTitle}>Notifications</Text>
+              <Text style={styles.notifModalSubtitle}>Suivi de vos commandes & alertes</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {unreadNotifCount > 0 && (
+                <TouchableOpacity
+                  style={styles.markAllReadBtn}
+                  onPress={handleMarkAllAsRead}
+                >
+                  <Text style={styles.markAllReadText}>Tout marquer lu</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.notifModalClose}
+                onPress={() => setShowNotifModal(false)}
+              >
+                <X size={20} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView style={styles.notifList} contentContainerStyle={{ padding: 16, gap: 12 }}>
+            {notifications.length === 0 ? (
+              <View style={styles.notifEmpty}>
+                <Bell size={48} color="#CBD5E1" />
+                <Text style={styles.notifEmptyTitle}>Aucune notification</Text>
+                <Text style={styles.notifEmptySub}>
+                  Vous recevrez ici les alertes de vos commandes et les offres exclusives.
+                </Text>
+              </View>
+            ) : (
+              notifications.map((n) => (
+                <TouchableOpacity
+                  key={n.id}
+                  style={[
+                    styles.notifCard,
+                    !n.is_read && styles.notifCardUnread,
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={async () => {
+                    if (!n.is_read) {
+                      await supabase
+                        .from('customer_notifications')
+                        .update({ is_read: true })
+                        .eq('id', n.id);
+                      setNotifications((prev) =>
+                        prev.map((item) => (item.id === n.id ? { ...item, is_read: true } : item))
+                      );
+                      setUnreadNotifCount((prev) => Math.max(0, prev - 1));
+                    }
+                    setShowNotifModal(false);
+                    if (n.order_id) {
+                      router.push(`/orders/${n.order_id}` as any);
+                    } else if (n.data?.url) {
+                      router.push(n.data.url as any);
+                    }
+                  }}
+                >
+                  <View style={styles.notifCardIcon}>
+                    {n.order_id ? (
+                      <Package size={20} color="#6D28D9" />
+                    ) : (
+                      <Sparkles size={20} color="#F59E0B" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <Text style={styles.notifCardTitle}>{n.title}</Text>
+                      {!n.is_read && <View style={styles.unreadDot} />}
+                    </View>
+                    <Text style={styles.notifCardMessage}>{n.message}</Text>
+                    <Text style={styles.notifCardDate}>
+                      {new Date(n.created_at).toLocaleString('fr-FR', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -892,6 +1066,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  notifButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#7C3AED',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
   profileButton: {
     width: 44,
     height: 44,
@@ -922,11 +1126,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   cartBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   scrollContent: {
     paddingBottom: 90,
@@ -1462,5 +1668,120 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#94A3B8',
     textDecorationLine: 'line-through',
+  },
+  notifModalContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  notifModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  notifModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  notifModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  notifModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markAllReadBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 12,
+  },
+  markAllReadText: {
+    color: '#6D28D9',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  notifList: {
+    flex: 1,
+  },
+  notifEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 30,
+    gap: 12,
+  },
+  notifEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  notifEmptySub: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  notifCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  notifCardUnread: {
+    backgroundColor: '#FAF5FF',
+    borderColor: '#E9D5FF',
+  },
+  notifCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  notifCardMessage: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 16,
+    marginVertical: 3,
+  },
+  notifCardDate: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#7C3AED',
+    marginLeft: 6,
   },
 });

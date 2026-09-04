@@ -4,6 +4,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
+import { supabase } from "@/lib/supabase";
 import { registerForPushNotificationsAsync } from "@/lib/notifications";
 
 /**
@@ -21,8 +22,9 @@ Notifications.setNotificationHandler({
 
 /**
  * Hook pour initialiser, demander la permission et écouter les notifications push Expo (Acheteur)
+ * Écoute automatiquement les changements de session Supabase pour associer le token dès la connexion.
  */
-export function usePushNotifications(userId?: string | null) {
+export function usePushNotifications(initialUserId?: string | null) {
   const router = useRouter();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
@@ -30,6 +32,8 @@ export function usePushNotifications(userId?: string | null) {
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
+    let currentToken: string | null = null;
+
     async function registerToken() {
       if (!Device.isDevice) {
         console.log("Les notifications push requièrent un appareil physique.");
@@ -57,10 +61,14 @@ export function usePushNotifications(userId?: string | null) {
 
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
         const token = tokenData.data;
+        currentToken = token;
         setExpoPushToken(token);
 
-        if (userId && token) {
-          await registerForPushNotificationsAsync(userId, token);
+        // Récupérer l'utilisateur courant et enregistrer le token
+        const { data: { session } } = await supabase.auth.getSession();
+        const activeUserId = initialUserId || session?.user?.id;
+        if (activeUserId && token) {
+          await registerForPushNotificationsAsync(activeUserId, token);
         }
       } catch (e) {
         console.warn("Erreur lors de la récupération de l'Expo Push Token:", e);
@@ -71,12 +79,22 @@ export function usePushNotifications(userId?: string | null) {
           name: "Kalagban Notifications",
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#16a34a",
+          lightColor: "#7c3aed",
+          sound: "default",
+          enableVibrate: true,
+          showBadge: true,
         });
       }
     }
 
     registerToken();
+
+    // Écouteur d'authentification pour lier le token dès que le client se connecte
+    const { data: authSub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user?.id && currentToken) {
+        await registerForPushNotificationsAsync(session.user.id, currentToken);
+      }
+    });
 
     notificationListener.current = Notifications.addNotificationReceivedListener((notif) => {
       setNotification(notif);
@@ -100,6 +118,7 @@ export function usePushNotifications(userId?: string | null) {
     });
 
     return () => {
+      authSub?.subscription?.unsubscribe();
       if (notificationListener.current) {
         notificationListener.current.remove();
       }
@@ -107,7 +126,7 @@ export function usePushNotifications(userId?: string | null) {
         responseListener.current.remove();
       }
     };
-  }, [userId]);
+  }, [initialUserId]);
 
   return { expoPushToken, notification };
 }

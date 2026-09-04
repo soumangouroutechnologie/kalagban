@@ -121,6 +121,8 @@ export default function OrderDetailsReceiptScreen() {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchOrder = async () => {
       if (!id) return;
       
@@ -130,7 +132,7 @@ export default function OrderDetailsReceiptScreen() {
         .eq('id', id)
         .maybeSingle();
 
-      if (data) {
+      if (isMounted && data) {
         setOrder(data);
 
         // Fetch assigned courier if any
@@ -155,10 +157,49 @@ export default function OrderDetailsReceiptScreen() {
           setCourier(assignData.couriers as any);
         }
       }
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
 
     fetchOrder();
+
+    // Écoute en direct des changements de statut de la commande en temps réel
+    const channelName = `order_live_tracking_${id}_${Math.random().toString(36).substring(2, 7)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          if (isMounted && payload.new) {
+            setOrder(payload.new as OrderDetail);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'courier_assignments',
+          filter: `order_id=eq.${id}`,
+        },
+        () => {
+          fetchOrder();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   if (isLoading) {
