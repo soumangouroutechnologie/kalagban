@@ -515,6 +515,29 @@ export default function CheckoutPage() {
         return;
       }
 
+      // Send Order Confirmation Email asynchronously
+      if (session?.user?.email) {
+        fetch("/api/notifications/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "ORDER_CONFIRMATION",
+            recipientEmail: session.user.email,
+            recipientName: customerName,
+            orderCode: lastOrderId.slice(0, 8).toUpperCase(),
+            orderId: lastOrderId,
+            items: cart.map((it) => ({ name: it.title, quantity: it.quantity, price: it.price })),
+            subtotal: grandTotal,
+            applicationFee: 0,
+            shippingFee: deliveryType === "pickup_point" ? 500 : 1500,
+            totalAmount: grandTotal,
+            deliveryType,
+            shippingAddress: deliveryType === "pickup_point" ? `Point Relais (${selectedCommune})` : `${city} - ${district}`,
+            paymentMethod: paymentMethod === "kpay" ? "Paiement en ligne (K-Pay / Mobile Money)" : "Paiement à la livraison",
+          }),
+        }).catch((e) => console.warn("Email confirmation trigger note:", e));
+      }
+
       // Cash on Delivery
       clearCart();
       router.push(`/orders/${lastOrderId}`);

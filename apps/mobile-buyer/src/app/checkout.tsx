@@ -233,6 +233,22 @@ export default function MobileCheckoutScreen() {
         .single();
 
       if (!orderError && orderData) {
+        // Insert order items
+        const orderItemsPayload = items.map((it) => ({
+          order_id: orderData.id,
+          product_id: it.id,
+          shop_id: it.shop_id || (items[0]?.shop_id ?? null),
+          quantity: it.quantity,
+          unit_price: it.price,
+          total_price: it.price * it.quantity,
+          product_name: it.title,
+          product_image: it.image_url,
+        }));
+
+        if (orderItemsPayload.length > 0) {
+          await supabase.from('order_items').insert(orderItemsPayload);
+        }
+
         const orderCode = orderData.id.slice(0, 8).toUpperCase();
 
         if (deliveryType === 'pickup_point' && selectedRelay) {

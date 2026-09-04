@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { useRouter } from "expo-router";
 import { registerForPushNotificationsAsync } from "@/lib/notifications";
 
 /**
@@ -22,6 +23,7 @@ Notifications.setNotificationHandler({
  * Hook pour initialiser, demander la permission et écouter les notifications push Expo (Vendeur)
  */
 export function usePushNotifications(userId?: string | null) {
+  const router = useRouter();
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -81,7 +83,20 @@ export function usePushNotifications(userId?: string | null) {
     });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log("Notification vendeur cliquée :", response);
+      try {
+        const data = response.notification.request.content.data;
+        if (data?.orderId || data?.order_id || data?.reference_id) {
+          const orderId = data.orderId || data.order_id || data.reference_id;
+          router.push(`/orders/${orderId}` as any);
+        } else if (data?.productId || data?.product_id) {
+          const productId = data.productId || data.product_id;
+          router.push(`/products/${productId}` as any);
+        } else if (data?.url) {
+          router.push(data.url as any);
+        }
+      } catch (err) {
+        console.warn("Erreur de navigation sur notification vendeur:", err);
+      }
     });
 
     return () => {

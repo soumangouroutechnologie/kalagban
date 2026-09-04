@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { initKPayPayment } from "@/lib/kpay";
+import { getPaymentGateway } from "@/lib/payments";
 
 export async function POST(req: Request) {
   try {
@@ -8,9 +8,10 @@ export async function POST(req: Request) {
       orderId, 
       amount, 
       customerName, 
-      customerEmail,
-      customerPhone,
-      redirectBaseUrl 
+      customerEmail, 
+      customerPhone, 
+      redirectBaseUrl,
+      provider 
     } = body;
 
     if (!orderId || !amount) {
@@ -28,14 +29,13 @@ export async function POST(req: Request) {
     const returnUrl = `${origin}/checkout/success?order_id=${encodeURIComponent(orderId)}`;
     const cancelUrl = `${origin}/checkout/cancel?order_id=${encodeURIComponent(orderId)}`;
 
-    // Call K-PAY to initialize the hosted gateway session
-    const kpayResponse = await initKPayPayment({
+    const gateway = getPaymentGateway(provider || "kpay");
+    const initResult = await gateway.initializePayment({
+      orderId,
       amount: Number(amount),
       currency: "XOF",
-      externalId: `KB-${orderId}`,
       returnUrl,
       cancelUrl,
-      description: `Commande Kalagban #${orderId.slice(0, 8).toUpperCase()}`,
       customerName: customerName || undefined,
       customerEmail: customerEmail || undefined,
       customerPhone: customerPhone || undefined,
@@ -48,13 +48,14 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      paymentId: kpayResponse.id,
-      reference: kpayResponse.reference,
-      gatewayUrl: kpayResponse.gatewayUrl,
-      status: kpayResponse.status,
+      paymentId: initResult.paymentId,
+      reference: initResult.reference,
+      gatewayUrl: initResult.gatewayUrl,
+      status: initResult.status,
+      provider: initResult.provider,
     });
   } catch (err: unknown) {
-    console.error("Error in /api/payments/kpay/init:", err);
+    console.error("Error in payment init route:", err);
     const errorMessage = err instanceof Error ? err.message : "Erreur interne lors de l'initialisation du paiement";
     return NextResponse.json(
       { error: errorMessage },

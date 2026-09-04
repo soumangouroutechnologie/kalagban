@@ -147,8 +147,8 @@ Créez un fichier `.env.local` à la racine ou dans chaque sous-application selo
 ```env
 # Configuration Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre_cle_anon_supabase
+SUPABASE_SERVICE_ROLE_KEY=votre_cle_service_role_supabase
 
 # Passerelle de Paiement K-Pay
 NEXT_PUBLIC_KPAY_API_URL=https://api.k-pay.net/v1

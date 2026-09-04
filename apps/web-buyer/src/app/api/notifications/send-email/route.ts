@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateShippedEmailHtml, generateReadyForPickupEmailHtml } from "@/lib/email-templates";
+import { 
+  generateShippedEmailHtml, 
+  generateReadyForPickupEmailHtml, 
+  generateOrderConfirmationEmailHtml 
+} from "@/lib/email-templates";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +19,14 @@ export async function POST(req: NextRequest) {
       relayCommune, 
       shopName, 
       deliveryType,
-      trackingUrl 
+      trackingUrl,
+      items,
+      subtotal,
+      applicationFee,
+      shippingFee,
+      totalAmount,
+      shippingAddress,
+      paymentMethod,
     } = body;
 
     if (!type || (!orderCode && !body.orderId)) {
@@ -31,7 +42,22 @@ export async function POST(req: NextRequest) {
     let subject = "";
     let htmlContent = "";
 
-    if (type === "SHIPPED") {
+    if (type === "ORDER_CONFIRMATION") {
+      subject = `🎉 Confirmation de votre commande #${cleanOrderCode} - Kalagban`;
+      htmlContent = generateOrderConfirmationEmailHtml({
+        orderCode: cleanOrderCode,
+        customerName: cleanCustomerName,
+        items: items || [],
+        subtotal: subtotal || 0,
+        applicationFee: applicationFee || 0,
+        shippingFee: shippingFee || 0,
+        totalAmount: totalAmount || 0,
+        deliveryType: deliveryType || "Point Relais",
+        shippingAddress: shippingAddress || "Abidjan",
+        paymentMethod: paymentMethod || "Paiement à la livraison",
+        trackingUrl: trackingUrl || "https://kalagban.com/account",
+      });
+    } else if (type === "SHIPPED") {
       subject = `🚚 Votre commande #${cleanOrderCode} est en cours d'expédition`;
       htmlContent = generateShippedEmailHtml({
         orderCode: cleanOrderCode,

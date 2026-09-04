@@ -5,23 +5,12 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
   DollarSign, 
-  TrendingUp, 
-  CreditCard, 
-  ArrowDownRight, 
   Loader2, 
   Sparkles, 
   Receipt,
   Sliders,
-  CheckCircle2,
-  Clock,
-  ArrowUpRight,
-  Filter,
-  Search,
-  ExternalLink,
-  ShieldCheck
 } from "lucide-react";
 import { calculateApplicationFee } from "@/lib/fee";
-import { useAdminAuth } from "@/lib/rbac";
 
 interface PayoutItem {
   id: string;
@@ -35,8 +24,6 @@ interface PayoutItem {
 }
 
 export default function AdminFinancePage() {
-  const { hasPermission, isSuperAdmin } = useAdminAuth();
-
   const [loading, setLoading] = useState(true);
   const [financeData, setFinanceData] = useState({
     totalSales: 0,
@@ -47,88 +34,108 @@ export default function AdminFinancePage() {
 
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [processingPayoutId, setProcessingPayoutId] = useState<string | null>(null);
-
-  const fetchFinanceMetrics = async () => {
-    try {
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id, total_amount, subtotal, application_fee, shipping_fee, status, delivery_type");
-
-      if (orders) {
-        let total = 0;
-        let fees = 0;
-        let vendorSubtotals = 0;
-        let relayComms = 0;
-
-        orders.forEach((o) => {
-          if (o.status !== "cancelled") {
-            const orderTotal = Number(o.total_amount) || 0;
-            let orderSubtotal = o.subtotal !== null && o.subtotal !== undefined ? Number(o.subtotal) : null;
-            let orderFee = o.application_fee !== null && o.application_fee !== undefined ? Number(o.application_fee) : null;
-
-            if (orderSubtotal === null || orderFee === null) {
-              const calc = calculateApplicationFee(orderTotal);
-              orderSubtotal = calc.subtotal;
-              orderFee = calc.applicationFee;
-            }
-
-            total += orderTotal;
-            fees += orderFee;
-            vendorSubtotals += orderSubtotal;
-
-            if (o.delivery_type === "pickup_point") {
-              relayComms += 300;
-            }
-          }
-        });
-
-        setFinanceData({
-          totalSales: total,
-          applicationFeeEarnings: fees,
-          vendorPayoutsDue: vendorSubtotals,
-          relayCommissionsDue: relayComms,
-        });
-      }
-
-      // Fetch Payouts
-      const { data: payoutData } = await supabase
-        .from("payouts")
-        .select("*, shops(name)")
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (payoutData) {
-        const formatted: PayoutItem[] = payoutData.map((p: any) => ({
-          ...p,
-          shop_name: p.shops?.name || "Boutique Partenaire",
-        }));
-        setPayouts(formatted);
-      }
-    } catch (err) {
-      console.error("Error fetching finance metrics:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    fetchFinanceMetrics();
+    let isCancelled = false;
+
+    const loadFinanceData = async () => {
+      try {
+        const { data: orders } = await supabase
+          .from("orders")
+          .select("id, total_amount, subtotal, application_fee, shipping_fee, status, delivery_type");
+
+        if (isCancelled) return;
+
+        if (orders) {
+          let total = 0;
+          let fees = 0;
+          let vendorSubtotals = 0;
+          let relayComms = 0;
+
+          orders.forEach((o) => {
+            if (o.status !== "cancelled") {
+              const orderTotal = Number(o.total_amount) || 0;
+              let orderSubtotal = o.subtotal !== null && o.subtotal !== undefined ? Number(o.subtotal) : null;
+              let orderFee = o.application_fee !== null && o.application_fee !== undefined ? Number(o.application_fee) : null;
+
+              if (orderSubtotal === null || orderFee === null) {
+                const calc = calculateApplicationFee(orderTotal);
+                orderSubtotal = calc.subtotal;
+                orderFee = calc.applicationFee;
+              }
+
+              total += orderTotal;
+              fees += orderFee;
+              vendorSubtotals += orderSubtotal;
+
+              if (o.delivery_type === "pickup_point") {
+                relayComms += 300;
+              }
+            }
+          });
+
+          setFinanceData({
+            totalSales: total,
+            applicationFeeEarnings: fees,
+            vendorPayoutsDue: vendorSubtotals,
+            relayCommissionsDue: relayComms,
+          });
+        }
+
+        const { data: payoutData } = await supabase
+          .from("payouts")
+          .select("*, shops(name)")
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (isCancelled) return;
+
+        if (payoutData) {
+          const formatted: PayoutItem[] = payoutData.map((p: Record<string, unknown> & { id: string; shop_id: string; amount: number; status: "pending" | "processed" | "failed"; payment_method: string; created_at: string; reference_code?: string; shops?: { name?: string } | null }) => ({
+            id: p.id,
+            shop_id: p.shop_id,
+            shop_name: p.shops?.name || "Boutique Partenaire",
+            amount: p.amount,
+            status: p.status,
+            payment_method: p.payment_method,
+            reference_code: p.reference_code,
+            created_at: p.created_at,
+          }));
+          setPayouts(formatted);
+        }
+      } catch (err) {
+        console.error("Error fetching finance metrics:", err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadFinanceData();
 
     const channel = supabase
       .channel("admin_finance_realtime_full")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchFinanceMetrics())
-      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => fetchFinanceMetrics())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        setRefreshTrigger((prev) => prev + 1);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "payouts" }, () => {
+        setRefreshTrigger((prev) => prev + 1);
+      })
       .subscribe();
 
     return () => {
+      isCancelled = true;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [refreshTrigger]);
 
   const handleApprovePayout = async (payoutId: string) => {
     setProcessingPayoutId(payoutId);
     try {
-      const ref = `WAVE-PAY-${Date.now().toString().slice(-6)}`;
+      const timestamp = String(new Date().getTime()).slice(-6);
+      const ref = `WAVE-PAY-${timestamp}`;
       await supabase
         .from("payouts")
         .update({
@@ -138,11 +145,76 @@ export default function AdminFinancePage() {
         })
         .eq("id", payoutId);
 
-      fetchFinanceMetrics();
+      setRefreshTrigger((prev) => prev + 1);
     } catch (err) {
       console.error("Error approving payout:", err);
     } finally {
       setProcessingPayoutId(null);
+    }
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const { data: orders, error } = await supabase
+        .from("orders")
+        .select("id, created_at, customer_name, customer_phone, subtotal, application_fee, shipping_fee, total_amount, status, delivery_type, relay_status")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (!orders || orders.length === 0) {
+        alert("Aucune donnée de commande à exporter.");
+        return;
+      }
+
+      const headers = [
+        "N° Commande",
+        "Date de Création",
+        "Nom Client",
+        "Téléphone",
+        "Sous-Total Articles (FCFA)",
+        "Commission Plateforme (FCFA)",
+        "Frais de Livraison (FCFA)",
+        "Total Réglé (FCFA)",
+        "Statut Commande",
+        "Mode de Livraison",
+        "Statut Relais"
+      ];
+
+      const csvRows = [headers.join(";")];
+
+      orders.forEach((o) => {
+        const row = [
+          o.id.slice(0, 8).toUpperCase(),
+          new Date(o.created_at).toLocaleString("fr-FR"),
+          `"${(o.customer_name || "").replace(/"/g, '""')}"`,
+          `"${(o.customer_phone || "").replace(/"/g, '""')}"`,
+          o.subtotal || 0,
+          o.application_fee || 0,
+          o.shipping_fee || 0,
+          o.total_amount || 0,
+          o.status || "",
+          o.delivery_type === "pickup_point" ? "Point Relais" : "Domicile",
+          o.relay_status || ""
+        ];
+        csvRows.push(row.join(";"));
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvRows.join("\n"));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", csvContent);
+      downloadAnchor.setAttribute("download", `kalagban_comptabilite_export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+    } catch (err) {
+      console.error("Erreur lors de l'export CSV:", err);
+      alert("Erreur lors de la génération du fichier CSV.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -162,12 +234,23 @@ export default function AdminFinancePage() {
           </div>
         </div>
 
-        <Link
-          href="/finance/pricing"
-          className="bg-slate-900 hover:bg-black text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-        >
-          <Sliders size={16} /> Configurer Tarifs &amp; Commissions
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCSV}
+            disabled={isExporting}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />}
+            <span>{isExporting ? "Export en cours..." : "Exporter CSV Comptabilité"}</span>
+          </button>
+
+          <Link
+            href="/finance/pricing"
+            className="bg-slate-900 hover:bg-black text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+          >
+            <Sliders size={16} /> Configurer Tarifs &amp; Commissions
+          </Link>
+        </div>
       </div>
 
       {/* Finance Metrics Grid */}
