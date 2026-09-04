@@ -26,7 +26,6 @@ import {
   Menu, 
   X,
   Sparkles,
-  ChevronDown,
   Bug
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -46,7 +45,7 @@ interface NavGroup {
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, role, hasPermission, loading, isSuperAdmin } = useAdminAuth();
+  const { user, role, hasPermission, isSuperAdmin } = useAdminAuth();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -88,10 +87,7 @@ export default function AdminSidebar() {
       setPendingPayoutsCount(payCount || 0);
 
       // Admin notifications count
-      const { count: notifCount } = await supabase
-        .from("admin_notifications")
-        .select("*", { count: "exact", head: true });
-      setUnreadNotifsCount(notifCount || 0);
+      setUnreadNotifsCount(0);
 
       // System bugs & error logs count
       try {
