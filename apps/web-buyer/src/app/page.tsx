@@ -790,7 +790,7 @@ export default function BuyerHomePage() {
         {/* DYNAMIC SERVER-DRIVEN PROMOTIONAL CAMPAIGNS CAROUSEL BANNER */}
         {promotionalCampaigns.length > 0 && (
           <section className="relative rounded-3xl overflow-hidden shadow-lg border border-gray-100/80 group w-full">
-            <div className="relative w-full min-h-[160px] sm:min-h-[200px] md:min-h-[220px]">
+            <div className="relative w-full min-h-40 sm:min-h-50 md:min-h-55">
               {promotionalCampaigns.map((camp, idx) => {
                 const isActive = idx === currentPromoIndex;
                 const themeBg = camp.theme_color || "#E65100";
