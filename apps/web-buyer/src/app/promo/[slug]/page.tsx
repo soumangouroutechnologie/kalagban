@@ -82,172 +82,172 @@ export default function WebBuyerPromoCampaignPage() {
       .replace(/--+/g, "-");
   };
 
-  const loadCampaign = useCallback(async () => {
-    if (!slug) return;
-    try {
-      const rawSlug = String(slug || "").trim();
-      const decodedSlug = decodeURIComponent(rawSlug).trim();
-      const normalizedSlug = slugify(decodedSlug);
-
-      // 1. Search campaign with multiple candidate keys
-      const candidateKeys = Array.from(
-        new Set([rawSlug, decodedSlug, normalizedSlug, decodedSlug.toLowerCase()])
-      ).filter(Boolean);
-      let targetCamp: CampaignData | null = null;
-
-      for (const key of candidateKeys) {
-        const { data } = await supabase
-          .from("promotional_campaigns")
-          .select("*")
-          .or(`slug.eq."${key}",id.eq."${key}",slug.ilike."%${key}%",title.ilike."%${key}%"`)
-          .limit(1)
-          .maybeSingle();
-
-        if (data) {
-          targetCamp = data;
-          break;
-        }
-      }
-
-      if (!targetCamp) {
-        // Fallback to active campaign
-        const { data: latestActive } = await supabase
-          .from("promotional_campaigns")
-          .select("*")
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (latestActive) {
-          targetCamp = latestActive;
-        }
-      }
-
-      if (!targetCamp) {
-        const formattedTitle = decodedSlug
-          .replace(/-/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase());
-
-        targetCamp = {
-          id: `camp-${normalizedSlug}`,
-          slug: normalizedSlug,
-          title: formattedTitle || "Offre Promotionnelle",
-          subtitle: "Découvrez notre sélection spéciale à prix réduits !",
-          badge_text: "JUSQU'À -75%",
-          theme_color: "#E65100",
-          status: "active",
-        };
-      }
-
-      setCampaign(targetCamp);
-
-      // 2. Fetch linked campaign products with 2-step query (100% resilient)
-      let foundProducts: CampaignProduct[] = [];
-
-      if (targetCamp?.id && !targetCamp.id.startsWith("camp-")) {
-        const { data: cpRows } = await supabase
-          .from("campaign_products")
-          .select("*")
-          .eq("campaign_id", targetCamp.id)
-          .order("position", { ascending: true });
-
-        if (cpRows && cpRows.length > 0) {
-          const productIds = cpRows.map((r) => r.product_id).filter(Boolean);
-          const { data: prodsData } = await supabase
-            .from("products")
-            .select("id, shop_id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)")
-            .in("id", productIds);
-
-          if (prodsData && prodsData.length > 0) {
-            type ProductRow = (typeof prodsData)[number];
-            const prodMap = new Map(prodsData.map((p: ProductRow) => [p.id, p]));
-            foundProducts = cpRows
-              .filter((r) => prodMap.has(r.product_id))
-              .map((r) => {
-                const p = prodMap.get(r.product_id)!;
-                const original = Number(p.price) || 0;
-                const discount = Number(r.discount_percentage) || 20;
-                const finalPrice = r.special_price
-                  ? Number(r.special_price)
-                  : Math.round(original * (1 - discount / 100));
-                const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0] || "/placeholder.png";
-                const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as { name?: string } | null)?.name;
-
-                return {
-                  id: p.id,
-                  shop_id: p.shop_id || "",
-                  title: p.title || "Article en Promotion",
-                  category: p.category || "Général",
-                  price: finalPrice,
-                  original_price: original > finalPrice ? original : Math.round(finalPrice * 1.3),
-                  discount_percentage: discount,
-                  stock_allocated: Number(r.stock_allocated) || Number(p.stock_quantity) || 50,
-                  stock_sold: Number(r.stock_sold) || 0,
-                  image_url: rawImg,
-                  vendor_name: vendorName,
-                };
-              });
-          }
-        }
-      }
-
-      if (foundProducts.length > 0) {
-        setProducts(foundProducts);
-      } else {
-        // Fallback: active catalog products with promotional discount
-        const { data: generalProducts } = await supabase
-          .from("products")
-          .select("id, shop_id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)")
-          .eq("status", "active")
-          .limit(24);
-
-        if (generalProducts && generalProducts.length > 0) {
-          type GeneralProductRow = (typeof generalProducts)[number];
-          const fallbackMapped: CampaignProduct[] = generalProducts.map((p: GeneralProductRow, idx: number) => {
-            const original = Number(p.price) || 25000;
-            const discount = 20 + (idx % 4) * 15;
-            const finalPrice = Math.round(original * (1 - discount / 100));
-            const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0] || "/placeholder.png";
-            const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as { name?: string } | null)?.name;
-
-            return {
-              id: p.id,
-              shop_id: p.shop_id || "",
-              title: p.title || "Produit Spécial",
-              category: p.category || "Général",
-              price: finalPrice,
-              original_price: original,
-              discount_percentage: discount,
-              stock_allocated: Number(p.stock_quantity) || 25,
-              stock_sold: 2 + idx,
-              image_url: rawImg,
-              vendor_name: vendorName,
-            };
-          });
-          setProducts(fallbackMapped);
-        }
-      }
-    } catch (err) {
-      console.error("Erreur chargement campagne dynamique:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [slug]);
-
   useEffect(() => {
     let isMounted = true;
-    if (isMounted) {
-      loadCampaign();
+
+    async function fetchCampaignData() {
+      if (!slug) return;
+      try {
+        const rawSlug = String(slug || "").trim();
+        const decodedSlug = decodeURIComponent(rawSlug).trim();
+        const normalizedSlug = slugify(decodedSlug);
+
+        // 1. Search campaign with multiple candidate keys
+        const candidateKeys = Array.from(
+          new Set([rawSlug, decodedSlug, normalizedSlug, decodedSlug.toLowerCase()])
+        ).filter(Boolean);
+        let targetCamp: CampaignData | null = null;
+
+        for (const key of candidateKeys) {
+          const { data } = await supabase
+            .from("promotional_campaigns")
+            .select("*")
+            .or(`slug.eq."${key}",id.eq."${key}",slug.ilike."%${key}%",title.ilike."%${key}%"`)
+            .limit(1)
+            .maybeSingle();
+
+          if (data) {
+            targetCamp = data;
+            break;
+          }
+        }
+
+        if (!targetCamp) {
+          // Fallback to active campaign
+          const { data: latestActive } = await supabase
+            .from("promotional_campaigns")
+            .select("*")
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestActive) {
+            targetCamp = latestActive;
+          }
+        }
+
+        if (!targetCamp) {
+          const formattedTitle = decodedSlug
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+          targetCamp = {
+            id: `camp-${normalizedSlug}`,
+            slug: normalizedSlug,
+            title: formattedTitle || "Offre Promotionnelle",
+            subtitle: "Découvrez notre sélection spéciale à prix réduits !",
+            badge_text: "JUSQU'À -75%",
+            theme_color: "#E65100",
+            status: "active",
+          };
+        }
+
+        if (!isMounted) return;
+        setCampaign(targetCamp);
+
+        // 2. Fetch linked campaign products with 2-step query (100% resilient)
+        let foundProducts: CampaignProduct[] = [];
+
+        if (targetCamp?.id && !targetCamp.id.startsWith("camp-")) {
+          const { data: cpRows } = await supabase
+            .from("campaign_products")
+            .select("*")
+            .eq("campaign_id", targetCamp.id)
+            .order("position", { ascending: true });
+
+          if (cpRows && cpRows.length > 0) {
+            const productIds = cpRows.map((r) => r.product_id).filter(Boolean);
+            const { data: prodsData } = await supabase
+              .from("products")
+              .select("id, shop_id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)")
+              .in("id", productIds);
+
+            if (prodsData && prodsData.length > 0) {
+              type ProductRow = (typeof prodsData)[number];
+              const prodMap = new Map(prodsData.map((p: ProductRow) => [p.id, p]));
+              foundProducts = cpRows
+                .filter((r) => prodMap.has(r.product_id))
+                .map((r) => {
+                  const p = prodMap.get(r.product_id)!;
+                  const original = Number(p.price) || 0;
+                  const discount = Number(r.discount_percentage) || 20;
+                  const finalPrice = r.special_price
+                    ? Number(r.special_price)
+                    : Math.round(original * (1 - discount / 100));
+                  const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0] || "/placeholder.png";
+                  const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as { name?: string } | null)?.name;
+
+                  return {
+                    id: p.id,
+                    shop_id: p.shop_id || "",
+                    title: p.title || "Article en Promotion",
+                    category: p.category || "Général",
+                    price: finalPrice,
+                    original_price: original > finalPrice ? original : Math.round(finalPrice * 1.3),
+                    discount_percentage: discount,
+                    stock_allocated: Number(r.stock_allocated) || Number(p.stock_quantity) || 50,
+                    stock_sold: Number(r.stock_sold) || 0,
+                    image_url: rawImg,
+                    vendor_name: vendorName,
+                  };
+                });
+            }
+          }
+        }
+
+        if (foundProducts.length > 0) {
+          if (isMounted) setProducts(foundProducts);
+        } else {
+          // Fallback: active catalog products with promotional discount
+          const { data: generalProducts } = await supabase
+            .from("products")
+            .select("id, shop_id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)")
+            .eq("status", "active")
+            .limit(24);
+
+          if (generalProducts && generalProducts.length > 0) {
+            type GeneralProductRow = (typeof generalProducts)[number];
+            const fallbackMapped: CampaignProduct[] = generalProducts.map((p: GeneralProductRow, idx: number) => {
+              const original = Number(p.price) || 25000;
+              const discount = 20 + (idx % 4) * 15;
+              const finalPrice = Math.round(original * (1 - discount / 100));
+              const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0] || "/placeholder.png";
+              const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as { name?: string } | null)?.name;
+
+              return {
+                id: p.id,
+                shop_id: p.shop_id || "",
+                title: p.title || "Produit Spécial",
+                category: p.category || "Général",
+                price: finalPrice,
+                original_price: original,
+                discount_percentage: discount,
+                stock_allocated: Number(p.stock_quantity) || 25,
+                stock_sold: 2 + idx,
+                image_url: rawImg,
+                vendor_name: vendorName,
+              };
+            });
+            if (isMounted) setProducts(fallbackMapped);
+          }
+        }
+      } catch (err) {
+        console.error("Erreur chargement campagne dynamique:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     }
+
+    fetchCampaignData();
 
     const channel = supabase
       .channel("web_buyer_promo_screen_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "campaign_products" }, () => {
-        loadCampaign();
+        fetchCampaignData();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "promotional_campaigns" }, () => {
-        loadCampaign();
+        fetchCampaignData();
       })
       .subscribe();
 
@@ -255,7 +255,7 @@ export default function WebBuyerPromoCampaignPage() {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [loadCampaign]);
+  }, [slug]);
 
   // Realtime Countdown Engine
   useEffect(() => {
@@ -373,7 +373,7 @@ export default function WebBuyerPromoCampaignPage() {
           <>
             {/* HERO CAMPAIGN BANNER */}
             <div
-              className="relative rounded-3xl overflow-hidden shadow-xl p-6 sm:p-10 md:p-12 text-white flex flex-col justify-between min-h-[220px] sm:min-h-[260px] md:min-h-[280px]"
+              className="relative rounded-3xl overflow-hidden shadow-xl p-6 sm:p-10 md:p-12 text-white flex flex-col justify-between min-h-56 sm:min-h-64 md:min-h-72"
               style={{ backgroundColor: themeColor }}
             >
               {campaign?.banner_url && (
