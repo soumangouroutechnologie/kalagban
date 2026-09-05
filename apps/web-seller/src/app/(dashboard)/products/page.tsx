@@ -410,15 +410,37 @@ export default function ProductsPage() {
                     <td className="py-4 px-6 text-text-muted font-medium text-sm">{product.sku || '-'}</td>
 
                     {/* Price */}
-                    <td className="py-4 px-6 font-extrabold text-text-main text-sm">{product.price.toLocaleString("fr-FR")} FCFA</td>
+                    <td className="py-4 px-6">
+                      {productPromos.has(product.id) ? (
+                        <div className="space-y-0.5">
+                          <span className="font-black text-orange-600 text-sm block">
+                            {(productPromos.get(product.id)!.special_price || 
+                              Math.round(product.price * (1 - productPromos.get(product.id)!.discount_percentage / 100))
+                            ).toLocaleString("fr-FR")} FCFA
+                          </span>
+                          <span className="text-[11px] text-gray-400 line-through block">
+                            {product.price.toLocaleString("fr-FR")} FCFA
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-extrabold text-text-main text-sm">
+                          {product.price.toLocaleString("fr-FR")} FCFA
+                        </span>
+                      )}
+                    </td>
 
                     {/* Stock */}
                     <td className="py-4 px-6">
-                      <span className={`font-bold text-xs px-2.5 py-1 rounded-lg ${
+                      <span className={`font-bold text-xs px-2.5 py-1 rounded-lg inline-block ${
                         product.stock_quantity > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
                       }`}>
                         {product.stock_quantity > 0 ? `${product.stock_quantity} unités` : "Épuisé"}
                       </span>
+                      {productPromos.has(product.id) && (
+                        <span className="block text-[10px] text-orange-700 font-bold mt-1">
+                          Quota promo : {productPromos.get(product.id)!.stock_allocated}
+                        </span>
+                      )}
                     </td>
 
                     {/* Status / Moderation Badge */}

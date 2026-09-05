@@ -72,6 +72,7 @@ interface ProductOption {
   category?: string;
   category_id?: string;
   stock_quantity?: number;
+  stock?: number;
 }
 
 interface SelectedCampaignProduct {
@@ -81,6 +82,7 @@ interface SelectedCampaignProduct {
   discount_percentage: number;
   special_price?: number;
   stock_allocated: number;
+  available_stock?: number;
   image_url?: string;
 }
 
@@ -606,6 +608,7 @@ export default function MarketingPage() {
       const discount = globalDiscountPct || 25;
       const originalPrice = Number(prod.price) || 0;
       const specialPrice = Math.round(originalPrice * (1 - discount / 100));
+      const actualStock = Number(prod.stock_quantity ?? prod.stock ?? 10);
 
       setSelectedProducts([
         ...selectedProducts,
@@ -615,7 +618,8 @@ export default function MarketingPage() {
           price: originalPrice,
           discount_percentage: discount,
           special_price: specialPrice,
-          stock_allocated: 50,
+          stock_allocated: Math.max(1, actualStock),
+          available_stock: actualStock,
           image_url: getProductImage(prod),
         },
       ]);
@@ -1570,9 +1574,14 @@ export default function MarketingPage() {
                               </div>
                               <div className="truncate min-w-0">
                                 <p className="font-bold text-gray-900 truncate">{prod.title}</p>
-                                <p className="text-[10px] text-gray-500 font-medium truncate">
-                                  Catégorie : {prod.category || prod.category_id || "Général"}
-                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] text-gray-500 font-medium truncate">
+                                    Catégorie : {prod.category || prod.category_id || "Général"}
+                                  </span>
+                                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold shrink-0">
+                                    Stock : {prod.stock_quantity ?? prod.stock ?? 0}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
@@ -1697,7 +1706,12 @@ export default function MarketingPage() {
                             </div>
 
                             <div>
-                              <label className="text-gray-500 font-bold block mb-0.5">Stock Quota</label>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <label className="text-gray-500 font-bold block">Stock Quota</label>
+                                {sp.available_stock !== undefined && (
+                                  <span className="text-[9px] text-emerald-600 font-bold">Dispo: {sp.available_stock}</span>
+                                )}
+                              </div>
                               <input
                                 type="number"
                                 min={1}

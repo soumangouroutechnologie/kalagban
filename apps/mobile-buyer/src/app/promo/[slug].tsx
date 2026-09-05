@@ -85,100 +85,138 @@ export default function DynamicPromoCampaignScreen() {
     isExpired: false,
   });
 
+  // Helper slugify
+  const slugify = (text: string) => {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^\w-]+/g, '')
+      .replace(/--+/g, '-');
+  };
+
   const loadCampaign = async () => {
     if (!slug) return;
     try {
-      // 1. Fetch campaign details
-      const { data: campaignData, error: campaignError } = await supabase
-        .from('promotional_campaigns')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
+      const rawSlug = String(slug || '').trim();
+      const decodedSlug = decodeURIComponent(rawSlug).trim();
+      const normalizedSlug = slugify(decodedSlug);
 
-      let currentCampaign: CampaignData | null = campaignData;
-      let campaignEnded = false;
+      // 1. Search campaign with multiple candidate keys
+      const candidateKeys = Array.from(new Set([rawSlug, decodedSlug, normalizedSlug, decodedSlug.toLowerCase()])).filter(Boolean);
+      let targetCamp: CampaignData | null = null;
 
-      if (!currentCampaign || currentCampaign.status === 'ended') {
-        campaignEnded = true;
-        const formattedTitle = slug
+      for (const key of candidateKeys) {
+        const { data } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .or(`slug.eq."${key}",id.eq."${key}",slug.ilike."%${key}%",title.ilike."%${key}%"`)
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          targetCamp = data;
+          break;
+        }
+      }
+
+      if (!targetCamp) {
+        // Fallback to latest active campaign
+        const { data: latestActive } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestActive) {
+          targetCamp = latestActive;
+        }
+      }
+
+      if (!targetCamp) {
+        const formattedTitle = decodedSlug
           .replace(/-/g, ' ')
           .replace(/\b\w/g, (c) => c.toUpperCase());
 
-        currentCampaign = {
-          id: currentCampaign?.id || `ended-${slug}`,
-          slug: slug,
-          title: currentCampaign?.title || `Campagne ${formattedTitle}`,
-          subtitle: "Cette offre promotionnelle a pris fin. Découvrez nos autres articles du moment ci-dessous !",
-          badge_text: 'OFFRE TERMINÉE',
-          theme_color: '#475569',
-          countdown_end: undefined,
-          status: 'ended',
+        targetCamp = {
+          id: `camp-${normalizedSlug}`,
+          slug: normalizedSlug,
+          title: formattedTitle || 'Offre Promotionnelle',
+          subtitle: 'Découvrez notre sélection spéciale à prix réduits !',
+          badge_text: 'JUSQU\'À -75%',
+          theme_color: '#E65100',
+          status: 'active',
         };
       }
 
-      setCampaign(currentCampaign);
+      setCampaign(targetCamp);
 
-      // 2. Fetch linked campaign products or fallback
-      const { data: linkedProducts, error: lpError } = await supabase
-        .from('campaign_products')
-        .select(`
-          discount_percentage,
-          special_price,
-          stock_allocated,
-          stock_sold,
-          products (
-            id,
-            title,
-            category,
-            price,
-            images,
-            image_url,
-            product_media ( url ),
-            shops ( name )
-          )
-        `)
-        .eq('campaign_id', currentCampaign.id)
-        .order('position', { ascending: true });
+      // 2. Fetch linked campaign products with 2-step query (100% resilient)
+      let foundProducts: CampaignProduct[] = [];
 
-      if (!lpError && linkedProducts && linkedProducts.length > 0) {
-        const mapped: CampaignProduct[] = linkedProducts
-          .filter((item: any) => item.products)
-          .map((item: any) => {
-            const p = item.products;
-            const original = Number(p.price) || 0;
-            const discount = Number(item.discount_percentage) || 20;
-            const finalPrice = item.special_price
-              ? Number(item.special_price)
-              : Math.round(original * (1 - discount / 100));
+      if (targetCamp?.id && !targetCamp.id.startsWith('camp-')) {
+        const { data: cpRows } = await supabase
+          .from('campaign_products')
+          .select('*')
+          .eq('campaign_id', targetCamp.id)
+          .order('position', { ascending: true });
 
-            const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+        if (cpRows && cpRows.length > 0) {
+          const productIds = cpRows.map((r) => r.product_id).filter(Boolean);
+          const { data: prodsData } = await supabase
+            .from('products')
+            .select('id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)')
+            .in('id', productIds);
 
-            return {
-              id: p.id,
-              title: p.title || 'Article Spécial',
-              category: p.category || 'Promo',
-              price: finalPrice,
-              original_price: original > finalPrice ? original : Math.round(finalPrice * 1.3),
-              discount_percentage: discount,
-              stock_allocated: Number(item.stock_allocated) || 50,
-              stock_sold: Number(item.stock_sold) || 0,
-              image_url: getSafeImageUrl(rawImg),
-              vendor_name: p.shops?.name,
-            };
-          });
-        setProducts(mapped);
+          if (prodsData && prodsData.length > 0) {
+            const prodMap = new Map(prodsData.map((p) => [p.id, p]));
+            foundProducts = cpRows
+              .filter((r) => prodMap.has(r.product_id))
+              .map((r) => {
+                const p = prodMap.get(r.product_id)!;
+                const original = Number(p.price) || 0;
+                const discount = Number(r.discount_percentage) || 20;
+                const finalPrice = r.special_price
+                  ? Number(r.special_price)
+                  : Math.round(original * (1 - discount / 100));
+                const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+
+                return {
+                  id: p.id,
+                  title: p.title || 'Article en Promotion',
+                  category: p.category || 'Général',
+                  price: finalPrice,
+                  original_price: original > finalPrice ? original : Math.round(finalPrice * 1.3),
+                  discount_percentage: discount,
+                  stock_allocated: Number(r.stock_allocated) || Number(p.stock_quantity) || 50,
+                  stock_sold: Number(r.stock_sold) || 0,
+                  image_url: getSafeImageUrl(rawImg),
+                  vendor_name: p.shops?.name,
+                };
+              });
+          }
+        }
+      }
+
+      if (foundProducts.length > 0) {
+        setProducts(foundProducts);
       } else {
-        // Fallback: fetch active catalog products
+        // Fallback: active catalog products with promotional discount
         const { data: generalProducts } = await supabase
           .from('products')
-          .select('id, title, category, price, images, image_url, product_media(url), shops(name)')
+          .select('id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)')
           .eq('status', 'active')
           .limit(20);
 
         if (generalProducts && generalProducts.length > 0) {
           const fallbackMapped: CampaignProduct[] = generalProducts.map((p: any, idx: number) => {
             const original = Number(p.price) || 25000;
-            const discount = 15 + (idx % 4) * 10;
+            const discount = 20 + (idx % 4) * 15;
             const finalPrice = Math.round(original * (1 - discount / 100));
             const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
 
@@ -189,8 +227,8 @@ export default function DynamicPromoCampaignScreen() {
               price: finalPrice,
               original_price: original,
               discount_percentage: discount,
-              stock_allocated: 40,
-              stock_sold: 5 + idx,
+              stock_allocated: Number(p.stock_quantity) || 25,
+              stock_sold: 2 + idx,
               image_url: getSafeImageUrl(rawImg),
               vendor_name: p.shops?.name,
             };
@@ -208,6 +246,21 @@ export default function DynamicPromoCampaignScreen() {
 
   useEffect(() => {
     loadCampaign();
+
+    // Realtime sync on campaign changes
+    const channel = supabase
+      .channel('mobile_promo_screen_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'campaign_products' }, () => {
+        loadCampaign();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'promotional_campaigns' }, () => {
+        loadCampaign();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [slug]);
 
   // Realtime Countdown Engine
@@ -513,11 +566,11 @@ export default function DynamicPromoCampaignScreen() {
                         {/* Prices */}
                         <View style={styles.priceRow}>
                           <Text style={[styles.mainPrice, { color: themeColor }]}>
-                            {Number(item.price).toLocaleString()} GNF
+                            {Number(item.price).toLocaleString()} FCFA
                           </Text>
                           {item.original_price && item.original_price > item.price ? (
                             <Text style={styles.strikePrice}>
-                              {Number(item.original_price).toLocaleString()}
+                              {Number(item.original_price).toLocaleString()} FCFA
                             </Text>
                           ) : null}
                         </View>

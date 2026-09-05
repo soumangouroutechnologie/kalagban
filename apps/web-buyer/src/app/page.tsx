@@ -44,6 +44,19 @@ interface FlashSaleCampaign {
   discount_percentage: number;
 }
 
+interface PromotionalCampaign {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  badge_text?: string;
+  banner_url?: string;
+  theme_color?: string;
+  countdown_end?: string;
+  status: string;
+  is_featured_home?: boolean;
+}
+
 export default function BuyerHomePage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,6 +64,8 @@ export default function BuyerHomePage() {
   const [selectedSubCategory, setSelectedSubCategory] = useState("all");
   const [products, setProducts] = useState<ProductType[]>([]);
   const [shops, setShops] = useState<ShopType[]>([]);
+  const [promotionalCampaigns, setPromotionalCampaigns] = useState<PromotionalCampaign[]>([]);
+  const [currentPromoIndex, setCurrentPromoIndex] = useState(0);
   const [activeFlashSale, setActiveFlashSale] = useState<FlashSaleCampaign | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -340,12 +355,34 @@ export default function BuyerHomePage() {
         }
       }
 
+      // 4. Fetch Active Promotional Campaigns (SDUI)
+      const { data: promoCamps } = await supabase
+        .from("promotional_campaigns")
+        .select("*")
+        .eq("status", "active")
+        .order("position", { ascending: true });
+
+      if (promoCamps && promoCamps.length > 0) {
+        setPromotionalCampaigns(promoCamps as PromotionalCampaign[]);
+      } else {
+        setPromotionalCampaigns([]);
+      }
+
     } catch (err) {
       console.error("Unexpected error fetching homepage data:", err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Auto-scroll promotional campaigns banner carousel
+  useEffect(() => {
+    if (promotionalCampaigns.length <= 1) return;
+    const campInterval = setInterval(() => {
+      setCurrentPromoIndex((prev) => (prev + 1) % promotionalCampaigns.length);
+    }, 4500);
+    return () => clearInterval(campInterval);
+  }, [promotionalCampaigns.length]);
 
   useEffect(() => {
     let isMounted = true;
@@ -362,6 +399,9 @@ export default function BuyerHomePage() {
         if (isMounted) fetchHomePageData();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => {
+        if (isMounted) fetchHomePageData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "promotional_campaigns" }, () => {
         if (isMounted) fetchHomePageData();
       })
       .subscribe();
@@ -745,6 +785,98 @@ export default function BuyerHomePage() {
 
             </div>
           )
+        )}
+
+        {/* DYNAMIC SERVER-DRIVEN PROMOTIONAL CAMPAIGNS CAROUSEL BANNER */}
+        {promotionalCampaigns.length > 0 && (
+          <section className="relative rounded-3xl overflow-hidden shadow-lg border border-gray-100/80 group w-full">
+            <div className="relative w-full min-h-[160px] sm:min-h-[200px] md:min-h-[220px]">
+              {promotionalCampaigns.map((camp, idx) => {
+                const isActive = idx === currentPromoIndex;
+                const themeBg = camp.theme_color || "#E65100";
+                const campUrl = `/promo/${camp.slug || camp.id}`;
+
+                return (
+                  <div
+                    key={camp.id}
+                    className={`absolute inset-0 transition-opacity duration-700 ease-in-out p-5 sm:p-8 md:p-10 flex flex-col justify-between text-white ${
+                      isActive ? "opacity-100 z-10 pointer-events-auto" : "opacity-0 z-0 pointer-events-none"
+                    }`}
+                    style={{ backgroundColor: themeBg }}
+                  >
+                    {/* Background Banner Image */}
+                    {camp.banner_url ? (
+                      <img
+                        src={camp.banner_url}
+                        alt={camp.title}
+                        className="absolute inset-0 w-full h-full object-cover opacity-25 mix-blend-luminosity pointer-events-none"
+                      />
+                    ) : null}
+
+                    {/* Top Badges */}
+                    <div className="relative z-10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/25 backdrop-blur-md text-[10px] sm:text-xs font-black uppercase tracking-wider text-white shadow-xs">
+                          <Sparkles size={13} className="text-amber-300" />
+                          {camp.badge_text || "OFFRE EXCLUSIVE"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          EN DIRECT
+                        </span>
+                      </div>
+
+                      {camp.countdown_end && (
+                        <div className="hidden sm:flex items-center gap-1.5 bg-black/30 backdrop-blur-md px-3 py-1 rounded-full text-xs font-mono font-bold text-amber-300">
+                          <Clock size={13} />
+                          <span>Fin : {new Date(camp.countdown_end).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Middle Content */}
+                    <div className="relative z-10 my-3 sm:my-4 max-w-2xl">
+                      <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight drop-shadow-xs">
+                        {camp.title}
+                      </h2>
+                      {camp.subtitle ? (
+                        <p className="text-xs sm:text-sm md:text-base text-white/90 font-medium mt-1 sm:mt-2 line-clamp-2">
+                          {camp.subtitle}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* Bottom CTA */}
+                    <div className="relative z-10 flex items-center justify-between gap-4">
+                      <button
+                        onClick={() => router.push(campUrl)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl bg-white text-gray-950 font-black text-xs sm:text-sm hover:bg-amber-300 hover:text-gray-950 transition-all shadow-md group cursor-pointer"
+                      >
+                        <span>Découvrir la sélection</span>
+                        <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                      </button>
+
+                      {/* Pagination indicators if multiple */}
+                      {promotionalCampaigns.length > 1 && (
+                        <div className="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-3 py-1.5 rounded-full">
+                          {promotionalCampaigns.map((_, dotIdx) => (
+                            <button
+                              key={dotIdx}
+                              onClick={() => setCurrentPromoIndex(dotIdx)}
+                              className={`h-2 rounded-full transition-all cursor-pointer ${
+                                dotIdx === currentPromoIndex ? "w-6 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
+                              }`}
+                              title={`Campagne ${dotIdx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* 2. BOUTIQUES VEDETTES SECTION */}

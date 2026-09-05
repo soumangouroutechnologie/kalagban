@@ -364,13 +364,26 @@ export default function SellerProductsScreen() {
                     })()}
 
                     <View style={styles.priceRow}>
-                      <Text style={[styles.productPrice, productPromos.has(p.id) && styles.productPriceWithPromo]}>
-                        {Number(p.price).toLocaleString('fr-FR')} FCFA
-                      </Text>
-                      {!!p.old_price && (
-                        <Text style={styles.productOldPrice}>
-                          {Number(p.old_price).toLocaleString('fr-FR')} FCFA
-                        </Text>
+                      {productPromos.has(p.id) ? (
+                        <>
+                          <Text style={[styles.productPrice, { color: '#EA580C', fontWeight: '900' }]}>
+                            {Number(productPromos.get(p.id)!.special_price || Math.round(Number(p.price) * (1 - productPromos.get(p.id)!.discount_percentage / 100))).toLocaleString('fr-FR')} FCFA
+                          </Text>
+                          <Text style={styles.productOldPrice}>
+                            {Number(p.price).toLocaleString('fr-FR')} FCFA
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.productPrice}>
+                            {Number(p.price).toLocaleString('fr-FR')} FCFA
+                          </Text>
+                          {!!p.old_price && (
+                            <Text style={styles.productOldPrice}>
+                              {Number(p.old_price).toLocaleString('fr-FR')} FCFA
+                            </Text>
+                          )}
+                        </>
                       )}
                     </View>
 
