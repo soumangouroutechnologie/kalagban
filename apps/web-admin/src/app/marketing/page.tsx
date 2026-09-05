@@ -1105,7 +1105,7 @@ export default function MarketingPage() {
           {/* Coupons Table */}
           <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
             <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left text-xs min-w-[650px]">
+              <table className="w-full text-left text-xs min-w-160">
                 <thead className="bg-gray-50/80 text-gray-400 font-black uppercase text-[10px] border-b border-gray-100">
                   <tr>
                     <th className="p-4">Code Réduction</th>
