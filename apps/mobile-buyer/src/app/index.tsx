@@ -929,57 +929,77 @@ export default function MarketplaceHomeScreen() {
                 </Text>
               </View>
             ) : (
-              notifications.map((n) => (
-                <TouchableOpacity
-                  key={n.id}
-                  style={[
-                    styles.notifCard,
-                    !n.is_read && styles.notifCardUnread,
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={async () => {
-                    if (!n.is_read) {
-                      await supabase
-                        .from('customer_notifications')
-                        .update({ is_read: true })
-                        .eq('id', n.id);
-                      setNotifications((prev) =>
-                        prev.map((item) => (item.id === n.id ? { ...item, is_read: true } : item))
-                      );
-                      setUnreadNotifCount((prev) => Math.max(0, prev - 1));
-                    }
-                    setShowNotifModal(false);
-                    if (n.order_id) {
-                      router.push(`/orders/${n.order_id}` as any);
-                    } else if (n.data?.url) {
-                      router.push(n.data.url as any);
-                    }
-                  }}
-                >
-                  <View style={styles.notifCardIcon}>
-                    {n.order_id ? (
-                      <Package size={20} color="#6D28D9" />
+              notifications.map((n) => {
+                const cardImage = n.image_url || n.data?.image || n.data?.image_url;
+                return (
+                  <TouchableOpacity
+                    key={n.id}
+                    style={[
+                      styles.notifCard,
+                      !n.is_read && styles.notifCardUnread,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={async () => {
+                      if (!n.is_read) {
+                        await supabase
+                          .from('customer_notifications')
+                          .update({ is_read: true })
+                          .eq('id', n.id);
+                        setNotifications((prev) =>
+                          prev.map((item) => (item.id === n.id ? { ...item, is_read: true } : item))
+                        );
+                        setUnreadNotifCount((prev) => Math.max(0, prev - 1));
+                      }
+                      setShowNotifModal(false);
+                      if (n.order_id) {
+                        router.push(`/orders/${n.order_id}` as any);
+                      } else if (n.data?.url) {
+                        router.push(n.data.url as any);
+                      }
+                    }}
+                  >
+                    {cardImage ? (
+                      <Image
+                        source={{ uri: cardImage }}
+                        style={styles.notifCardImageThumb}
+                        resizeMode="cover"
+                      />
                     ) : (
-                      <Sparkles size={20} color="#F59E0B" />
+                      <View style={styles.notifCardIcon}>
+                        {n.order_id ? (
+                          <Package size={20} color="#6D28D9" />
+                        ) : (
+                          <Sparkles size={20} color="#F59E0B" />
+                        )}
+                      </View>
                     )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <Text style={styles.notifCardTitle}>{n.title}</Text>
-                      {!n.is_read && <View style={styles.unreadDot} />}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <Text style={styles.notifCardTitle}>{n.title}</Text>
+                        {!n.is_read && <View style={styles.unreadDot} />}
+                      </View>
+                      <Text style={styles.notifCardMessage}>{n.message}</Text>
+                      {cardImage ? (
+                        <View style={styles.notifBannerPreviewWrapper}>
+                          <Image
+                            source={{ uri: cardImage }}
+                            style={styles.notifBannerPreview}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      ) : null}
+                      <Text style={styles.notifCardDate}>
+                        {new Date(n.created_at).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
                     </View>
-                    <Text style={styles.notifCardMessage}>{n.message}</Text>
-                    <Text style={styles.notifCardDate}>
-                      {new Date(n.created_at).toLocaleString('fr-FR', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
+                  </TouchableOpacity>
+                );
+              })
             )}
           </ScrollView>
         </SafeAreaView>
@@ -1783,5 +1803,28 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#7C3AED',
     marginLeft: 6,
+  },
+  notifCardImageThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  notifBannerPreviewWrapper: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  notifBannerPreview: {
+    width: '100%',
+    height: '100%',
   },
 });
