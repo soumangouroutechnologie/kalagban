@@ -117,8 +117,8 @@ export default function DynamicPromoCampaignScreen() {
 
       setCampaign(currentCampaign);
 
-      // 2. Fetch linked campaign products or matching products by keyword
-      const { data: linkedProducts } = await supabase
+      // 2. Fetch linked campaign products or fallback
+      const { data: linkedProducts, error: lpError } = await supabase
         .from('campaign_products')
         .select(`
           discount_percentage,
@@ -128,98 +128,73 @@ export default function DynamicPromoCampaignScreen() {
           products (
             id,
             title,
-            category_id,
+            category,
             price,
             images,
-            shops:shop_id(business_name)
+            image_url,
+            product_media ( url ),
+            shops ( name )
           )
         `)
-        .eq('campaign_id', currentCampaign.id);
+        .eq('campaign_id', currentCampaign.id)
+        .order('position', { ascending: true });
 
-      if (linkedProducts && linkedProducts.length > 0) {
+      if (!lpError && linkedProducts && linkedProducts.length > 0) {
         const mapped: CampaignProduct[] = linkedProducts
           .filter((item: any) => item.products)
           .map((item: any) => {
             const p = item.products;
             const original = Number(p.price) || 0;
-            const discount = item.discount_percentage || 20;
+            const discount = Number(item.discount_percentage) || 20;
             const finalPrice = item.special_price
               ? Number(item.special_price)
               : Math.round(original * (1 - discount / 100));
 
+            const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+
             return {
               id: p.id,
               title: p.title || 'Article Spécial',
-              category: p.category_id || 'Autre',
+              category: p.category || 'Promo',
               price: finalPrice,
-              original_price: original > finalPrice ? original : original * 1.3,
+              original_price: original > finalPrice ? original : Math.round(finalPrice * 1.3),
               discount_percentage: discount,
-              stock_allocated: item.stock_allocated || 50,
-              stock_sold: item.stock_sold || Math.floor(Math.random() * 15) + 5,
-              image_url: getSafeImageUrl(p.images?.[0]),
-              vendor_name: p.shops?.business_name,
+              stock_allocated: Number(item.stock_allocated) || 50,
+              stock_sold: Number(item.stock_sold) || 0,
+              image_url: getSafeImageUrl(rawImg),
+              vendor_name: p.shops?.name,
             };
           });
         setProducts(mapped);
       } else {
-        // Fallback: search products table with relevant tags / categories
-        const searchTerms = slug.split('-');
-        let query = supabase.from('products').select('*, shops:shop_id(business_name)').limit(30);
-
-        if (searchTerms.length > 0) {
-          const orFilter = searchTerms
-            .map((term) => `title.ilike.%${term}%,category_id.ilike.%${term}%`)
-            .join(',');
-          query = query.or(orFilter);
-        }
-
-        const { data: generalProducts } = await query;
+        // Fallback: fetch active catalog products
+        const { data: generalProducts } = await supabase
+          .from('products')
+          .select('id, title, category, price, images, image_url, product_media(url), shops(name)')
+          .eq('status', 'active')
+          .limit(20);
 
         if (generalProducts && generalProducts.length > 0) {
           const fallbackMapped: CampaignProduct[] = generalProducts.map((p: any, idx: number) => {
-            const original = Number(p.price) || 50000;
+            const original = Number(p.price) || 25000;
             const discount = 15 + (idx % 4) * 10;
             const finalPrice = Math.round(original * (1 - discount / 100));
-            const allocated = 30 + (idx % 20);
-            const sold = Math.min(allocated - 2, Math.floor(allocated * 0.4) + idx);
+            const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
 
             return {
               id: p.id,
               title: p.title || 'Produit Spécial',
-              category: p.category_id || 'Tous',
+              category: p.category || 'Général',
               price: finalPrice,
               original_price: original,
               discount_percentage: discount,
-              stock_allocated: allocated,
-              stock_sold: sold,
-              image_url: getSafeImageUrl(p.images?.[0]),
-              vendor_name: p.shops?.business_name,
+              stock_allocated: 40,
+              stock_sold: 5 + idx,
+              image_url: getSafeImageUrl(rawImg),
+              vendor_name: p.shops?.name,
             };
           });
           setProducts(fallbackMapped);
-        } else {
-          // If totally empty, fetch latest products
-          const { data: latest } = await supabase
-            .from('products')
-            .select('*, shops:shop_id(business_name)')
-            .limit(20);
-
-          if (latest) {
-            setProducts(
-              latest.map((p: any, idx: number) => ({
-                id: p.id,
-                title: p.title,
-                category: p.category_id || 'Général',
-                price: Number(p.price) || 25000,
-                original_price: (Number(p.price) || 25000) * 1.25,
-                discount_percentage: 20,
-                stock_allocated: 40,
-                stock_sold: 12 + idx,
-                image_url: getSafeImageUrl(p.images?.[0]),
-                vendor_name: p.shops?.business_name,
-              }))
-            );
-          }
         }
       }
     } catch (err) {

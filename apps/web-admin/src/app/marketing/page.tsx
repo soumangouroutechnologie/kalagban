@@ -272,9 +272,17 @@ export default function MarketingPage() {
     }
   }, []);
 
+  const setDurationPreset = (days: number) => {
+    const d = new Date(Date.now() + days * 86400000);
+    setNewPromoCampaign((prev) => ({
+      ...prev,
+      countdown_end: d.toISOString().slice(0, 16),
+    }));
+  };
+
   const openAddCampaignModal = async () => {
     const today = new Date();
-    const in15Days = new Date(today.getTime() + 15 * 86400000);
+    const in7Days = new Date(today.getTime() + 7 * 86400000);
     setNewPromoCampaign({
       title: "",
       slug: "",
@@ -282,7 +290,7 @@ export default function MarketingPage() {
       badge_text: "JUSQU'À -40%",
       theme_color: "#E65100",
       banner_url: "",
-      countdown_end: in15Days.toISOString().slice(0, 16),
+      countdown_end: in7Days.toISOString().slice(0, 16),
       status: "active",
       is_featured_home: true,
     });
@@ -1374,7 +1382,39 @@ export default function MarketingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Compte à Rebours (Fin de Promo)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-gray-700">Compte à Rebours (Fin de Promo)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setDurationPreset(1)}
+                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
+                      >
+                        24h
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDurationPreset(3)}
+                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
+                      >
+                        3j
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDurationPreset(7)}
+                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
+                      >
+                        7j
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDurationPreset(15)}
+                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
+                      >
+                        15j
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="datetime-local"
                     value={newPromoCampaign.countdown_end}

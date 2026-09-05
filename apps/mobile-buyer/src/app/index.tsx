@@ -148,6 +148,9 @@ export default function MarketplaceHomeScreen() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [activeFlashSale, setActiveFlashSale] = useState<any>(null);
 
+  const [promoCampaigns, setPromoCampaigns] = useState<any[]>([]);
+  const [activeCampaignIndex, setActiveCampaignIndex] = useState(0);
+
   const [adBanner, setAdBanner] = useState<PromoBannerConfig>({
     enabled: true,
     badge: 'PUBLICITÉ SPÉCIALE',
@@ -212,6 +215,13 @@ export default function MarketplaceHomeScreen() {
           fetchAdBanner();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'promotional_campaigns' },
+        () => {
+          fetchAdBanner();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -222,6 +232,20 @@ export default function MarketplaceHomeScreen() {
 
   const fetchAdBanner = async () => {
     try {
+      // 0. Fetch Active Promotional Campaigns (SDUI)
+      const { data: promoCamps } = await supabase
+        .from('promotional_campaigns')
+        .select('*')
+        .eq('status', 'active')
+        .eq('is_featured_home', true)
+        .order('position', { ascending: true });
+
+      if (promoCamps && promoCamps.length > 0) {
+        setPromoCampaigns(promoCamps);
+      } else {
+        setPromoCampaigns([]);
+      }
+
       // 1. Fetch site_settings configured in web-admin CMS
       const { data: settingsData } = await supabase.from('site_settings').select('key, value');
       if (settingsData) {
@@ -713,8 +737,92 @@ export default function MarketplaceHomeScreen() {
           </View>
         )}
 
-        {/* DYNAMIC ADMIN ADVERTISING BANNER (DIV PUBLICITAIRE PILOTÉE PAR L'ADMIN) */}
-        {adBanner.enabled !== false && (
+        {/* DYNAMIC PROMOTIONAL CAMPAIGNS CAROUSEL (SDUI EN DIRECT) */}
+        {promoCampaigns.length > 0 ? (
+          <View style={styles.campaignCarouselContainer}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.campaignCarouselScroll}
+              onScroll={(e) => {
+                const offsetX = e.nativeEvent.contentOffset.x;
+                const slideW = width - 40;
+                const index = Math.round(offsetX / slideW);
+                setActiveCampaignIndex(index);
+              }}
+              scrollEventThrottle={16}
+            >
+              {promoCampaigns.map((camp) => {
+                const themeBg = camp.theme_color || '#E65100';
+                return (
+                  <TouchableOpacity
+                    key={camp.id}
+                    style={[styles.campaignSlideCard, { backgroundColor: themeBg, width: width - 40 }]}
+                    onPress={() => router.push(`/promo/${camp.slug}` as any)}
+                    activeOpacity={0.92}
+                  >
+                    {camp.banner_url ? (
+                      <Image
+                        source={{ uri: camp.banner_url }}
+                        style={styles.campaignSlideBgImage}
+                      />
+                    ) : null}
+
+                    {/* Gradient / Content Box */}
+                    <View style={styles.campaignSlideOverlay}>
+                      <View style={styles.campaignTopRow}>
+                        <View style={styles.campaignBadgePill}>
+                          <Sparkles size={11} color="#FFFFFF" />
+                          <Text style={styles.campaignBadgeText}>
+                            {camp.badge_text || "OFFRE SPÉCIALE"}
+                          </Text>
+                        </View>
+                        <View style={styles.campaignLiveBadge}>
+                          <View style={styles.campaignLiveDot} />
+                          <Text style={styles.campaignLiveText}>EN DIRECT</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.campaignContentBox}>
+                        <Text style={styles.campaignSlideTitle} numberOfLines={2}>
+                          {camp.title}
+                        </Text>
+                        {camp.subtitle ? (
+                          <Text style={styles.campaignSlideSub} numberOfLines={1}>
+                            {camp.subtitle}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.campaignActionRow}>
+                        <View style={styles.campaignCtaBtn}>
+                          <Text style={styles.campaignCtaText}>Découvrir les offres</Text>
+                          <ChevronRight size={14} color="#FFFFFF" />
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Pagination Dots */}
+            {promoCampaigns.length > 1 && (
+              <View style={styles.campaignDotsContainer}>
+                {promoCampaigns.map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.campaignDot,
+                      activeCampaignIndex === idx && styles.campaignDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        ) : adBanner.enabled !== false && (
           (adBanner.ad_type === 'full_image' || (adBanner.image_url && adBanner.ad_type !== 'standard')) ? (
             <TouchableOpacity
               style={styles.fullImageBannerCard}
@@ -1307,6 +1415,136 @@ const styles = StyleSheet.create({
   },
   subCatTextSelected: {
     color: '#FFFFFF',
+  },
+  campaignCarouselContainer: {
+    marginTop: 16,
+  },
+  campaignCarouselScroll: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  campaignSlideCard: {
+    borderRadius: 24,
+    height: 165,
+    overflow: 'hidden',
+    position: 'relative',
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+  },
+  campaignSlideBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+    opacity: 0.35,
+  },
+  campaignSlideOverlay: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    zIndex: 2,
+  },
+  campaignTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  campaignBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  campaignBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  campaignLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  campaignLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  campaignLiveText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  campaignContentBox: {
+    gap: 3,
+  },
+  campaignSlideTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  campaignSlideSub: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+  campaignActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  campaignCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  campaignCtaText: {
+    color: '#0F172A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  campaignDotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  campaignDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  campaignDotActive: {
+    width: 18,
+    backgroundColor: '#E65100',
   },
   fullImageBannerCard: {
     marginHorizontal: 20,
