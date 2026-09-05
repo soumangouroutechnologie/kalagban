@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { 
   Send, 
   Users, 
@@ -22,7 +23,8 @@ import {
   Radio,
   UploadCloud,
   Trash2,
-  Smile
+  Smile,
+  Tag
 } from "lucide-react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -66,10 +68,12 @@ type TargetType = "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "spe
 
 const QUICK_EMOJIS = ["🔥", "📦", "🎁", "⚡", "🎉", "🚀", "🔔", "🛍️", "📢", "🚚", "🏷️", "✨", "💎", "⏳"];
 
-export default function NotificationsPage() {
+function NotificationsPageContent() {
   const { user } = useAdminAuth();
+  const searchParams = useSearchParams();
 
   const [campaigns, setCampaigns] = useState<PushCampaign[]>([]);
+  const [availableCampaigns, setAvailableCampaigns] = useState<{ id: string; slug: string; title: string; subtitle?: string; banner_url?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSendModal, setShowSendModal] = useState(false);
   const [sending, setSending] = useState(false);
@@ -112,6 +116,14 @@ export default function NotificationsPage() {
       } else {
         setCampaigns([]);
       }
+
+      // Also fetch active promotional campaigns
+      const { data: promoData } = await supabase
+        .from("promotional_campaigns")
+        .select("id, slug, title, subtitle, banner_url")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      if (promoData) setAvailableCampaigns(promoData);
     } catch (err) {
       console.error("Error fetching campaigns:", err);
     } finally {
@@ -137,6 +149,13 @@ export default function NotificationsPage() {
           }
           setLoading(false);
         }
+
+        const { data: promoData } = await supabase
+          .from("promotional_campaigns")
+          .select("id, slug, title, subtitle, banner_url")
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
+        if (isMounted && promoData) setAvailableCampaigns(promoData);
       } catch (err) {
         if (isMounted) {
           console.error("Error fetching campaigns:", err);
@@ -147,9 +166,33 @@ export default function NotificationsPage() {
 
     initFetch();
 
+    // Check incoming query params from marketing tab
+    if (searchParams) {
+      const titleParam = searchParams.get("title");
+      const msgParam = searchParams.get("message");
+      const imgParam = searchParams.get("image");
+      const urlParam = searchParams.get("url");
+
+      if (titleParam || urlParam) {
+        setFormData((prev) => ({
+          ...prev,
+          title: titleParam || prev.title,
+          message: msgParam || prev.message,
+          image_url: imgParam || prev.image_url,
+          url_redirect: urlParam || prev.url_redirect,
+          notification_type: "promo",
+          sent_by_role: "marketing",
+        }));
+        setShowSendModal(true);
+      }
+    }
+
     const channel = supabase
       .channel("push_campaigns_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "push_campaigns" }, () => {
+        initFetch();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "promotional_campaigns" }, () => {
         initFetch();
       })
       .subscribe();
@@ -530,10 +573,40 @@ export default function NotificationsPage() {
                 </div>
               )}
 
-              {sendError && (
-                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                  <p className="font-semibold">{sendError}</p>
+              {/* Sélecteur de Campagne Active (Server-Driven UI) */}
+              {availableCampaigns.length > 0 && (
+                <div className="bg-linear-to-r from-orange-50 to-amber-50 border border-orange-200 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-orange-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-black text-orange-950">Lier à une Campagne Active (SDUI) :</p>
+                      <p className="text-[10px] text-orange-700">Pré-remplit le titre, l&apos;image 500x500 et la redirection /promo/...</p>
+                    </div>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const camp = availableCampaigns.find((c) => c.slug === e.target.value);
+                      if (camp) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          title: camp.title,
+                          message: camp.subtitle || prev.message || "Découvrez nos offres spéciales !",
+                          image_url: camp.banner_url || prev.image_url,
+                          url_redirect: `/promo/${camp.slug}`,
+                          notification_type: "promo",
+                          sent_by_role: "marketing",
+                        }));
+                      }
+                    }}
+                    className="text-xs font-bold bg-white border border-orange-300 rounded-xl px-3 py-1.5 text-gray-800 focus:outline-hidden cursor-pointer shadow-2xs"
+                  >
+                    <option value="">-- Choisir une campagne --</option>
+                    {availableCampaigns.map((c) => (
+                      <option key={c.id} value={c.slug}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -918,5 +991,13 @@ export default function NotificationsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NotificationsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-gray-400">Chargement du centre de notifications...</div>}>
+      <NotificationsPageContent />
+    </Suspense>
   );
 }

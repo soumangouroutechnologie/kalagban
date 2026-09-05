@@ -121,6 +121,9 @@ export function usePushNotifications(initialUserId?: string | null) {
         } else if (data?.productId || data?.product_id) {
           const targetProductId = data.productId || data.product_id;
           router.push(`/product/${targetProductId}` as any);
+        } else if (data?.campaign_slug || data?.promo_slug || data?.slug) {
+          const slug = data.campaign_slug || data.promo_slug || data.slug;
+          router.push(`/promo/${slug}` as any);
         } else if (data?.url) {
           router.push(data.url as any);
         }

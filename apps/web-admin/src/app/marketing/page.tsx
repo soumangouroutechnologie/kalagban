@@ -1,17 +1,23 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { 
   Megaphone, 
   Plus, 
   X, 
   Trash2, 
-  Search,
-  Ticket,
-  Award,
-  Gift,
-  Sliders,
-  Check
+  Search, 
+  Ticket, 
+  Award, 
+  Gift, 
+  Sliders, 
+  Check,
+  Sparkles,
+  Copy,
+  UploadCloud,
+  Radio
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
@@ -33,17 +39,42 @@ interface Coupon {
 
 interface Campaign {
   id: string;
+  slug?: string;
   title: string;
-  description: string;
-  target_audience: string;
-  channel: string;
-  status: "draft" | "scheduled" | "active" | "completed" | "paused";
-  impressions_count: number;
-  clicks_count: number;
-  conversions_count: number;
-  starts_at: string;
+  subtitle?: string;
+  badge_text?: string;
+  banner_url?: string;
+  theme_color?: string;
+  countdown_end?: string;
+  description?: string;
+  target_audience?: string;
+  channel?: string;
+  status: "draft" | "scheduled" | "active" | "completed" | "paused" | "ended";
+  impressions_count?: number;
+  clicks_count?: number;
+  conversions_count?: number;
+  is_featured_home?: boolean;
+  starts_at?: string;
   ends_at?: string;
   created_at: string;
+}
+
+interface ProductOption {
+  id: string;
+  title: string;
+  price: number;
+  images?: string[];
+  category_id?: string;
+}
+
+interface SelectedCampaignProduct {
+  product_id: string;
+  title: string;
+  price: number;
+  discount_percentage: number;
+  special_price?: number;
+  stock_allocated: number;
+  image_url?: string;
 }
 
 interface LoyaltySettings {
@@ -76,10 +107,19 @@ interface ReferralRow {
   created_at: string;
 }
 
-export default function MarketingPage() {
-  const { toast, confirm } = useToast();
+const THEME_COLORS = [
+  { label: "Orange Kalagban", hex: "#E65100", bgClass: "bg-[#E65100]" },
+  { label: "Rouge Flash", hex: "#DC2626", bgClass: "bg-red-600" },
+  { label: "Violet Tech", hex: "#4F46E5", bgClass: "bg-indigo-600" },
+  { label: "Vert Émeraude", hex: "#059669", bgClass: "bg-emerald-600" },
+  { label: "Ardoise Sombre", hex: "#0F172A", bgClass: "bg-slate-900" },
+];
 
-  const [activeTab, setActiveTab] = useState<"coupons" | "loyalty" | "campaigns">("coupons");
+export default function MarketingPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const [activeTab, setActiveTab] = useState<"coupons" | "loyalty" | "campaigns">("campaigns");
 
   // Data states
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -125,14 +165,39 @@ export default function MarketingPage() {
     expires_at: "",
   });
 
-  const [newCampaign, setNewCampaign] = useState({
+  // Dynamic SDUI Promo Campaign Form
+  const [newPromoCampaign, setNewPromoCampaign] = useState({
     title: "",
-    description: "",
-    target_audience: "all" as "all" | "buyers" | "sellers" | "vip_buyers",
-    channel: "push_and_banner" as "banner" | "push_notification" | "push_and_banner",
-    starts_at: "",
-    ends_at: "",
+    slug: "",
+    subtitle: "",
+    badge_text: "JUSQU'À -40%",
+    theme_color: "#E65100",
+    banner_url: "",
+    countdown_end: "",
+    status: "active" as "active" | "draft" | "ended",
+    is_featured_home: true,
   });
+
+  const [selectedProducts, setSelectedProducts] = useState<SelectedCampaignProduct[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<ProductOption[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
+  const [isSubmittingCampaign, setIsSubmittingCampaign] = useState(false);
+
+  // Helper slug generator
+  const slugify = (text: string) => {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^\w-]+/g, "")
+      .replace(/--+/g, "-");
+  };
 
   const openAddCouponModal = () => {
     const today = new Date();
@@ -144,15 +209,38 @@ export default function MarketingPage() {
     setShowAddCouponModal(true);
   };
 
-  const openAddCampaignModal = () => {
+  const openAddCampaignModal = async () => {
     const today = new Date();
     const in15Days = new Date(today.getTime() + 15 * 86400000);
-    setNewCampaign((prev) => ({
-      ...prev,
-      starts_at: today.toISOString().split("T")[0],
-      ends_at: in15Days.toISOString().split("T")[0],
-    }));
+    setNewPromoCampaign({
+      title: "",
+      slug: "",
+      subtitle: "",
+      badge_text: "JUSQU'À -40%",
+      theme_color: "#E65100",
+      banner_url: "",
+      countdown_end: in15Days.toISOString().slice(0, 16),
+      status: "active",
+      is_featured_home: true,
+    });
+    setSelectedProducts([]);
     setShowAddCampaignModal(true);
+
+    // Fetch catalog products
+    if (catalogProducts.length === 0) {
+      setLoadingCatalog(true);
+      try {
+        const { data: prods } = await supabase
+          .from("products")
+          .select("id, title, price, images, category_id")
+          .limit(100);
+        if (prods) setCatalogProducts(prods as unknown as ProductOption[]);
+      } catch (err) {
+        console.error("Erreur chargement catalogue:", err);
+      } finally {
+        setLoadingCatalog(false);
+      }
+    }
   };
 
   const fetchMarketingData = useCallback(async () => {
@@ -164,7 +252,7 @@ export default function MarketingPage() {
         .order("created_at", { ascending: false });
       setCoupons(coupData || []);
 
-      // 2. Fetch Total savings from coupon_redemptions
+      // 2. Fetch Total savings
       const { data: redemptions } = await supabase
         .from("coupon_redemptions")
         .select("discount_applied");
@@ -173,12 +261,22 @@ export default function MarketingPage() {
         setTotalCouponSavings(sum);
       }
 
-      // 3. Fetch Campaigns
-      const { data: campData } = await supabase
-        .from("marketing_campaigns")
+      // 3. Fetch Promotional Campaigns (SDUI)
+      const { data: promoData } = await supabase
+        .from("promotional_campaigns")
         .select("*")
         .order("created_at", { ascending: false });
-      setCampaigns(campData || []);
+
+      if (promoData && promoData.length > 0) {
+        setCampaigns(promoData);
+      } else {
+        // Fallback to marketing_campaigns if promotional_campaigns is empty
+        const { data: campData } = await supabase
+          .from("marketing_campaigns")
+          .select("*")
+          .order("created_at", { ascending: false });
+        setCampaigns(campData || []);
+      }
 
       // 4. Fetch Loyalty Settings
       const { data: settsData } = await supabase
@@ -208,7 +306,7 @@ export default function MarketingPage() {
         setTotalCirculatingPoints(circulating);
       }
 
-      // 6. Fetch Burned Points (negative transactions)
+      // 6. Fetch Burned Points
       const { data: txs } = await supabase
         .from("loyalty_transactions")
         .select("*")
@@ -245,9 +343,8 @@ export default function MarketingPage() {
     const channel = supabase
       .channel("admin_marketing_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "marketing_coupons" }, () => fetchMarketingData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "promotional_campaigns" }, () => fetchMarketingData())
       .on("postgres_changes", { event: "*", schema: "public", table: "marketing_campaigns" }, () => fetchMarketingData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "loyalty_accounts" }, () => fetchMarketingData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "loyalty_transactions" }, () => fetchMarketingData())
       .subscribe();
 
     return () => {
@@ -303,21 +400,12 @@ export default function MarketingPage() {
   };
 
   // Delete Coupon
-  const handleDeleteCoupon = async (coupon: Coupon) => {
-    const ok = await confirm({
-      title: `Supprimer le code ${coupon.code} ?`,
-      message: "Cette action supprimera définitivement le coupon. Les commandes passées conserveront leur historique.",
-      confirmText: "Oui, supprimer",
-      cancelText: "Annuler",
-      type: "danger"
-    });
-
-    if (!ok) return;
-
+  const handleDeleteCoupon = async (id: string, code: string) => {
+    if (!window.confirm(`Voulez-vous vraiment supprimer le code promo "${code}" ?`)) return;
     try {
-      const { error } = await supabase.from("marketing_coupons").delete().eq("id", coupon.id);
+      const { error } = await supabase.from("marketing_coupons").delete().eq("id", id);
       if (error) throw error;
-      toast.success(`Le coupon ${coupon.code} a été supprimé.`);
+      toast.success(`Code promo ${code} supprimé.`);
       fetchMarketingData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erreur lors de la suppression.";
@@ -332,28 +420,27 @@ export default function MarketingPage() {
     try {
       const { error } = await supabase
         .from("loyalty_settings")
-        .update({
+        .upsert({
+          id: loyaltySettings.id || 1,
           points_per_1000_cfa: loyaltySettings.points_per_1000_cfa,
           point_value_cfa: loyaltySettings.point_value_cfa,
           min_points_to_redeem: loyaltySettings.min_points_to_redeem,
           max_discount_pct: loyaltySettings.max_discount_pct,
           referral_reward_referrer: loyaltySettings.referral_reward_referrer,
           referral_reward_referred: loyaltySettings.referral_reward_referred,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", loyaltySettings.id);
+        });
 
       if (error) throw error;
-      toast.success("Barème de fidélité et parrainage mis à jour avec succès !", "Configuration Enregistrée");
+      toast.success("Barèmes du Kalagban Club enregistrés avec succès !", "Fidélité Mise à Jour");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur lors de la sauvegarde des paramètres.";
+      const msg = err instanceof Error ? err.message : "Erreur de sauvegarde.";
       toast.error(msg);
     } finally {
       setIsSavingSettings(false);
     }
   };
 
-  // Handle Manual Loyalty Adjustment (Geste Commercial)
+  // Manual adjustment of points
   const handleManualAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustmentTargetEmail.trim()) {
@@ -367,7 +454,6 @@ export default function MarketingPage() {
 
     setIsProcessingAdjustment(true);
     try {
-      // Find profile by email
       const { data: profileData, error: profErr } = await supabase
         .from("profiles")
         .select("id, full_name")
@@ -406,37 +492,189 @@ export default function MarketingPage() {
     }
   };
 
-  // Handle Create Campaign
-  const handleCreateCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle Banner Upload
+  const handleUploadBanner = async (file: File) => {
+    setUploadingBanner(true);
     try {
-      if (!newCampaign.title.trim()) {
-        toast.error("Le titre de la campagne est obligatoire.");
-        return;
-      }
+      const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const fileName = `campaign_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      const filePath = `banners/${fileName}`;
 
-      const { error } = await supabase.from("marketing_campaigns").insert({
-        title: newCampaign.title.trim(),
-        description: newCampaign.description.trim(),
-        target_audience: newCampaign.target_audience,
-        channel: newCampaign.channel,
-        status: "active",
-        starts_at: new Date(newCampaign.starts_at).toISOString(),
-        ends_at: newCampaign.ends_at ? new Date(newCampaign.ends_at).toISOString() : null,
+      let bucketName = "notification-banners";
+      let uploadRes = await supabase.storage.from(bucketName).upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
       });
 
-      if (error) throw error;
-      toast.success(`La campagne "${newCampaign.title}" a été activée !`, "Campagne Lancée");
+      if (uploadRes.error) {
+        bucketName = "cms_assets";
+        uploadRes = await supabase.storage.from(bucketName).upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+      }
+
+      if (uploadRes.error) throw uploadRes.error;
+
+      const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+      if (data?.publicUrl) {
+        setNewPromoCampaign((prev) => ({ ...prev, banner_url: data.publicUrl }));
+        toast.success("Affiche promotionnelle téléversée avec succès !");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur upload d'image.";
+      toast.error(msg);
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  // Add Product to selected list
+  const toggleSelectProduct = (prod: ProductOption) => {
+    const exists = selectedProducts.find((p) => p.product_id === prod.id);
+    if (exists) {
+      setSelectedProducts(selectedProducts.filter((p) => p.product_id !== prod.id));
+    } else {
+      setSelectedProducts([
+        ...selectedProducts,
+        {
+          product_id: prod.id,
+          title: prod.title,
+          price: prod.price,
+          discount_percentage: 20,
+          special_price: Math.round(prod.price * 0.8),
+          stock_allocated: 50,
+          image_url: prod.images?.[0] || "",
+        },
+      ]);
+    }
+  };
+
+  // Save Promo Campaign
+  const handleCreatePromoCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoCampaign.title.trim()) {
+      toast.error("Le titre de la campagne est obligatoire.");
+      return;
+    }
+
+    const finalSlug = slugify(newPromoCampaign.slug || newPromoCampaign.title);
+    if (!finalSlug) {
+      toast.error("Le slug de redirection est invalide.");
+      return;
+    }
+
+    setIsSubmittingCampaign(true);
+    try {
+      // 1. Insert into promotional_campaigns
+      const { data: createdCamp, error: campErr } = await supabase
+        .from("promotional_campaigns")
+        .upsert({
+          slug: finalSlug,
+          title: newPromoCampaign.title.trim(),
+          subtitle: newPromoCampaign.subtitle.trim(),
+          badge_text: newPromoCampaign.badge_text.trim(),
+          banner_url: newPromoCampaign.banner_url || null,
+          theme_color: newPromoCampaign.theme_color || "#E65100",
+          countdown_end: newPromoCampaign.countdown_end ? new Date(newPromoCampaign.countdown_end).toISOString() : null,
+          status: newPromoCampaign.status,
+          is_featured_home: newPromoCampaign.is_featured_home,
+        })
+        .select()
+        .single();
+
+      if (campErr) throw campErr;
+
+      // 2. Insert linked products if any
+      if (selectedProducts.length > 0 && createdCamp?.id) {
+        const payload = selectedProducts.map((p, idx) => ({
+          campaign_id: createdCamp.id,
+          product_id: p.product_id,
+          discount_percentage: p.discount_percentage,
+          special_price: p.special_price || Math.round(p.price * (1 - p.discount_percentage / 100)),
+          stock_allocated: p.stock_allocated,
+          stock_sold: 0,
+          position: idx + 1,
+        }));
+
+        await supabase.from("campaign_products").delete().eq("campaign_id", createdCamp.id);
+        await supabase.from("campaign_products").insert(payload);
+      }
+
+      toast.success(
+        `La campagne "${newPromoCampaign.title}" est en ligne sur /promo/${finalSlug} !`,
+        "Campagne SDUI Publiée"
+      );
       setShowAddCampaignModal(false);
       fetchMarketingData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erreur lors de la création de la campagne.";
       toast.error(msg);
+    } finally {
+      setIsSubmittingCampaign(false);
     }
+  };
+
+  // Toggle Campaign Active Status
+  const handleTogglePromoCampaign = async (camp: Campaign) => {
+    try {
+      const nextStatus = camp.status === "active" ? "ended" : "active";
+      const { error } = await supabase
+        .from("promotional_campaigns")
+        .update({ status: nextStatus })
+        .eq("id", camp.id);
+
+      if (error) throw error;
+      toast.info(`Campagne "${camp.title}" ${nextStatus === "active" ? "activée" : "désactivée"}.`);
+      fetchMarketingData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur de mise à jour.";
+      toast.error(msg);
+    }
+  };
+
+  // Delete Campaign
+  const handleDeletePromoCampaign = async (id: string, title: string) => {
+    if (!window.confirm(`Voulez-vous vraiment supprimer la campagne "${title}" ?`)) return;
+    try {
+      const { error } = await supabase.from("promotional_campaigns").delete().eq("id", id);
+      if (error) throw error;
+      toast.success(`Campagne "${title}" supprimée.`);
+      fetchMarketingData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de la suppression.";
+      toast.error(msg);
+    }
+  };
+
+  // Copy mobile link to clipboard
+  const handleCopyLink = (slug?: string) => {
+    if (!slug) return;
+    const url = `/promo/${slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success(`Lien copié : ${url}`, "Prêt pour les notifications");
+  };
+
+  // Broadcast campaign to push notifications
+  const handleBroadcastPush = (camp: Campaign) => {
+    const slug = camp.slug || slugify(camp.title);
+    const query = new URLSearchParams({
+      campaign_slug: slug,
+      title: camp.title,
+      message: camp.subtitle || "Découvrez nos offres exceptionnelles et réductions exclusives !",
+      image: camp.banner_url || "",
+      url: `/promo/${slug}`,
+    });
+    router.push(`/notifications?${query.toString()}`);
   };
 
   const filteredCoupons = coupons.filter(c => 
     c.code.toLowerCase().includes(searchFilter.toLowerCase())
+  );
+
+  const filteredCatalog = catalogProducts.filter(p =>
+    p.title.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+    (p.category_id && p.category_id.toLowerCase().includes(productSearchTerm.toLowerCase()))
   );
 
   return (
@@ -448,9 +686,9 @@ export default function MarketingPage() {
             <Megaphone size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Marketing, Fidélisation &amp; Coupons</h1>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Marketing &amp; Campagnes Promo</h1>
             <p className="text-xs text-gray-500 font-medium">
-              Acquisition client, bons d&apos;achat, programme Kalagban Club et parrainage
+              Gestionnaire d&apos;événements promotionnels dynamiques (Server-Driven UI), bons d&apos;achat et fidélité.
             </p>
           </div>
         </div>
@@ -466,9 +704,9 @@ export default function MarketingPage() {
           ) : activeTab === "campaigns" ? (
             <button
               onClick={openAddCampaignModal}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20 transition-all"
+              className="bg-linear-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-600/20 transition-all active:scale-[0.98]"
             >
-              <Plus size={16} /> Créer une Campagne
+              <Plus size={16} /> + Nouvelle Campagne Promo (SDUI)
             </button>
           ) : (
             <button
@@ -483,6 +721,17 @@ export default function MarketingPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto custom-scrollbar">
+        <button
+          onClick={() => setActiveTab("campaigns")}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "campaigns"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <Sparkles size={16} className="text-amber-400" /> Campagnes &amp; Pages Promo ({campaigns.length})
+        </button>
+
         <button
           onClick={() => setActiveTab("coupons")}
           className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
@@ -504,21 +753,159 @@ export default function MarketingPage() {
         >
           <Award size={16} /> Club Fidélité &amp; Parrainage ({loyaltyAccountsCount})
         </button>
-
-        <button
-          onClick={() => setActiveTab("campaigns")}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "campaigns"
-              ? "bg-slate-900 text-white shadow-sm"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
-        >
-          <Megaphone size={16} /> Campagnes &amp; Bannières ({campaigns.length})
-        </button>
       </div>
 
       {/* ======================================================== */}
-      {/* TAB 1: COUPONS */}
+      {/* TAB 1: CAMPAIGNS (SERVER-DRIVEN UI) */}
+      {/* ======================================================== */}
+      {activeTab === "campaigns" && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Banner Promo explanation */}
+          <div className="bg-linear-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-3xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-700 shadow-lg">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-orange-500/30 text-orange-400 text-[10px] font-black uppercase tracking-wider border border-orange-500/40">
+                  ⚡ Moteur Server-Driven UI
+                </span>
+                <span className="text-xs text-gray-300">Zéro recompilation mobile</span>
+              </div>
+              <h2 className="text-lg font-black tracking-tight">Créez des pages d&apos;événements promotionnels en 2 minutes</h2>
+              <p className="text-xs text-slate-300 max-w-2xl">
+                Ajoutez un compte à rebours, une affiche personnalisée et vos kits de produits. Les applications mobiles et web se mettent à jour instantanément sans passer par les stores.
+              </p>
+            </div>
+            <button
+              onClick={openAddCampaignModal}
+              className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-2 shrink-0"
+            >
+              <Plus size={16} /> + Créer un Événement
+            </button>
+          </div>
+
+          {campaigns.length === 0 ? (
+            <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
+              <Megaphone className="mx-auto text-gray-300 w-12 h-12" />
+              <p className="text-sm font-extrabold text-gray-700">Aucune campagne promotionnelle créée</p>
+              <p className="text-xs text-gray-400 max-w-sm mx-auto">
+                Créez une première campagne (ex: Rentrée Scolaire, Ventes Flash du Week-end, Spécial Tabaski).
+              </p>
+              <button
+                onClick={openAddCampaignModal}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                + Créer une première campagne
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {campaigns.map((camp) => {
+                const slug = camp.slug || slugify(camp.title);
+                const isActive = camp.status === "active";
+                const isEnded = camp.status === "ended";
+
+                return (
+                  <div 
+                    key={camp.id} 
+                    className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+                  >
+                    {/* Top Hero Banner */}
+                    <div 
+                      className="h-32 w-full relative p-4 flex flex-col justify-between text-white"
+                      style={{ backgroundColor: camp.theme_color || "#E65100" }}
+                    >
+                      {camp.banner_url ? (
+                        <Image
+                          src={camp.banner_url}
+                          alt={camp.title}
+                          fill
+                          className="object-cover opacity-30"
+                          unoptimized
+                        />
+                      ) : null}
+
+                      <div className="flex items-center justify-between z-10">
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black uppercase tracking-wider">
+                          {camp.badge_text || "OFFRE SPÉCIALE"}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          isActive && !isEnded ? "bg-emerald-500 text-white" : "bg-gray-500 text-white"
+                        }`}>
+                          {isEnded ? "Terminée 🛑" : isActive ? "En Direct 🟢" : "Brouillon ⚪"}
+                        </span>
+                      </div>
+
+                      <div className="z-10">
+                        <h3 className="font-black text-lg leading-tight line-clamp-1">{camp.title}</h3>
+                        <p className="text-xs text-white/90 line-clamp-1 mt-0.5">{camp.subtitle || "Offre limitée Kalagban"}</p>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="p-5 space-y-4 flex-1">
+                      {/* Deep Link & Countdown */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-gray-50 p-2.5 rounded-xl">
+                          <span className="text-[10px] font-black text-gray-400 uppercase block">Lien Mobile &amp; Web</span>
+                          <span className="font-mono font-bold text-indigo-600 truncate block mt-0.5">/promo/{slug}</span>
+                        </div>
+                        <div className="bg-gray-50 p-2.5 rounded-xl">
+                          <span className="text-[10px] font-black text-gray-400 uppercase block">Compte à Rebours</span>
+                          <span className="font-bold text-gray-800 truncate block mt-0.5">
+                            {camp.countdown_end 
+                              ? new Date(camp.countdown_end).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+                              : "Illimité ⏳"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleCopyLink(slug)}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                            title="Copier le lien"
+                          >
+                            <Copy size={13} /> Copier Lien
+                          </button>
+
+                          <button
+                            onClick={() => handleBroadcastPush(camp)}
+                            className="px-3 py-1.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                          >
+                            <Radio size={13} /> Diffuser en Push 🚀
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleTogglePromoCampaign(camp)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                              isActive ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            }`}
+                          >
+                            {isActive ? "Pause" : "Activer"}
+                          </button>
+                          <button
+                            onClick={() => handleDeletePromoCampaign(camp.id, camp.title)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Supprimer la campagne"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 2: COUPONS */}
       {/* ======================================================== */}
       {activeTab === "coupons" && (
         <div className="space-y-6">
@@ -560,383 +947,464 @@ export default function MarketingPage() {
           </div>
 
           {/* Search bar */}
-          <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-gray-100">
-            <Search size={16} className="text-gray-400" />
+          <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-xs">
+            <Search size={16} className="text-gray-400 ml-2" />
             <input
               type="text"
-              placeholder="Rechercher un code réduction (ex: BIENVENUE, PROMO10)..."
+              placeholder="Rechercher un code réduction (ex: PROMO20)..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full text-xs font-bold text-gray-800 placeholder:text-gray-400 outline-hidden bg-transparent"
+              className="w-full text-xs font-medium focus:outline-hidden bg-transparent"
             />
           </div>
 
-          {/* Coupon Grid */}
-          {filteredCoupons.length === 0 ? (
-            <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
-              <Ticket className="mx-auto text-gray-300 w-12 h-12" />
-              <p className="text-sm font-extrabold text-gray-700">Aucun code promo correspondant</p>
-              <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                Créez des codes promotionnels pour stimuler les ventes et fidéliser vos acheteurs.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCoupons.map((coupon) => {
-                const isExpired = new Date(coupon.expires_at) < new Date();
-                const usagePercent = Math.min(100, Math.round(((coupon.used_count || 0) / (coupon.usage_limit || 1)) * 100));
-
-                return (
-                  <div key={coupon.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4 flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <span className="font-mono font-black text-base px-3 py-1 bg-pink-50 text-pink-700 rounded-xl border border-pink-200">
-                          {coupon.code}
-                        </span>
-
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          isExpired 
-                            ? "bg-red-50 text-red-700 border border-red-200" 
-                            : coupon.is_active 
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                              : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {isExpired ? "Expiré ⏳" : coupon.is_active ? "Actif 🟢" : "Désactivé ⚪"}
-                        </span>
+          {/* Coupons Table */}
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-50/80 text-gray-400 font-black uppercase text-[10px] border-b border-gray-100">
+                <tr>
+                  <th className="p-4">Code Réduction</th>
+                  <th className="p-4">Type &amp; Remise</th>
+                  <th className="p-4">Conditions</th>
+                  <th className="p-4">Utilisations</th>
+                  <th className="p-4">Expiration</th>
+                  <th className="p-4">Statut</th>
+                  <th className="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredCoupons.map((coupon) => (
+                  <tr key={coupon.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="p-4">
+                      <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-pink-50 text-pink-700 border border-pink-100">
+                        {coupon.code}
+                      </span>
+                    </td>
+                    <td className="p-4 font-bold text-gray-900">
+                      {coupon.discount_type === "percentage" ? `${coupon.discount_value}%` : `${coupon.discount_value.toLocaleString("fr-FR")} FCFA`}
+                    </td>
+                    <td className="p-4 text-gray-600">
+                      Min: {coupon.min_order_amount.toLocaleString("fr-FR")} FCFA
+                      {coupon.max_discount_amount ? ` (Plafond: ${coupon.max_discount_amount.toLocaleString("fr-FR")} FCFA)` : ""}
+                    </td>
+                    <td className="p-4">
+                      <span className="font-bold text-gray-900">{coupon.used_count || 0}</span> / {coupon.usage_limit}
+                    </td>
+                    <td className="p-4 text-gray-500">
+                      {new Date(coupon.expires_at).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                        coupon.is_active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
+                      }`}>
+                        {coupon.is_active ? "Actif" : "Désactivé"}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleToggleCoupon(coupon)}
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                        >
+                          {coupon.is_active ? "Désactiver" : "Activer"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCoupon(coupon.id, coupon.code)}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
-
-                      <div className="space-y-1">
-                        <div className="text-2xl font-black text-gray-900">
-                          {coupon.discount_type === "percentage" ? `-${coupon.discount_value}%` : `-${coupon.discount_value.toLocaleString("fr-FR")} FCFA`}
-                        </div>
-                        <p className="text-xs text-gray-500 font-medium">
-                          Dès {coupon.min_order_amount.toLocaleString("fr-FR")} FCFA d&apos;achat
-                          {coupon.max_discount_amount && (
-                            <span className="block text-[10px] text-gray-400">Plafond : {coupon.max_discount_amount.toLocaleString("fr-FR")} FCFA</span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Usage Progress */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-xs font-bold text-gray-600">
-                          <span>Utilisations :</span>
-                          <span className="font-mono text-gray-900">{coupon.used_count || 0} / {coupon.usage_limit}</span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all ${usagePercent >= 90 ? "bg-red-500" : "bg-pink-500"}`} 
-                            style={{ width: `${usagePercent}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-50 p-3 rounded-2xl text-[11px] text-gray-500 flex justify-between">
-                        <span>Expire le :</span>
-                        <span className="font-bold text-gray-700">
-                          {new Date(coupon.expires_at).toLocaleDateString("fr-FR")}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => handleToggleCoupon(coupon)}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
-                          coupon.is_active ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                        }`}
-                      >
-                        {coupon.is_active ? "Mettre en pause" : "Activer"}
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteCoupon(coupon)}
-                        className="text-xs font-bold text-red-600 hover:bg-red-50 p-2 rounded-xl transition-colors cursor-pointer"
-                        title="Supprimer le coupon"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* TAB 2: LOYALTY & REFERRALS (KALAGBAN CLUB) */}
+      {/* TAB 3: LOYALTY */}
       {/* ======================================================== */}
       {activeTab === "loyalty" && (
-        <div className="space-y-8 animate-in fade-in">
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black uppercase text-gray-400">Adhérents au Club</span>
-              <p className="text-2xl font-black text-amber-600 font-mono">
-                {loyaltyAccountsCount.toLocaleString("fr-FR")}
-              </p>
-              <span className="text-[11px] text-gray-500 font-medium">Acheteurs avec compte fidélité</span>
+              <span className="text-[10px] font-black uppercase text-gray-400">Comptes Membres</span>
+              <p className="text-2xl font-black text-gray-900">{loyaltyAccountsCount}</p>
+              <span className="text-[11px] text-gray-500 font-medium">Clients inscrits au Club</span>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black uppercase text-gray-400">Points en Circulation</span>
-              <p className="text-2xl font-black text-indigo-600 font-mono">
+              <p className="text-2xl font-black text-amber-600">
                 {totalCirculatingPoints.toLocaleString("fr-FR")} <span className="text-xs">pts</span>
               </p>
-              <span className="text-[11px] text-emerald-600 font-bold">
-                Valeur : {(totalCirculatingPoints * loyaltySettings.point_value_cfa).toLocaleString("fr-FR")} FCFA
+              <span className="text-[11px] text-gray-500 font-medium">
+                Équivaut à {(totalCirculatingPoints * loyaltySettings.point_value_cfa).toLocaleString("fr-FR")} FCFA
               </span>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black uppercase text-gray-400">Points Brûlés (Burn Rate)</span>
-              <p className="text-2xl font-black text-emerald-600 font-mono">
+              <span className="text-[10px] font-black uppercase text-gray-400">Points Utilisés (Brûlés)</span>
+              <p className="text-2xl font-black text-emerald-600">
                 {totalBurnedPoints.toLocaleString("fr-FR")} <span className="text-xs">pts</span>
               </p>
               <span className="text-[11px] text-gray-500 font-medium">Convertis en réductions réelles</span>
             </div>
-
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
-              <span className="text-[10px] font-black uppercase text-gray-400">Parrainages Initiés</span>
-              <p className="text-2xl font-black text-pink-600 font-mono">
-                {recentReferrals.length}
-              </p>
-              <span className="text-[11px] text-gray-500 font-medium">Filleuls invités par des clients</span>
-            </div>
           </div>
 
-          {/* DYNAMIC SETTINGS FORM */}
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-6">
-            <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
-                <Sliders size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-gray-900">Paramétrage du Barème de Fidélité</h3>
-                <p className="text-xs text-gray-500 font-medium">Modifiez les règles de conversion des points et récompenses sans recompiler l&apos;application</p>
-              </div>
-            </div>
+          {/* Loyalty Settings Form */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-4">
+            <h2 className="font-black text-lg text-gray-900 flex items-center gap-2">
+              <Sliders size={20} className="text-amber-600" />
+              Barèmes &amp; Règles du Kalagban Club
+            </h2>
 
-            <form onSubmit={handleSaveLoyaltySettings} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <form onSubmit={handleSaveLoyaltySettings} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Points gagnés par tranche de 1 000 FCFA
-                  </label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Gain par tranche de 1 000 FCFA</label>
                   <input
                     type="number"
-                    required
                     min={1}
                     value={loyaltySettings.points_per_1000_cfa}
                     onChange={(e) => setLoyaltySettings({ ...loyaltySettings, points_per_1000_cfa: parseInt(e.target.value) || 10 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">Ex: 10 points = 10 pts offerts par tranche de 1 000 FCFA dépensés</p>
                 </div>
-
                 <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Valeur d&apos;un point au paiement (FCFA)
-                  </label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Valeur de 1 point (FCFA)</label>
                   <input
                     type="number"
-                    required
                     min={1}
                     value={loyaltySettings.point_value_cfa}
-                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, point_value_cfa: parseFloat(e.target.value) || 5 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
+                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, point_value_cfa: parseInt(e.target.value) || 5 })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">Ex: 5 FCFA = 100 points déduisent 500 FCFA du panier</p>
                 </div>
-
                 <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Seuil minimum pour utiliser ses points
-                  </label>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Seuil min de conversion (pts)</label>
                   <input
                     type="number"
-                    required
-                    min={10}
+                    min={1}
                     value={loyaltySettings.min_points_to_redeem}
                     onChange={(e) => setLoyaltySettings({ ...loyaltySettings, min_points_to_redeem: parseInt(e.target.value) || 100 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">Nombre minimum de points requis pour afficher l&apos;option au checkout</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Plafond max de réduction panier (%)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={5}
-                    max={100}
-                    value={loyaltySettings.max_discount_pct}
-                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, max_discount_pct: parseInt(e.target.value) || 30 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-1">Pourcentage maximum du total du panier payable avec des points (ex: 30%)</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Bonus au Parrain (1ère commande)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={loyaltySettings.referral_reward_referrer}
-                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, referral_reward_referrer: parseInt(e.target.value) || 500 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-1">Points crédités au parrain dès que son filleul finalise son premier achat</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-gray-700 mb-1.5">
-                    Bonus de Bienvenue au Filleul
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={loyaltySettings.referral_reward_referred}
-                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, referral_reward_referred: parseInt(e.target.value) || 250 })}
-                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-bold font-mono"
-                  />
-                  <p className="text-[11px] text-gray-400 mt-1">Points offerts au nouveau client qui s&apos;est inscrit avec un code parrain</p>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-gray-100">
+              <div className="flex justify-end pt-2">
                 <button
                   type="submit"
                   disabled={isSavingSettings}
-                  className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-amber-600/20 transition-all cursor-pointer flex items-center gap-2"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  <Check size={16} />
-                  {isSavingSettings ? "Enregistrement..." : "Mettre à jour les paramètres du Club"}
+                  {isSavingSettings ? "Enregistrement..." : "Sauvegarder les Barèmes"}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* RECENT CLUB TRANSACTIONS */}
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-            <h3 className="text-lg font-black text-gray-900">Dernières Opérations de Points de Fidélité</h3>
+          {/* Recent Loyalty Transactions & Referrals */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Transactions */}
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-3">
+              <h3 className="font-black text-sm text-gray-900 flex items-center gap-2">
+                <Award size={16} className="text-amber-600" />
+                Dernières Transactions Points ({recentTransactions.length})
+              </h3>
+              {recentTransactions.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">Aucune transaction enregistrée.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {recentTransactions.map((tx) => (
+                    <div key={tx.id} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-gray-800">{tx.description}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(tx.created_at).toLocaleDateString("fr-FR")}</p>
+                      </div>
+                      <span className={`font-black font-mono ${tx.points > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        {tx.points > 0 ? `+${tx.points}` : tx.points} pts
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            {recentTransactions.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">Aucune transaction de fidélité enregistrée pour l&apos;instant.</p>
-            ) : (
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-gray-400 font-extrabold text-[10px] uppercase tracking-wider">
-                      <th className="pb-3">Date</th>
-                      <th className="pb-3">Client ID</th>
-                      <th className="pb-3">Type</th>
-                      <th className="pb-3">Description</th>
-                      <th className="pb-3 text-right">Points</th>
-                      <th className="pb-3 text-right">Solde Après</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {recentTransactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-3 text-gray-500 font-medium">
-                          {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </td>
-                        <td className="py-3 font-mono font-bold text-gray-700">
-                          {tx.user_id ? `${tx.user_id.slice(0, 8)}...` : "—"}
-                        </td>
-                        <td className="py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            tx.points > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                          }`}>
-                            {tx.transaction_type}
-                          </span>
-                        </td>
-                        <td className="py-3 text-gray-800 font-medium">{tx.description}</td>
-                        <td className={`py-3 text-right font-black font-mono ${tx.points > 0 ? `+${tx.points}` : tx.points}`}>
-                          {tx.points > 0 ? `+${tx.points}` : tx.points} pts
-                        </td>
-                        <td className="py-3 text-right text-gray-700 font-bold font-mono">
-                          {tx.balance_after} pts
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {/* Referrals */}
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-3">
+              <h3 className="font-black text-sm text-gray-900 flex items-center gap-2">
+                <Gift size={16} className="text-pink-600" />
+                Derniers Parrainages ({recentReferrals.length})
+              </h3>
+              {recentReferrals.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6">Aucun parrainage enregistré.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {recentReferrals.map((ref) => (
+                    <div key={ref.id} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-mono font-bold text-gray-800">Code : {ref.referral_code}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(ref.created_at).toLocaleDateString("fr-FR")}</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700">
+                        {ref.status || "Validé"} (+{ref.reward_points_referrer} pts)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* TAB 3: CAMPAIGNS */}
+      {/* MODAL: CREATE SDUI PROMO CAMPAIGN */}
       {/* ======================================================== */}
-      {activeTab === "campaigns" && (
-        <div className="space-y-6 animate-in fade-in">
-          {campaigns.length === 0 ? (
-            <div className="py-16 text-center space-y-3 bg-gray-50/60 rounded-3xl border border-dashed border-gray-200">
-              <Megaphone className="mx-auto text-gray-300 w-12 h-12" />
-              <p className="text-sm font-extrabold text-gray-700">Aucune campagne en cours</p>
-              <p className="text-xs text-gray-400 max-w-sm mx-auto">
-                Planifiez des campagnes marketing ciblées pour booster la notoriété et les conversions.
-              </p>
-              <button
-                onClick={openAddCampaignModal}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              >
-                + Créer une première campagne
+      {showAddCampaignModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full space-y-5 shadow-2xl border border-gray-100 my-8">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-gray-900">Nouvelle Campagne Promotionnelle (SDUI)</h3>
+                  <p className="text-[11px] text-gray-500">Mise à jour en direct sur mobile sans recompilation</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddCampaignModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+                <X size={20} />
               </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {campaigns.map((camp) => (
-                <div key={camp.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xs space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-                        {camp.channel}
-                      </span>
-                      <h3 className="font-extrabold text-base text-gray-900 mt-1">{camp.title}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{camp.description}</p>
-                    </div>
-                    <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-black border border-emerald-200">
-                      {camp.status === "active" ? "En Cours 🟢" : camp.status}
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <span className="text-[10px] font-black text-gray-400 uppercase">Impressions Vues</span>
-                      <p className="text-xl font-black text-gray-900 mt-1">{(camp.impressions_count || 0).toLocaleString("fr-FR")}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <span className="text-[10px] font-black text-gray-400 uppercase">Clics Générés</span>
-                      <p className="text-xl font-black text-indigo-600 mt-1">{(camp.clicks_count || 0).toLocaleString("fr-FR")}</p>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <span className="text-[10px] font-black text-gray-400 uppercase">Commandes Finalisées</span>
-                      <p className="text-xl font-black text-emerald-600 mt-1">{(camp.conversions_count || 0).toLocaleString("fr-FR")}</p>
-                    </div>
+            <form onSubmit={handleCreatePromoCampaign} className="space-y-4">
+              {/* Title & Slug */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Titre de l&apos;Événement *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Spécial Rentrée Scolaire 2026"
+                    value={newPromoCampaign.title}
+                    onChange={(e) => {
+                      const t = e.target.value;
+                      setNewPromoCampaign({
+                        ...newPromoCampaign,
+                        title: t,
+                        slug: slugify(t),
+                      });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Identifiant URL (Slug) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-mono">/promo/</span>
+                    <input
+                      type="text"
+                      required
+                      value={newPromoCampaign.slug}
+                      onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, slug: slugify(e.target.value) })}
+                      className="w-full pl-18 pr-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-indigo-600"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+
+              {/* Subtitle & Badge */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Accroche / Sous-titre</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Jusqu'à -40% sur tous les kits et fournitures"
+                    value={newPromoCampaign.subtitle}
+                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, subtitle: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Badge Promo</label>
+                  <input
+                    type="text"
+                    placeholder="JUSQU'À -40%"
+                    value={newPromoCampaign.badge_text}
+                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, badge_text: e.target.value.toUpperCase() })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Theme Color & Countdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Couleur du Thème Graphique</label>
+                  <div className="flex items-center gap-2">
+                    {THEME_COLORS.map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => setNewPromoCampaign({ ...newPromoCampaign, theme_color: c.hex })}
+                        className={`w-7 h-7 rounded-full ${c.bgClass} flex items-center justify-center cursor-pointer transition-transform ${
+                          newPromoCampaign.theme_color === c.hex ? "ring-2 ring-offset-2 ring-slate-900 scale-110" : ""
+                        }`}
+                        title={c.label}
+                      >
+                        {newPromoCampaign.theme_color === c.hex && <Check size={14} className="text-white" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Compte à Rebours (Fin de Promo)</label>
+                  <input
+                    type="datetime-local"
+                    value={newPromoCampaign.countdown_end}
+                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, countdown_end: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Banner Upload */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">Affiche / Bannière Promo (1200x500 ou 500x500)</label>
+                <div className="flex items-center gap-3">
+                  <div 
+                    onClick={() => bannerFileRef.current?.click()}
+                    className="flex-1 p-3 border-2 border-dashed border-gray-200 hover:border-orange-500 rounded-2xl flex items-center justify-center gap-2 cursor-pointer bg-gray-50 hover:bg-orange-50/50 transition-colors"
+                  >
+                    <UploadCloud size={18} className="text-orange-600" />
+                    <span className="text-xs font-bold text-gray-700">
+                      {uploadingBanner ? "Téléversement en cours..." : "Glisser ou Choisir une Affiche"}
+                    </span>
+                  </div>
+                  <input
+                    ref={bannerFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleUploadBanner(f);
+                    }}
+                  />
+                </div>
+
+                {newPromoCampaign.banner_url && (
+                  <div className="mt-2 relative h-20 w-full rounded-xl overflow-hidden border border-gray-200">
+                    <Image
+                      src={newPromoCampaign.banner_url}
+                      alt="Preview"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Product Multi-Selector */}
+              <div className="space-y-2 border-t border-gray-100 pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-gray-700">Sélectionner des Produits pour cette Campagne ({selectedProducts.length})</label>
+                  <span className="text-[10px] text-gray-400 font-medium">Recherche par mot-clé</span>
+                </div>
+
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Chercher des cahiers, sacs, téléphones..."
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs"
+                  />
+                </div>
+
+                {/* Search Results list */}
+                {productSearchTerm.trim() && (
+                  <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1 bg-white">
+                    {loadingCatalog ? (
+                      <p className="text-center text-xs text-gray-400 py-2">Chargement du catalogue...</p>
+                    ) : filteredCatalog.length === 0 ? (
+                      <p className="text-center text-xs text-gray-400 py-2">Aucun produit trouvé.</p>
+                    ) : (
+                      filteredCatalog.slice(0, 10).map((prod) => {
+                        const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
+                        return (
+                          <div
+                            key={prod.id}
+                            onClick={() => toggleSelectProduct(prod)}
+                            className={`p-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
+                              isSelected ? "bg-orange-50 border border-orange-200 text-orange-900" : "hover:bg-gray-50"
+                            }`}
+                          >
+                            <span className="font-medium truncate max-w-75">{prod.title}</span>
+                            <span className="font-bold">{Number(prod.price).toLocaleString()} FCFA</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Products Badges */}
+                {selectedProducts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {selectedProducts.map((sp) => (
+                      <span
+                        key={sp.product_id}
+                        className="px-2.5 py-1 bg-orange-100 text-orange-900 rounded-full text-[10px] font-bold flex items-center gap-1.5"
+                      >
+                        {sp.title.slice(0, 20)}... (-{sp.discount_percentage}%)
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProducts(selectedProducts.filter((p) => p.product_id !== sp.product_id))}
+                          className="hover:text-red-700"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCampaignModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCampaign}
+                  className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-orange-600 to-amber-600 text-white font-bold text-xs hover:from-orange-700 hover:to-amber-700 shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingCampaign ? "Publication..." : "🚀 Publier la Campagne en Direct"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 1: ADD COUPON */}
+      {/* MODAL: ADD COUPON */}
       {/* ======================================================== */}
       {showAddCouponModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1055,7 +1523,7 @@ export default function MarketingPage() {
       )}
 
       {/* ======================================================== */}
-      {/* MODAL 2: MANUAL GESTE COMMERCIAL / ADJUSTMENT */}
+      {/* MODAL: MANUAL ADJUSTMENT */}
       {/* ======================================================== */}
       {showAdjustmentModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1124,113 +1592,6 @@ export default function MarketingPage() {
                   className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 shadow-md cursor-pointer disabled:opacity-50"
                 >
                   {isProcessingAdjustment ? "Attribution..." : "Créditer les Points"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* MODAL 3: ADD CAMPAIGN */}
-      {/* ======================================================== */}
-      {showAddCampaignModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-black text-lg text-gray-900">Nouvelle Campagne Marketing</h3>
-              <button onClick={() => setShowAddCampaignModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateCampaign} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Titre de la Campagne</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Rentrée Scolaire 2026"
-                  value={newCampaign.title}
-                  onChange={(e) => setNewCampaign({ ...newCampaign, title: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Description / Objectif</label>
-                <textarea
-                  rows={2}
-                  placeholder="Ex: Promotions flash sur les fournitures et électronique..."
-                  value={newCampaign.description}
-                  onChange={(e) => setNewCampaign({ ...newCampaign, description: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Audience Cible</label>
-                  <select
-                    value={newCampaign.target_audience}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewCampaign({ ...newCampaign, target_audience: e.target.value as "all" | "buyers" | "sellers" | "vip_buyers" })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                  >
-                    <option value="all">Tous les utilisateurs</option>
-                    <option value="buyers">Acheteurs uniquement</option>
-                    <option value="sellers">Vendeurs uniquement</option>
-                    <option value="vip_buyers">Membres VIP Platine</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Canal de Diffusion</label>
-                  <select
-                    value={newCampaign.channel}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewCampaign({ ...newCampaign, channel: e.target.value as "banner" | "push_notification" | "push_and_banner" })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                  >
-                    <option value="push_and_banner">Bannière + Push</option>
-                    <option value="banner">Bannière Web/Mobile</option>
-                    <option value="push_notification">Notification Push</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Date de Début</label>
-                  <input
-                    type="date"
-                    required
-                    value={newCampaign.starts_at}
-                    onChange={(e) => setNewCampaign({ ...newCampaign, starts_at: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Date de Fin</label>
-                  <input
-                    type="date"
-                    value={newCampaign.ends_at}
-                    onChange={(e) => setNewCampaign({ ...newCampaign, ends_at: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCampaignModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 shadow-md cursor-pointer"
-                >
-                  Activer la Campagne
                 </button>
               </div>
             </form>
