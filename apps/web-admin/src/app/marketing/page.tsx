@@ -719,8 +719,10 @@ export default function MarketingPage() {
       setShowAddCampaignModal(false);
       fetchMarketingData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur lors de la création de la campagne.";
-      toast.error(msg);
+      console.error("Erreur création campagne promo:", err);
+      const postgrestErr = err as { message?: string; details?: string; hint?: string };
+      const msg = postgrestErr?.message || (err instanceof Error ? err.message : "Erreur lors de la création de la campagne.");
+      toast.error(msg, "Échec de Publication");
     } finally {
       setIsSubmittingCampaign(false);
     }
