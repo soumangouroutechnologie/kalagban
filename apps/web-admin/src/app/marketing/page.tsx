@@ -718,6 +718,34 @@ export default function MarketingPage() {
 
         await supabase.from("campaign_products").delete().eq("campaign_id", createdCamp.id);
         await supabase.from("campaign_products").insert(payload);
+
+        // Dispatch notifications to vendors
+        try {
+          const prodIds = selectedProducts.map((p) => p.product_id);
+          const { data: prodsWithShop } = await supabase
+            .from("products")
+            .select("id, title, shop_id")
+            .in("id", prodIds);
+
+          if (prodsWithShop && prodsWithShop.length > 0) {
+            const notifs = prodsWithShop
+              .filter((p) => p.shop_id)
+              .map((p) => ({
+                seller_id: p.shop_id,
+                title: "🎉 Produit en Campagne Promo !",
+                message: `Votre produit "${p.title}" a été sélectionné pour la campagne promotionnelle "${newPromoCampaign.title}".`,
+                type: "marketing_promo",
+                reference_id: `campaign_${createdCamp.id}`,
+                is_read: false,
+              }));
+
+            if (notifs.length > 0) {
+              await supabase.from("seller_notifications").insert(notifs);
+            }
+          }
+        } catch (notifErr) {
+          console.warn("Could not dispatch seller promo notifications:", notifErr);
+        }
       }
 
       toast.success(

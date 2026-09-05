@@ -44,6 +44,14 @@ interface DashboardOrder {
   created_at: string;
 }
 
+interface ActiveCampaignInfo {
+  id: string;
+  title: string;
+  badge_text?: string;
+  slug?: string;
+  theme_color?: string;
+}
+
 export default function SellerDashboardScreen() {
   const router = useRouter();
   const { shop, user, loading: authLoading } = useAuth();
@@ -67,6 +75,8 @@ export default function SellerDashboardScreen() {
 
   const [recentProducts, setRecentProducts] = useState<DashboardProduct[]>([]);
   const [recentOrders, setRecentOrders] = useState<DashboardOrder[]>([]);
+  const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaignInfo[]>([]);
+  const [myParticipatingCount, setMyParticipatingCount] = useState<number>(0);
 
   const fetchDashboardData = async () => {
     try {
@@ -114,6 +124,27 @@ export default function SellerDashboardScreen() {
           outOfStockCount: outOfStock,
         }));
         setRecentProducts(prods.slice(0, 4) as DashboardProduct[]);
+
+        // 3. Fetch Active Marketing Campaigns & Participating Products
+        const { data: activeCamps } = await supabase
+          .from('promotional_campaigns')
+          .select('id, title, badge_text, slug, theme_color')
+          .eq('status', 'active')
+          .limit(3);
+
+        if (activeCamps && activeCamps.length > 0 && prods.length > 0) {
+          const prodIds = prods.map(p => p.id);
+          const { data: cpData } = await supabase
+            .from('campaign_products')
+            .select('id, product_id')
+            .in('product_id', prodIds);
+
+          setMyParticipatingCount(cpData?.length || 0);
+          setActiveCampaigns(activeCamps);
+        } else {
+          setActiveCampaigns(activeCamps || []);
+          setMyParticipatingCount(0);
+        }
       }
     } catch (err) {
       console.error('Error fetching seller dashboard:', err);
@@ -231,6 +262,42 @@ export default function SellerDashboardScreen() {
             <Text style={styles.kpiValue}>{stats.outOfStockCount}</Text>
           </View>
         </View>
+
+        {/* Campagnes & Événements Kalagban Card */}
+        {activeCampaigns.length > 0 && (
+          <View style={styles.campaignsCard}>
+            <View style={styles.campaignsCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={18} color="#EA580C" />
+                <Text style={styles.campaignsCardTitle}>Événements Promo en Direct</Text>
+              </View>
+              <View style={[styles.campaignsCountBadge, myParticipatingCount > 0 && styles.campaignsCountBadgeActive]}>
+                <Text style={[styles.campaignsCountText, myParticipatingCount > 0 && styles.campaignsCountTextActive]}>
+                  {myParticipatingCount > 0
+                    ? `🔥 ${myParticipatingCount} produit${myParticipatingCount > 1 ? 's' : ''} en promo`
+                    : 'Campagnes Actives'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.campaignsList}>
+              {activeCampaigns.map((c) => (
+                <View key={c.id} style={styles.campaignItemRow}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.campaignItemTitle} numberOfLines={1}>{c.title}</Text>
+                    <View style={styles.campaignBadgePill}>
+                      <Text style={styles.campaignBadgePillText}>{c.badge_text || 'OFFRE SPÉCIALE'}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.campaignLivePill}>
+                    <View style={styles.liveGreenDot} />
+                    <Text style={styles.liveGreenText}>Actif</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Commandes Récentes Urgent Block */}
         <View style={styles.recentOrdersCard}>
@@ -512,6 +579,93 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  campaignsCard: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginBottom: 24,
+  },
+  campaignsCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  campaignsCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#9A3412',
+  },
+  campaignsCountBadge: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  campaignsCountBadgeActive: {
+    backgroundColor: '#EA580C',
+  },
+  campaignsCountText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#C2410C',
+  },
+  campaignsCountTextActive: {
+    color: '#FFFFFF',
+  },
+  campaignsList: {
+    gap: 8,
+  },
+  campaignItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  campaignItemTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  campaignBadgePill: {
+    backgroundColor: '#FFEDD5',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginTop: 2,
+  },
+  campaignBadgePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#EA580C',
+  },
+  campaignLivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  liveGreenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  liveGreenText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#16A34A',
   },
   recentOrdersCard: {
     backgroundColor: '#FFFFFF',

@@ -39,11 +39,19 @@ interface ProductItem {
   product_media?: { url: string }[];
 }
 
+interface ProductPromoInfo {
+  campaign_title: string;
+  discount_percentage: number;
+  special_price?: number;
+  stock_allocated: number;
+}
+
 export default function SellerProductsScreen() {
   const router = useRouter();
   const { shop, user } = useAuth();
 
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [productPromos, setProductPromos] = useState<Map<string, ProductPromoInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -79,6 +87,33 @@ export default function SellerProductsScreen() {
       if (!error && data) {
         setProducts(data as ProductItem[]);
       }
+
+      // Fetch Active Promotional Campaigns linked to these products
+      const { data: promoData } = await supabase
+        .from('campaign_products')
+        .select(`
+          product_id,
+          discount_percentage,
+          special_price,
+          stock_allocated,
+          promotional_campaigns ( title, status )
+        `);
+
+      const promoMap = new Map<string, ProductPromoInfo>();
+      if (promoData) {
+        promoData.forEach((item: any) => {
+          if (item.promotional_campaigns?.status === 'active') {
+            promoMap.set(item.product_id, {
+              campaign_title: item.promotional_campaigns.title,
+              discount_percentage: Number(item.discount_percentage) || 20,
+              special_price: item.special_price ? Number(item.special_price) : undefined,
+              stock_allocated: Number(item.stock_allocated) || 50,
+            });
+          }
+        });
+      }
+      setProductPromos(promoMap);
+
     } catch (err) {
       console.error('Error fetching products:', err);
     } finally {
@@ -93,6 +128,12 @@ export default function SellerProductsScreen() {
     const channel = supabase
       .channel("mobile_seller_products_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        fetchProducts();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "campaign_products" }, () => {
+        fetchProducts();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "promotional_campaigns" }, () => {
         fetchProducts();
       })
       .subscribe();
@@ -303,8 +344,27 @@ export default function SellerProductsScreen() {
 
                     <Text style={styles.productTitle} numberOfLines={1}>{p.title}</Text>
                     
+                    {/* Active Promo Campaign Badge */}
+                    {productPromos.has(p.id) && (() => {
+                      const promo = productPromos.get(p.id)!;
+                      return (
+                        <View style={styles.promoBadgeContainer}>
+                          <View style={styles.promoTagBadge}>
+                            <Text style={styles.promoTagText} numberOfLines={1}>
+                              🔥 {promo.campaign_title} (-{promo.discount_percentage}%)
+                            </Text>
+                          </View>
+                          {promo.special_price ? (
+                            <Text style={styles.promoPriceDetail}>
+                              Prix Promo Mobile : {Number(promo.special_price).toLocaleString('fr-FR')} F
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })()}
+
                     <View style={styles.priceRow}>
-                      <Text style={styles.productPrice}>
+                      <Text style={[styles.productPrice, productPromos.has(p.id) && styles.productPriceWithPromo]}>
                         {Number(p.price).toLocaleString('fr-FR')} FCFA
                       </Text>
                       {!!p.old_price && (
@@ -593,6 +653,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     color: '#4F46E5',
+  },
+  productPriceWithPromo: {
+    color: '#EA580C',
+  },
+  promoBadgeContainer: {
+    marginVertical: 3,
+    gap: 2,
+  },
+  promoTagBadge: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  promoTagText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#C2410C',
+  },
+  promoPriceDetail: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#EA580C',
   },
   productOldPrice: {
     fontSize: 12,

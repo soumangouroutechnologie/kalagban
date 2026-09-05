@@ -35,6 +35,7 @@ interface Product extends SellerProduct {
 export default function ProductsPage() {
   const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
+  const [productPromos, setProductPromos] = useState<Map<string, { campaign_title: string; discount_percentage: number; special_price?: number; stock_allocated: number }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -88,6 +89,32 @@ export default function ProductsPage() {
             images: p.product_media ? p.product_media.map(m => m.url) : [],
           }));
           setProducts(formatted);
+
+          // Fetch Active Promotional Campaigns linked to these products
+          const { data: promoData } = await supabase
+            .from('campaign_products')
+            .select(`
+              product_id,
+              discount_percentage,
+              special_price,
+              stock_allocated,
+              promotional_campaigns ( title, status )
+            `);
+
+          const promoMap = new Map<string, { campaign_title: string; discount_percentage: number; special_price?: number; stock_allocated: number }>();
+          if (promoData) {
+            promoData.forEach((item: any) => {
+              if (item.promotional_campaigns?.status === 'active') {
+                promoMap.set(item.product_id, {
+                  campaign_title: item.promotional_campaigns.title,
+                  discount_percentage: Number(item.discount_percentage) || 20,
+                  special_price: item.special_price ? Number(item.special_price) : undefined,
+                  stock_allocated: Number(item.stock_allocated) || 50,
+                });
+              }
+            });
+          }
+          setProductPromos(promoMap);
         }
       } catch (error) {
         console.error("Error loading products:", error);
@@ -340,7 +367,24 @@ export default function ProductsPage() {
                             <ImageIcon size={20} />
                           )}
                         </div>
-                        <span className="font-bold text-text-main line-clamp-1">{product.title}</span>
+                        <div>
+                          <span className="font-bold text-text-main line-clamp-1">{product.title}</span>
+                          {productPromos.has(product.id) && (() => {
+                            const promo = productPromos.get(product.id)!;
+                            return (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-100 text-orange-800 border border-orange-200">
+                                  🔥 {promo.campaign_title} (-{promo.discount_percentage}%)
+                                </span>
+                                {promo.special_price && (
+                                  <span className="text-[10px] font-bold text-orange-600">
+                                    Promo: {promo.special_price.toLocaleString("fr-FR")} F
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </td>
 
