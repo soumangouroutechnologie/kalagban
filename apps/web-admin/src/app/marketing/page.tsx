@@ -17,7 +17,8 @@ import {
   Sparkles,
   Copy,
   UploadCloud,
-  Radio
+  Radio,
+  Package
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
@@ -62,9 +63,15 @@ interface Campaign {
 interface ProductOption {
   id: string;
   title: string;
+  description?: string;
   price: number;
+  old_price?: number;
   images?: string[];
+  product_media?: { url: string }[];
+  image_url?: string;
+  category?: string;
   category_id?: string;
+  stock_quantity?: number;
 }
 
 interface SelectedCampaignProduct {
@@ -182,6 +189,7 @@ export default function MarketingPage() {
   const [catalogProducts, setCatalogProducts] = useState<ProductOption[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [globalDiscountPct, setGlobalDiscountPct] = useState(25);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const bannerFileRef = useRef<HTMLInputElement>(null);
   const [isSubmittingCampaign, setIsSubmittingCampaign] = useState(false);
@@ -199,6 +207,14 @@ export default function MarketingPage() {
       .replace(/--+/g, "-");
   };
 
+  // Helper get product image
+  const getProductImage = (p: ProductOption | SelectedCampaignProduct) => {
+    if ("image_url" in p && p.image_url) return p.image_url;
+    if ("images" in p && Array.isArray(p.images) && p.images.length > 0) return p.images[0];
+    if ("product_media" in p && Array.isArray(p.product_media) && p.product_media.length > 0) return p.product_media[0].url;
+    return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80";
+  };
+
   const openAddCouponModal = () => {
     const today = new Date();
     const in30Days = new Date(today.getTime() + 30 * 86400000);
@@ -208,6 +224,53 @@ export default function MarketingPage() {
     }));
     setShowAddCouponModal(true);
   };
+
+  // Fetch catalog products with dynamic query & search
+  const fetchCatalogProducts = useCallback(async (term = "") => {
+    setLoadingCatalog(true);
+    try {
+      let query = supabase
+        .from("products")
+        .select("*, product_media(url)")
+        .order("created_at", { ascending: false })
+        .limit(60);
+
+      if (term.trim()) {
+        const clean = term.trim();
+        query = query.or(`title.ilike.%${clean}%,description.ilike.%${clean}%,category.ilike.%${clean}%`);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        setCatalogProducts(data as unknown as ProductOption[]);
+      } else {
+        // Fallback simple query
+        const { data: fallbackData } = await supabase
+          .from("products")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(60);
+
+        if (fallbackData) {
+          if (term.trim()) {
+            const lower = term.toLowerCase();
+            const filtered = fallbackData.filter((p: { title?: string; description?: string; category?: string }) => 
+              (p.title && p.title.toLowerCase().includes(lower)) ||
+              (p.description && p.description.toLowerCase().includes(lower)) ||
+              (p.category && p.category.toLowerCase().includes(lower))
+            );
+            setCatalogProducts(filtered as unknown as ProductOption[]);
+          } else {
+            setCatalogProducts(fallbackData as unknown as ProductOption[]);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Erreur chargement catalogue:", err);
+    } finally {
+      setLoadingCatalog(false);
+    }
+  }, []);
 
   const openAddCampaignModal = async () => {
     const today = new Date();
@@ -224,24 +287,21 @@ export default function MarketingPage() {
       is_featured_home: true,
     });
     setSelectedProducts([]);
+    setProductSearchTerm("");
     setShowAddCampaignModal(true);
 
-    // Fetch catalog products
-    if (catalogProducts.length === 0) {
-      setLoadingCatalog(true);
-      try {
-        const { data: prods } = await supabase
-          .from("products")
-          .select("id, title, price, images, category_id")
-          .limit(100);
-        if (prods) setCatalogProducts(prods as unknown as ProductOption[]);
-      } catch (err) {
-        console.error("Erreur chargement catalogue:", err);
-      } finally {
-        setLoadingCatalog(false);
-      }
-    }
+    // Initial load of products
+    fetchCatalogProducts("");
   };
+
+  // Debounced search on typing
+  useEffect(() => {
+    if (!showAddCampaignModal) return;
+    const timer = setTimeout(() => {
+      fetchCatalogProducts(productSearchTerm);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [productSearchTerm, showAddCampaignModal, fetchCatalogProducts]);
 
   const fetchMarketingData = useCallback(async () => {
     try {
@@ -529,25 +589,76 @@ export default function MarketingPage() {
     }
   };
 
-  // Add Product to selected list
+  // Toggle select product
   const toggleSelectProduct = (prod: ProductOption) => {
     const exists = selectedProducts.find((p) => p.product_id === prod.id);
     if (exists) {
       setSelectedProducts(selectedProducts.filter((p) => p.product_id !== prod.id));
     } else {
+      const discount = globalDiscountPct || 25;
+      const originalPrice = Number(prod.price) || 0;
+      const specialPrice = Math.round(originalPrice * (1 - discount / 100));
+
       setSelectedProducts([
         ...selectedProducts,
         {
           product_id: prod.id,
           title: prod.title,
-          price: prod.price,
-          discount_percentage: 20,
-          special_price: Math.round(prod.price * 0.8),
+          price: originalPrice,
+          discount_percentage: discount,
+          special_price: specialPrice,
           stock_allocated: 50,
-          image_url: prod.images?.[0] || "",
+          image_url: getProductImage(prod),
         },
       ]);
     }
+  };
+
+  // Update specific product discount in grid
+  const updateProductDiscount = (productId: string, discount: number) => {
+    setSelectedProducts((prev) =>
+      prev.map((item) => {
+        if (item.product_id === productId) {
+          const cleanPct = Math.max(1, Math.min(99, discount));
+          const calculatedPrice = Math.round(item.price * (1 - cleanPct / 100));
+          return {
+            ...item,
+            discount_percentage: cleanPct,
+            special_price: calculatedPrice,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Update specific product stock quota in grid
+  const updateProductStock = (productId: string, stock: number) => {
+    setSelectedProducts((prev) =>
+      prev.map((item) => {
+        if (item.product_id === productId) {
+          return {
+            ...item,
+            stock_allocated: Math.max(1, stock),
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Apply bulk discount to all selected products
+  const applyBulkDiscount = () => {
+    if (selectedProducts.length === 0) return;
+    const cleanPct = Math.max(1, Math.min(99, globalDiscountPct));
+    setSelectedProducts((prev) =>
+      prev.map((item) => ({
+        ...item,
+        discount_percentage: cleanPct,
+        special_price: Math.round(item.price * (1 - cleanPct / 100)),
+      }))
+    );
+    toast.success(`Remise de -${cleanPct}% appliquée à tous les ${selectedProducts.length} articles !`);
   };
 
   // Save Promo Campaign
@@ -602,7 +713,7 @@ export default function MarketingPage() {
       }
 
       toast.success(
-        `La campagne "${newPromoCampaign.title}" est en ligne sur /promo/${finalSlug} !`,
+        `La campagne "${newPromoCampaign.title}" avec ${selectedProducts.length} produits est en ligne sur /promo/${finalSlug} !`,
         "Campagne SDUI Publiée"
       );
       setShowAddCampaignModal(false);
@@ -670,11 +781,6 @@ export default function MarketingPage() {
 
   const filteredCoupons = coupons.filter(c => 
     c.code.toLowerCase().includes(searchFilter.toLowerCase())
-  );
-
-  const filteredCatalog = catalogProducts.filter(p =>
-    p.title.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-    (p.category_id && p.category_id.toLowerCase().includes(productSearchTerm.toLowerCase()))
   );
 
   return (
@@ -1168,7 +1274,7 @@ export default function MarketingPage() {
       {/* ======================================================== */}
       {showAddCampaignModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full space-y-5 shadow-2xl border border-gray-100 my-8">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-3xl w-full space-y-5 shadow-2xl border border-gray-100 my-8">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black">
@@ -1302,7 +1408,7 @@ export default function MarketingPage() {
                 </div>
 
                 {newPromoCampaign.banner_url && (
-                  <div className="mt-2 relative h-20 w-full rounded-xl overflow-hidden border border-gray-200">
+                  <div className="mt-2 relative h-24 w-full rounded-xl overflow-hidden border border-gray-200">
                     <Image
                       src={newPromoCampaign.banner_url}
                       alt="Preview"
@@ -1314,68 +1420,227 @@ export default function MarketingPage() {
                 )}
               </div>
 
-              {/* Product Multi-Selector */}
-              <div className="space-y-2 border-t border-gray-100 pt-3">
+              {/* SECTION: SELECTIONNER DES PRODUITS DANS LE CATALOGUE */}
+              <div className="space-y-3 border-t border-gray-100 pt-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-gray-700">Sélectionner des Produits pour cette Campagne ({selectedProducts.length})</label>
-                  <span className="text-[10px] text-gray-400 font-medium">Recherche par mot-clé</span>
+                  <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                    <Package size={15} className="text-orange-600" />
+                    1. Sélectionner les Produits du Catalogue
+                  </label>
+                  <span className="text-[11px] text-gray-500 font-medium">
+                    {catalogProducts.length} produit{catalogProducts.length > 1 ? "s" : ""} disponible{catalogProducts.length > 1 ? "s" : ""}
+                  </span>
                 </div>
 
+                {/* Barre de Recherche Dynamique */}
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
+                  <Search size={15} className="absolute left-3.5 top-3 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Chercher des cahiers, sacs, téléphones..."
+                    placeholder="Rechercher un produit par titre ou catégorie (ex: meuble, sac, kit, cahier, téléphone)..."
                     value={productSearchTerm}
                     onChange={(e) => setProductSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs"
+                    className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
                   />
+                  {productSearchTerm.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearchTerm("")}
+                      className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
 
-                {/* Search Results list */}
-                {productSearchTerm.trim() && (
-                  <div className="max-h-36 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1 bg-white">
-                    {loadingCatalog ? (
-                      <p className="text-center text-xs text-gray-400 py-2">Chargement du catalogue...</p>
-                    ) : filteredCatalog.length === 0 ? (
-                      <p className="text-center text-xs text-gray-400 py-2">Aucun produit trouvé.</p>
-                    ) : (
-                      filteredCatalog.slice(0, 10).map((prod) => {
-                        const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
-                        return (
-                          <div
-                            key={prod.id}
-                            onClick={() => toggleSelectProduct(prod)}
-                            className={`p-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
-                              isSelected ? "bg-orange-50 border border-orange-200 text-orange-900" : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <span className="font-medium truncate max-w-75">{prod.title}</span>
-                            <span className="font-bold">{Number(prod.price).toLocaleString()} FCFA</span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+                {/* Liste des produits trouvés (scrollable avec photos et boutons) */}
+                <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-2xl p-2 space-y-1.5 bg-gray-50/50 custom-scrollbar">
+                  {loadingCatalog ? (
+                    <div className="text-center py-6 space-y-1">
+                      <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-[11px] text-gray-400 font-medium">Recherche dans la base de données...</p>
+                    </div>
+                  ) : catalogProducts.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 space-y-1">
+                      <p className="text-xs font-bold text-gray-600">Aucun produit trouvé pour &quot;{productSearchTerm}&quot;</p>
+                      <p className="text-[10px]">Vérifiez l&apos;orthographe ou essayez un mot plus général.</p>
+                    </div>
+                  ) : (
+                    catalogProducts.map((prod) => {
+                      const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
+                      const imgUrl = getProductImage(prod);
 
-                {/* Selected Products Badges */}
-                {selectedProducts.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {selectedProducts.map((sp) => (
-                      <span
-                        key={sp.product_id}
-                        className="px-2.5 py-1 bg-orange-100 text-orange-900 rounded-full text-[10px] font-bold flex items-center gap-1.5"
-                      >
-                        {sp.title.slice(0, 20)}... (-{sp.discount_percentage}%)
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProducts(selectedProducts.filter((p) => p.product_id !== sp.product_id))}
-                          className="hover:text-red-700"
+                      return (
+                        <div
+                          key={prod.id}
+                          onClick={() => toggleSelectProduct(prod)}
+                          className={`p-2.5 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-orange-100/70 border border-orange-300 text-orange-950 shadow-2xs"
+                              : "bg-white hover:bg-orange-50/50 border border-gray-100"
+                          }`}
                         >
-                          <X size={12} />
-                        </button>
-                      </span>
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 relative shrink-0 border border-gray-200">
+                              <Image
+                                src={imgUrl}
+                                alt={prod.title}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                            <div className="truncate">
+                              <p className="font-bold text-gray-900 truncate">{prod.title}</p>
+                              <p className="text-[10px] text-gray-500 font-medium">
+                                Catégorie : {prod.category || prod.category_id || "Général"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-extrabold text-gray-900">
+                              {Number(prod.price).toLocaleString()} FCFA
+                            </span>
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-orange-600 text-white"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}>
+                              {isSelected ? (
+                                <>
+                                  <Check size={12} /> Ajouté
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={12} /> Ajouter
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION: DISPOSITION DE LA GRILLE DES PRODUITS SÉLECTIONNÉS */}
+              <div className="space-y-3 border-t border-gray-100 pt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                      <Sparkles size={15} className="text-amber-500" />
+                      2. Disposition de la Grille Promo ({selectedProducts.length} articles)
+                    </label>
+                    <p className="text-[10px] text-gray-500">
+                      Voici les cartes de produits qui composeront la grille dans l&apos;application mobile.
+                    </p>
+                  </div>
+
+                  {/* Outil de remise globale */}
+                  {selectedProducts.length > 0 && (
+                    <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto">
+                      <span className="text-[10px] font-bold text-gray-600">Remise globale :</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={globalDiscountPct}
+                          onChange={(e) => setGlobalDiscountPct(parseInt(e.target.value) || 20)}
+                          className="w-12 px-1.5 py-0.5 rounded-lg bg-white border border-gray-300 text-[11px] font-bold text-center"
+                        />
+                        <span className="text-[11px] font-bold">%</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={applyBulkDiscount}
+                        className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 cursor-pointer"
+                      >
+                        Appliquer à tous
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {selectedProducts.length === 0 ? (
+                  <div className="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center space-y-1 bg-gray-50/40">
+                    <p className="text-xs font-bold text-gray-600">Aucun produit dans la grille pour le moment</p>
+                    <p className="text-[11px] text-gray-400">
+                      Cliquez sur &quot;+ Ajouter&quot; dans la liste du catalogue ci-dessus pour composer votre sélection.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto p-1 custom-scrollbar">
+                    {selectedProducts.map((sp) => (
+                      <div
+                        key={sp.product_id}
+                        className="p-3 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-2 relative"
+                      >
+                        {/* Top info */}
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden relative shrink-0 border border-gray-100">
+                            <Image
+                              src={sp.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600"}
+                              alt={sp.title}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0 pr-6">
+                            <p className="font-bold text-xs text-gray-900 truncate">{sp.title}</p>
+                            <p className="text-[11px] text-gray-400 line-through">
+                              {Number(sp.price).toLocaleString()} FCFA
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProducts(selectedProducts.filter((p) => p.product_id !== sp.product_id))}
+                            className="absolute top-2.5 right-2.5 text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 cursor-pointer"
+                            title="Retirer de la grille"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {/* Controls: Remise % + Stock quota */}
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100 text-[10px]">
+                          <div>
+                            <label className="text-gray-500 font-bold block mb-0.5">Remise (%)</label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                max={99}
+                                value={sp.discount_percentage}
+                                onChange={(e) => updateProductDiscount(sp.product_id, parseInt(e.target.value) || 1)}
+                                className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold text-orange-600"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-gray-500 font-bold block mb-0.5">Stock Quota</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={sp.stock_allocated}
+                              onChange={(e) => updateProductStock(sp.product_id, parseInt(e.target.value) || 1)}
+                              className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Computed Special Price Badge */}
+                        <div className="bg-orange-50/80 p-2 rounded-xl flex items-center justify-between text-xs">
+                          <span className="text-[10px] font-bold text-orange-900">Prix Promo Mobile :</span>
+                          <span className="font-black text-orange-600">
+                            {Number(sp.special_price).toLocaleString()} FCFA
+                          </span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1392,10 +1657,10 @@ export default function MarketingPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingCampaign}
+                  disabled={isSubmittingCampaign || selectedProducts.length === 0}
                   className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-orange-600 to-amber-600 text-white font-bold text-xs hover:from-orange-700 hover:to-amber-700 shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmittingCampaign ? "Publication..." : "🚀 Publier la Campagne en Direct"}
+                  {isSubmittingCampaign ? "Publication..." : `🚀 Publier la Grille (${selectedProducts.length} articles)`}
                 </button>
               </div>
             </form>
