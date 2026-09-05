@@ -101,9 +101,20 @@ export default function ProductsPage() {
               promotional_campaigns ( title, status )
             `);
 
+          interface PromoCampaignRecord {
+            product_id: string;
+            discount_percentage?: number | null;
+            special_price?: number | null;
+            stock_allocated?: number | null;
+            promotional_campaigns?: {
+              title: string;
+              status: string;
+            } | null;
+          }
+
           const promoMap = new Map<string, { campaign_title: string; discount_percentage: number; special_price?: number; stock_allocated: number }>();
           if (promoData) {
-            promoData.forEach((item: any) => {
+            (promoData as unknown as PromoCampaignRecord[]).forEach((item) => {
               if (item.promotional_campaigns?.status === 'active') {
                 promoMap.set(item.product_id, {
                   campaign_title: item.promotional_campaigns.title,
