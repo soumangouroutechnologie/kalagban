@@ -96,22 +96,23 @@ export default function DynamicPromoCampaignScreen() {
         .maybeSingle();
 
       let currentCampaign: CampaignData | null = campaignData;
+      let campaignEnded = false;
 
-      // Fallback if not found in promotional_campaigns (e.g. rentree-scolaire generic)
-      if (!currentCampaign) {
+      if (!currentCampaign || currentCampaign.status === 'ended') {
+        campaignEnded = true;
         const formattedTitle = slug
           .replace(/-/g, ' ')
           .replace(/\b\w/g, (c) => c.toUpperCase());
 
         currentCampaign = {
-          id: `fallback-${slug}`,
+          id: currentCampaign?.id || `ended-${slug}`,
           slug: slug,
-          title: `🎒 Spécial ${formattedTitle}`,
-          subtitle: 'Découvrez notre sélection exclusive aux meilleurs tarifs !',
-          badge_text: 'OFFRE LIMITÉE',
-          theme_color: '#E65100',
-          countdown_end: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
-          status: 'active',
+          title: currentCampaign?.title || `Campagne ${formattedTitle}`,
+          subtitle: "Cette offre promotionnelle a pris fin. Découvrez nos autres articles du moment ci-dessous !",
+          badge_text: 'OFFRE TERMINÉE',
+          theme_color: '#475569',
+          countdown_end: undefined,
+          status: 'ended',
         };
       }
 
@@ -371,42 +372,50 @@ export default function DynamicPromoCampaignScreen() {
             {/* COUNTDOWN TIMER BAR */}
             <View style={styles.countdownBar}>
               <View style={styles.countdownHeader}>
-                <Clock size={16} color="#DC2626" />
-                <Text style={styles.countdownTitle}>Temps restant :</Text>
+                <Clock size={16} color={campaign?.status === 'ended' ? "#64748B" : "#DC2626"} />
+                <Text style={[styles.countdownTitle, campaign?.status === 'ended' && { color: "#64748B" }]}>
+                  {campaign?.status === 'ended' ? "Statut de l'offre :" : "Temps restant :"}
+                </Text>
               </View>
-              <View style={styles.timerDigitsRow}>
-                {timeLeft.days > 0 && (
-                  <>
-                    <View style={styles.digitBox}>
-                      <Text style={styles.digitNumber}>
-                        {String(timeLeft.days).padStart(2, '0')}
-                      </Text>
-                      <Text style={styles.digitUnit}>j</Text>
-                    </View>
-                    <Text style={styles.digitSep}>:</Text>
-                  </>
-                )}
-                <View style={styles.digitBox}>
-                  <Text style={styles.digitNumber}>
-                    {String(timeLeft.hours).padStart(2, '0')}
-                  </Text>
-                  <Text style={styles.digitUnit}>h</Text>
+              {campaign?.status === 'ended' ? (
+                <View style={[styles.digitBox, { paddingHorizontal: 12, backgroundColor: '#F1F5F9' }]}>
+                  <Text style={[styles.digitNumber, { fontSize: 11, color: '#64748B' }]}>Offre Clôturée</Text>
                 </View>
-                <Text style={styles.digitSep}>:</Text>
-                <View style={styles.digitBox}>
-                  <Text style={styles.digitNumber}>
-                    {String(timeLeft.minutes).padStart(2, '0')}
-                  </Text>
-                  <Text style={styles.digitUnit}>m</Text>
+              ) : (
+                <View style={styles.timerDigitsRow}>
+                  {timeLeft.days > 0 && (
+                    <>
+                      <View style={styles.digitBox}>
+                        <Text style={styles.digitNumber}>
+                          {String(timeLeft.days).padStart(2, '0')}
+                        </Text>
+                        <Text style={styles.digitUnit}>j</Text>
+                      </View>
+                      <Text style={styles.digitSep}>:</Text>
+                    </>
+                  )}
+                  <View style={styles.digitBox}>
+                    <Text style={styles.digitNumber}>
+                      {String(timeLeft.hours).padStart(2, '0')}
+                    </Text>
+                    <Text style={styles.digitUnit}>h</Text>
+                  </View>
+                  <Text style={styles.digitSep}>:</Text>
+                  <View style={styles.digitBox}>
+                    <Text style={styles.digitNumber}>
+                      {String(timeLeft.minutes).padStart(2, '0')}
+                    </Text>
+                    <Text style={styles.digitUnit}>m</Text>
+                  </View>
+                  <Text style={styles.digitSep}>:</Text>
+                  <View style={styles.digitBoxHighlight}>
+                    <Text style={styles.digitNumberHighlight}>
+                      {String(timeLeft.seconds).padStart(2, '0')}
+                    </Text>
+                    <Text style={styles.digitUnitHighlight}>s</Text>
+                  </View>
                 </View>
-                <Text style={styles.digitSep}>:</Text>
-                <View style={styles.digitBoxHighlight}>
-                  <Text style={styles.digitNumberHighlight}>
-                    {String(timeLeft.seconds).padStart(2, '0')}
-                  </Text>
-                  <Text style={styles.digitUnitHighlight}>s</Text>
-                </View>
-              </View>
+              )}
             </View>
 
             {/* CATEGORY TABS HORIZONTAL SCROLLER */}
