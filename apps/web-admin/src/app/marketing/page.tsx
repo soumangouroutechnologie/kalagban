@@ -822,40 +822,40 @@ export default function MarketingPage() {
   );
 
   return (
-    <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
+    <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-linear-to-br from-pink-500 to-rose-600 text-white rounded-2xl flex items-center justify-center font-black shadow-md shadow-pink-500/20">
-            <Megaphone size={24} />
+          <div className="w-11 h-11 sm:w-12 sm:h-12 bg-linear-to-br from-pink-500 to-rose-600 text-white rounded-2xl flex items-center justify-center font-black shadow-md shadow-pink-500/20 shrink-0">
+            <Megaphone size={22} className="sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Marketing &amp; Campagnes Promo</h1>
-            <p className="text-xs text-gray-500 font-medium">
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Marketing &amp; Campagnes Promo</h1>
+            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
               Gestionnaire d&apos;événements promotionnels dynamiques (Server-Driven UI), bons d&apos;achat et fidélité.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           {activeTab === "loyalty" ? (
             <button
               onClick={() => setShowAdjustmentModal(true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-amber-600/20 transition-all"
+              className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-amber-600/20 transition-all text-center"
             >
               <Gift size={16} /> Geste Commercial / Crédit
             </button>
           ) : activeTab === "campaigns" ? (
             <button
               onClick={openAddCampaignModal}
-              className="bg-linear-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-600/20 transition-all active:scale-[0.98]"
+              className="w-full sm:w-auto bg-linear-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-600/20 transition-all active:scale-[0.98] text-center"
             >
               <Plus size={16} /> + Nouvelle Campagne Promo (SDUI)
             </button>
           ) : (
             <button
               onClick={openAddCouponModal}
-              className="bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-pink-600/20 transition-all"
+              className="w-full sm:w-auto bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-pink-600/20 transition-all text-center"
             >
               <Plus size={16} /> Créer un Code Promo
             </button>
@@ -867,35 +867,35 @@ export default function MarketingPage() {
       <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab("campaigns")}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "campaigns"
               ? "bg-slate-900 text-white shadow-sm"
               : "text-gray-600 hover:bg-gray-100"
           }`}
         >
-          <Sparkles size={16} className="text-amber-400" /> Campagnes &amp; Pages Promo ({campaigns.length})
+          <Sparkles size={15} className="text-amber-400" /> Campagnes &amp; Pages Promo ({campaigns.length})
         </button>
 
         <button
           onClick={() => setActiveTab("coupons")}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "coupons"
               ? "bg-slate-900 text-white shadow-sm"
               : "text-gray-600 hover:bg-gray-100"
           }`}
         >
-          <Ticket size={16} /> Codes Promo &amp; Bons d&apos;Achat ({coupons.length})
+          <Ticket size={15} /> Codes Promo &amp; Bons d&apos;Achat ({coupons.length})
         </button>
 
         <button
           onClick={() => setActiveTab("loyalty")}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+          className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "loyalty"
               ? "bg-slate-900 text-white shadow-sm"
               : "text-gray-600 hover:bg-gray-100"
           }`}
         >
-          <Award size={16} /> Club Fidélité &amp; Parrainage ({loyaltyAccountsCount})
+          <Award size={15} /> Club Fidélité &amp; Parrainage ({loyaltyAccountsCount})
         </button>
       </div>
 
@@ -905,7 +905,7 @@ export default function MarketingPage() {
       {activeTab === "campaigns" && (
         <div className="space-y-6 animate-in fade-in">
           {/* Banner Promo explanation */}
-          <div className="bg-linear-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-3xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-700 shadow-lg">
+          <div className="bg-linear-to-r from-slate-900 via-slate-800 to-indigo-950 p-5 sm:p-6 rounded-2xl sm:rounded-3xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-700 shadow-lg">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-orange-500/30 text-orange-400 text-[10px] font-black uppercase tracking-wider border border-orange-500/40">
@@ -913,14 +913,14 @@ export default function MarketingPage() {
                 </span>
                 <span className="text-xs text-gray-300">Zéro recompilation mobile</span>
               </div>
-              <h2 className="text-lg font-black tracking-tight">Créez des pages d&apos;événements promotionnels en 2 minutes</h2>
+              <h2 className="text-base sm:text-lg font-black tracking-tight">Créez des pages d&apos;événements promotionnels en 2 minutes</h2>
               <p className="text-xs text-slate-300 max-w-2xl">
                 Ajoutez un compte à rebours, une affiche personnalisée et vos kits de produits. Les applications mobiles et web se mettent à jour instantanément sans passer par les stores.
               </p>
             </div>
             <button
               onClick={openAddCampaignModal}
-              className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-2 shrink-0"
+              className="w-full sm:w-auto px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 shrink-0"
             >
               <Plus size={16} /> + Créer un Événement
             </button>
@@ -950,7 +950,7 @@ export default function MarketingPage() {
                 return (
                   <div 
                     key={camp.id} 
-                    className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
+                    className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
                   >
                     {/* Top Hero Banner */}
                     <div 
@@ -985,9 +985,9 @@ export default function MarketingPage() {
                     </div>
 
                     {/* Body */}
-                    <div className="p-5 space-y-4 flex-1">
+                    <div className="p-4 sm:p-5 space-y-4 flex-1">
                       {/* Deep Link & Countdown */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         <div className="bg-gray-50 p-2.5 rounded-xl">
                           <span className="text-[10px] font-black text-gray-400 uppercase block">Lien Mobile &amp; Web</span>
                           <span className="font-mono font-bold text-indigo-600 truncate block mt-0.5">/promo/{slug}</span>
@@ -1004,7 +1004,7 @@ export default function MarketingPage() {
 
                       {/* Action buttons */}
                       <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => handleCopyLink(slug)}
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1055,7 +1055,7 @@ export default function MarketingPage() {
         <div className="space-y-6">
           {/* KPI CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+            <div className="bg-white p-5 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black uppercase text-gray-400">Codes Actifs</span>
               <p className="text-2xl font-black text-gray-900">
                 {coupons.filter(c => c.is_active).length} <span className="text-xs font-bold text-gray-400">/ {coupons.length}</span>
@@ -1063,7 +1063,7 @@ export default function MarketingPage() {
               <span className="text-[11px] text-emerald-600 font-bold">Prêts à l&apos;emploi au checkout</span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+            <div className="bg-white p-5 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black uppercase text-gray-400">Utilisations Cumulées</span>
               <p className="text-2xl font-black text-indigo-600">
                 {coupons.reduce((acc, c) => acc + (c.used_count || 0), 0).toLocaleString("fr-FR")}
@@ -1071,7 +1071,7 @@ export default function MarketingPage() {
               <span className="text-[11px] text-gray-500 font-medium">Commandes validées avec coupon</span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+            <div className="bg-white p-5 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black uppercase text-gray-400">Économies Accordées</span>
               <p className="text-2xl font-black text-pink-600">
                 {totalCouponSavings.toLocaleString("fr-FR")} <span className="text-xs">FCFA</span>
@@ -1079,7 +1079,7 @@ export default function MarketingPage() {
               <span className="text-[11px] text-gray-500 font-medium">Pouvoir d&apos;achat offert aux clients</span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-xs space-y-1">
+            <div className="bg-white p-5 rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs space-y-1">
               <span className="text-[10px] font-black uppercase text-gray-400">Panier Min Moyen</span>
               <p className="text-2xl font-black text-gray-900">
                 {coupons.length > 0 
@@ -1103,20 +1103,21 @@ export default function MarketingPage() {
           </div>
 
           {/* Coupons Table */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50/80 text-gray-400 font-black uppercase text-[10px] border-b border-gray-100">
-                <tr>
-                  <th className="p-4">Code Réduction</th>
-                  <th className="p-4">Type &amp; Remise</th>
-                  <th className="p-4">Conditions</th>
-                  <th className="p-4">Utilisations</th>
-                  <th className="p-4">Expiration</th>
-                  <th className="p-4">Statut</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-xs min-w-[650px]">
+                <thead className="bg-gray-50/80 text-gray-400 font-black uppercase text-[10px] border-b border-gray-100">
+                  <tr>
+                    <th className="p-4">Code Réduction</th>
+                    <th className="p-4">Type &amp; Remise</th>
+                    <th className="p-4">Conditions</th>
+                    <th className="p-4">Utilisations</th>
+                    <th className="p-4">Expiration</th>
+                    <th className="p-4">Statut</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
                 {filteredCoupons.map((coupon) => (
                   <tr key={coupon.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="p-4">
@@ -1164,6 +1165,7 @@ export default function MarketingPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -1311,426 +1313,436 @@ export default function MarketingPage() {
       {/* MODAL: CREATE SDUI PROMO CAMPAIGN */}
       {/* ======================================================== */}
       {showAddCampaignModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-3xl w-full space-y-5 shadow-2xl border border-gray-100 my-8">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black">
-                  <Sparkles size={18} />
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full max-h-[94vh] sm:max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6 shrink-0 bg-white">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center font-black shrink-0 shadow-xs">
+                  <Sparkles size={18} className="sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-gray-900">Nouvelle Campagne Promotionnelle (SDUI)</h3>
-                  <p className="text-[11px] text-gray-500">Mise à jour en direct sur mobile sans recompilation</p>
+                  <h3 className="font-black text-sm sm:text-base text-gray-900 leading-tight">Nouvelle Campagne Promotionnelle (SDUI)</h3>
+                  <p className="text-[10px] sm:text-xs text-gray-500">Mise à jour en direct sur mobile sans recompilation</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddCampaignModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X size={20} />
+              <button 
+                onClick={() => setShowAddCampaignModal(false)} 
+                className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreatePromoCampaign} className="space-y-4">
-              {/* Title & Slug */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Titre de l&apos;Événement *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Spécial Rentrée Scolaire 2026"
-                    value={newPromoCampaign.title}
-                    onChange={(e) => {
-                      const t = e.target.value;
-                      setNewPromoCampaign({
-                        ...newPromoCampaign,
-                        title: t,
-                        slug: slugify(t),
-                      });
-                    }}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Identifiant URL (Slug) *</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-mono">/promo/</span>
+            {/* Modal Scrollable Form Body */}
+            <form onSubmit={handleCreatePromoCampaign} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 custom-scrollbar">
+                {/* Title & Slug */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Titre de l&apos;Événement *</label>
                     <input
                       type="text"
                       required
-                      value={newPromoCampaign.slug}
-                      onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, slug: slugify(e.target.value) })}
-                      className="w-full pl-18 pr-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-indigo-600"
+                      placeholder="Ex: Spécial Rentrée Scolaire 2026"
+                      value={newPromoCampaign.title}
+                      onChange={(e) => {
+                        const t = e.target.value;
+                        setNewPromoCampaign({
+                          ...newPromoCampaign,
+                          title: t,
+                          slug: slugify(t),
+                        });
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Subtitle & Badge */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Accroche / Sous-titre</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Jusqu'à -40% sur tous les kits et fournitures"
-                    value={newPromoCampaign.subtitle}
-                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, subtitle: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Badge Promo</label>
-                  <input
-                    type="text"
-                    placeholder="JUSQU'À -40%"
-                    value={newPromoCampaign.badge_text}
-                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, badge_text: e.target.value.toUpperCase() })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold uppercase"
-                  />
-                </div>
-              </div>
-
-              {/* Theme Color & Countdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Couleur du Thème Graphique</label>
-                  <div className="flex items-center gap-2">
-                    {THEME_COLORS.map((c) => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => setNewPromoCampaign({ ...newPromoCampaign, theme_color: c.hex })}
-                        className={`w-7 h-7 rounded-full ${c.bgClass} flex items-center justify-center cursor-pointer transition-transform ${
-                          newPromoCampaign.theme_color === c.hex ? "ring-2 ring-offset-2 ring-slate-900 scale-110" : ""
-                        }`}
-                        title={c.label}
-                      >
-                        {newPromoCampaign.theme_color === c.hex && <Check size={14} className="text-white" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-gray-700">Compte à Rebours (Fin de Promo)</label>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setDurationPreset(1)}
-                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
-                      >
-                        24h
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDurationPreset(3)}
-                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
-                      >
-                        3j
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDurationPreset(7)}
-                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
-                      >
-                        7j
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDurationPreset(15)}
-                        className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer"
-                      >
-                        15j
-                      </button>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Identifiant URL (Slug) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-mono">/promo/</span>
+                      <input
+                        type="text"
+                        required
+                        value={newPromoCampaign.slug}
+                        onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, slug: slugify(e.target.value) })}
+                        className="w-full pl-18 pr-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-indigo-600 focus:outline-hidden focus:border-indigo-500 focus:bg-white transition-all"
+                      />
                     </div>
                   </div>
-                  <input
-                    type="datetime-local"
-                    value={newPromoCampaign.countdown_end}
-                    onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, countdown_end: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Banner Upload */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Affiche / Bannière Promo (1200x500 ou 500x500)</label>
-                <div className="flex items-center gap-3">
-                  <div 
-                    onClick={() => bannerFileRef.current?.click()}
-                    className="flex-1 p-3 border-2 border-dashed border-gray-200 hover:border-orange-500 rounded-2xl flex items-center justify-center gap-2 cursor-pointer bg-gray-50 hover:bg-orange-50/50 transition-colors"
-                  >
-                    <UploadCloud size={18} className="text-orange-600" />
-                    <span className="text-xs font-bold text-gray-700">
-                      {uploadingBanner ? "Téléversement en cours..." : "Glisser ou Choisir une Affiche"}
-                    </span>
-                  </div>
-                  <input
-                    ref={bannerFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleUploadBanner(f);
-                    }}
-                  />
                 </div>
 
-                {newPromoCampaign.banner_url && (
-                  <div className="mt-2 relative h-24 w-full rounded-xl overflow-hidden border border-gray-200">
-                    <Image
-                      src={newPromoCampaign.banner_url}
-                      alt="Preview"
-                      fill
-                      className="object-cover"
-                      unoptimized
+                {/* Subtitle & Badge */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Accroche / Sous-titre</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Jusqu'à -40% sur tous les kits et fournitures"
+                      value={newPromoCampaign.subtitle}
+                      onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, subtitle: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
                     />
                   </div>
-                )}
-              </div>
-
-              {/* SECTION: SELECTIONNER DES PRODUITS DANS LE CATALOGUE */}
-              <div className="space-y-3 border-t border-gray-100 pt-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
-                    <Package size={15} className="text-orange-600" />
-                    1. Sélectionner les Produits du Catalogue
-                  </label>
-                  <span className="text-[11px] text-gray-500 font-medium">
-                    {catalogProducts.length} produit{catalogProducts.length > 1 ? "s" : ""} disponible{catalogProducts.length > 1 ? "s" : ""}
-                  </span>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Badge Promo</label>
+                    <input
+                      type="text"
+                      placeholder="JUSQU'À -40%"
+                      value={newPromoCampaign.badge_text}
+                      onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, badge_text: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold uppercase focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                  </div>
                 </div>
 
-                {/* Barre de Recherche Dynamique */}
-                <div className="relative">
-                  <Search size={15} className="absolute left-3.5 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher un produit par titre ou catégorie (ex: meuble, sac, kit, cahier, téléphone)..."
-                    value={productSearchTerm}
-                    onChange={(e) => setProductSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
-                  />
-                  {productSearchTerm.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => setProductSearchTerm("")}
-                      className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                {/* Theme Color & Countdown */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5">Couleur du Thème Graphique</label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {THEME_COLORS.map((c) => (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          onClick={() => setNewPromoCampaign({ ...newPromoCampaign, theme_color: c.hex })}
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full ${c.bgClass} flex items-center justify-center cursor-pointer transition-transform ${
+                            newPromoCampaign.theme_color === c.hex ? "ring-2 ring-offset-2 ring-slate-900 scale-110 shadow-xs" : "hover:scale-105"
+                          }`}
+                          title={c.label}
+                        >
+                          {newPromoCampaign.theme_color === c.hex && <Check size={14} className="text-white" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                      <label className="text-[11px] font-bold text-gray-700">Compte à Rebours (Fin de Promo)</label>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDurationPreset(1)}
+                          className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer transition-colors"
+                        >
+                          24h
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDurationPreset(3)}
+                          className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer transition-colors"
+                        >
+                          3j
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDurationPreset(7)}
+                          className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer transition-colors"
+                        >
+                          7j
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDurationPreset(15)}
+                          className="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-orange-100 hover:text-orange-700 text-[9px] font-bold text-gray-600 cursor-pointer transition-colors"
+                        >
+                          15j
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="datetime-local"
+                      value={newPromoCampaign.countdown_end}
+                      onChange={(e) => setNewPromoCampaign({ ...newPromoCampaign, countdown_end: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Banner Upload */}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Affiche / Bannière Promo (1200x500 ou 500x500)</label>
+                  <div className="flex items-center gap-3">
+                    <div 
+                      onClick={() => bannerFileRef.current?.click()}
+                      className="flex-1 p-3 border-2 border-dashed border-gray-200 hover:border-orange-500 rounded-2xl flex items-center justify-center gap-2 cursor-pointer bg-gray-50 hover:bg-orange-50/50 transition-colors"
                     >
-                      <X size={14} />
-                    </button>
+                      <UploadCloud size={18} className="text-orange-600 shrink-0" />
+                      <span className="text-xs font-bold text-gray-700 text-center">
+                        {uploadingBanner ? "Téléversement en cours..." : "Glisser ou Choisir une Affiche"}
+                      </span>
+                    </div>
+                    <input
+                      ref={bannerFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadBanner(f);
+                      }}
+                    />
+                  </div>
+
+                  {newPromoCampaign.banner_url && (
+                    <div className="mt-2 relative h-24 sm:h-28 w-full rounded-xl overflow-hidden border border-gray-200 shadow-2xs">
+                      <Image
+                        src={newPromoCampaign.banner_url}
+                        alt="Preview"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
                   )}
                 </div>
 
-                {/* Liste des produits trouvés (scrollable avec photos et boutons) */}
-                <div className="max-h-52 overflow-y-auto border border-gray-200 rounded-2xl p-2 space-y-1.5 bg-gray-50/50 custom-scrollbar">
-                  {loadingCatalog ? (
-                    <div className="text-center py-6 space-y-1">
-                      <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                      <p className="text-[11px] text-gray-400 font-medium">Recherche dans la base de données...</p>
+                {/* SECTION 1: CATALOGUE SELECTION */}
+                <div className="space-y-2.5 border-t border-gray-100 pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                      <Package size={15} className="text-orange-600" />
+                      1. Sélectionner les Produits du Catalogue
+                    </label>
+                    <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
+                      {catalogProducts.length} produit{catalogProducts.length > 1 ? "s" : ""} disponible{catalogProducts.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3.5 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher un produit par titre ou catégorie (ex: meuble, sac, kit, cahier, téléphone)..."
+                      value={productSearchTerm}
+                      onChange={(e) => setProductSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                    {productSearchTerm.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setProductSearchTerm("")}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Catalog List */}
+                  <div className="max-h-48 sm:max-h-56 overflow-y-auto border border-gray-200 rounded-2xl p-2 space-y-1.5 bg-gray-50/50 custom-scrollbar">
+                    {loadingCatalog ? (
+                      <div className="text-center py-6 space-y-1">
+                        <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                        <p className="text-[11px] text-gray-400 font-medium">Recherche dans la base de données...</p>
+                      </div>
+                    ) : catalogProducts.length === 0 ? (
+                      <div className="text-center py-6 text-gray-400 space-y-1">
+                        <p className="text-xs font-bold text-gray-600">Aucun produit trouvé pour &quot;{productSearchTerm}&quot;</p>
+                        <p className="text-[10px]">Vérifiez l&apos;orthographe ou essayez un mot plus général.</p>
+                      </div>
+                    ) : (
+                      catalogProducts.map((prod) => {
+                        const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
+                        const imgUrl = getProductImage(prod);
+
+                        return (
+                          <div
+                            key={prod.id}
+                            onClick={() => toggleSelectProduct(prod)}
+                            className={`p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? "bg-orange-100/70 border border-orange-300 text-orange-950 shadow-2xs"
+                                : "bg-white hover:bg-orange-50/50 border border-gray-100"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 relative shrink-0 border border-gray-200">
+                                <Image
+                                  src={imgUrl}
+                                  alt={prod.title}
+                                  fill
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                              </div>
+                              <div className="truncate min-w-0">
+                                <p className="font-bold text-gray-900 truncate">{prod.title}</p>
+                                <p className="text-[10px] text-gray-500 font-medium truncate">
+                                  Catégorie : {prod.category || prod.category_id || "Général"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                              <span className="font-extrabold text-gray-900">
+                                {Number(prod.price).toLocaleString()} FCFA
+                              </span>
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-orange-600 text-white"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              }`}>
+                                {isSelected ? (
+                                  <>
+                                    <Check size={12} /> Ajouté
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={12} /> Ajouter
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 2: GRID LAYOUT */}
+                <div className="space-y-2.5 border-t border-gray-100 pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                        <Sparkles size={15} className="text-amber-500" />
+                        2. Disposition de la Grille Promo ({selectedProducts.length} articles)
+                      </label>
+                      <p className="text-[10px] text-gray-500">
+                        Voici les cartes de produits qui composeront la grille dans l&apos;application mobile.
+                      </p>
                     </div>
-                  ) : catalogProducts.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400 space-y-1">
-                      <p className="text-xs font-bold text-gray-600">Aucun produit trouvé pour &quot;{productSearchTerm}&quot;</p>
-                      <p className="text-[10px]">Vérifiez l&apos;orthographe ou essayez un mot plus général.</p>
+
+                    {selectedProducts.length > 0 && (
+                      <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto flex-wrap">
+                        <span className="text-[10px] font-bold text-gray-600">Remise globale :</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={globalDiscountPct}
+                            onChange={(e) => setGlobalDiscountPct(parseInt(e.target.value) || 20)}
+                            className="w-12 px-1.5 py-0.5 rounded-lg bg-white border border-gray-300 text-[11px] font-bold text-center"
+                          />
+                          <span className="text-[11px] font-bold">%</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={applyBulkDiscount}
+                          className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 cursor-pointer"
+                        >
+                          Appliquer à tous
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedProducts.length === 0 ? (
+                    <div className="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center space-y-1 bg-gray-50/40">
+                      <p className="text-xs font-bold text-gray-600">Aucun produit dans la grille pour le moment</p>
+                      <p className="text-[11px] text-gray-400">
+                        Cliquez sur &quot;+ Ajouter&quot; dans la liste du catalogue ci-dessus pour composer votre sélection.
+                      </p>
                     </div>
                   ) : (
-                    catalogProducts.map((prod) => {
-                      const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
-                      const imgUrl = getProductImage(prod);
-
-                      return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 sm:max-h-64 overflow-y-auto p-1 custom-scrollbar">
+                      {selectedProducts.map((sp) => (
                         <div
-                          key={prod.id}
-                          onClick={() => toggleSelectProduct(prod)}
-                          className={`p-2.5 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer transition-all ${
-                            isSelected
-                              ? "bg-orange-100/70 border border-orange-300 text-orange-950 shadow-2xs"
-                              : "bg-white hover:bg-orange-50/50 border border-gray-100"
-                          }`}
+                          key={sp.product_id}
+                          className="p-3 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-2 relative"
                         >
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 relative shrink-0 border border-gray-200">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden relative shrink-0 border border-gray-100">
                               <Image
-                                src={imgUrl}
-                                alt={prod.title}
+                                src={sp.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600"}
+                                alt={sp.title}
                                 fill
                                 className="object-cover"
                                 unoptimized
                               />
                             </div>
-                            <div className="truncate">
-                              <p className="font-bold text-gray-900 truncate">{prod.title}</p>
-                              <p className="text-[10px] text-gray-500 font-medium">
-                                Catégorie : {prod.category || prod.category_id || "Général"}
+                            <div className="flex-1 min-w-0 pr-6">
+                              <p className="font-bold text-xs text-gray-900 truncate">{sp.title}</p>
+                              <p className="text-[11px] text-gray-400 line-through">
+                                {Number(sp.price).toLocaleString()} FCFA
                               </p>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProducts(selectedProducts.filter((p) => p.product_id !== sp.product_id))}
+                              className="absolute top-2.5 right-2.5 text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 cursor-pointer"
+                              title="Retirer de la grille"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
 
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="font-extrabold text-gray-900">
-                              {Number(prod.price).toLocaleString()} FCFA
-                            </span>
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-orange-600 text-white"
-                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            }`}>
-                              {isSelected ? (
-                                <>
-                                  <Check size={12} /> Ajouté
-                                </>
-                              ) : (
-                                <>
-                                  <Plus size={12} /> Ajouter
-                                </>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100 text-[10px]">
+                            <div>
+                              <label className="text-gray-500 font-bold block mb-0.5">Remise (%)</label>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={99}
+                                  value={sp.discount_percentage}
+                                  onChange={(e) => updateProductDiscount(sp.product_id, parseInt(e.target.value) || 1)}
+                                  className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold text-orange-600"
+                                />
+                              </div>
+                            </div>
 
-              {/* SECTION: DISPOSITION DE LA GRILLE DES PRODUITS SÉLECTIONNÉS */}
-              <div className="space-y-3 border-t border-gray-100 pt-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="text-xs font-black text-gray-900 flex items-center gap-1.5">
-                      <Sparkles size={15} className="text-amber-500" />
-                      2. Disposition de la Grille Promo ({selectedProducts.length} articles)
-                    </label>
-                    <p className="text-[10px] text-gray-500">
-                      Voici les cartes de produits qui composeront la grille dans l&apos;application mobile.
-                    </p>
-                  </div>
-
-                  {/* Outil de remise globale */}
-                  {selectedProducts.length > 0 && (
-                    <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto">
-                      <span className="text-[10px] font-bold text-gray-600">Remise globale :</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min={1}
-                          max={99}
-                          value={globalDiscountPct}
-                          onChange={(e) => setGlobalDiscountPct(parseInt(e.target.value) || 20)}
-                          className="w-12 px-1.5 py-0.5 rounded-lg bg-white border border-gray-300 text-[11px] font-bold text-center"
-                        />
-                        <span className="text-[11px] font-bold">%</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={applyBulkDiscount}
-                        className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 cursor-pointer"
-                      >
-                        Appliquer à tous
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {selectedProducts.length === 0 ? (
-                  <div className="p-6 border-2 border-dashed border-gray-200 rounded-2xl text-center space-y-1 bg-gray-50/40">
-                    <p className="text-xs font-bold text-gray-600">Aucun produit dans la grille pour le moment</p>
-                    <p className="text-[11px] text-gray-400">
-                      Cliquez sur &quot;+ Ajouter&quot; dans la liste du catalogue ci-dessus pour composer votre sélection.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto p-1 custom-scrollbar">
-                    {selectedProducts.map((sp) => (
-                      <div
-                        key={sp.product_id}
-                        className="p-3 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-2 relative"
-                      >
-                        {/* Top info */}
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden relative shrink-0 border border-gray-100">
-                            <Image
-                              src={sp.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600"}
-                              alt={sp.title}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0 pr-6">
-                            <p className="font-bold text-xs text-gray-900 truncate">{sp.title}</p>
-                            <p className="text-[11px] text-gray-400 line-through">
-                              {Number(sp.price).toLocaleString()} FCFA
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProducts(selectedProducts.filter((p) => p.product_id !== sp.product_id))}
-                            className="absolute top-2.5 right-2.5 text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50 cursor-pointer"
-                            title="Retirer de la grille"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-
-                        {/* Controls: Remise % + Stock quota */}
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100 text-[10px]">
-                          <div>
-                            <label className="text-gray-500 font-bold block mb-0.5">Remise (%)</label>
-                            <div className="flex items-center gap-1">
+                            <div>
+                              <label className="text-gray-500 font-bold block mb-0.5">Stock Quota</label>
                               <input
                                 type="number"
                                 min={1}
-                                max={99}
-                                value={sp.discount_percentage}
-                                onChange={(e) => updateProductDiscount(sp.product_id, parseInt(e.target.value) || 1)}
-                                className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold text-orange-600"
+                                value={sp.stock_allocated}
+                                onChange={(e) => updateProductStock(sp.product_id, parseInt(e.target.value) || 1)}
+                                className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold"
                               />
                             </div>
                           </div>
 
-                          <div>
-                            <label className="text-gray-500 font-bold block mb-0.5">Stock Quota</label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={sp.stock_allocated}
-                              onChange={(e) => updateProductStock(sp.product_id, parseInt(e.target.value) || 1)}
-                              className="w-full px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 font-bold"
-                            />
+                          <div className="bg-orange-50/80 p-2 rounded-xl flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-orange-900">Prix Promo Mobile :</span>
+                            <span className="font-black text-orange-600">
+                              {Number(sp.special_price).toLocaleString()} FCFA
+                            </span>
                           </div>
                         </div>
-
-                        {/* Computed Special Price Badge */}
-                        <div className="bg-orange-50/80 p-2 rounded-xl flex items-center justify-between text-xs">
-                          <span className="text-[10px] font-bold text-orange-900">Prix Promo Mobile :</span>
-                          <span className="font-black text-orange-600">
-                            {Number(sp.special_price).toLocaleString()} FCFA
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Submit Buttons */}
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              {/* Pinned Modal Footer */}
+              <div className="p-4 sm:p-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 shrink-0 bg-gray-50/70">
                 <button
                   type="button"
                   onClick={() => setShowAddCampaignModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 cursor-pointer"
+                  className="w-full sm:w-1/3 py-2.5 sm:py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer transition-colors text-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingCampaign || selectedProducts.length === 0}
-                  className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-orange-600 to-amber-600 text-white font-bold text-xs hover:from-orange-700 hover:to-amber-700 shadow-md cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-2/3 py-2.5 sm:py-3 rounded-xl bg-linear-to-r from-orange-600 to-amber-600 text-white font-bold text-xs hover:from-orange-700 hover:to-amber-700 shadow-md cursor-pointer disabled:opacity-50 transition-all text-center flex items-center justify-center gap-2"
                 >
-                  {isSubmittingCampaign ? "Publication..." : `🚀 Publier la Grille (${selectedProducts.length} articles)`}
+                  {isSubmittingCampaign ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Publication en cours...
+                    </>
+                  ) : (
+                    `🚀 Publier la Grille (${selectedProducts.length} articles)`
+                  )}
                 </button>
               </div>
             </form>
@@ -1742,112 +1754,117 @@ export default function MarketingPage() {
       {/* MODAL: ADD COUPON */}
       {/* ======================================================== */}
       {showAddCouponModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-black text-lg text-gray-900">Nouveau Code Promo</h3>
-              <button onClick={() => setShowAddCouponModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X size={20} />
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6 shrink-0 bg-white">
+              <h3 className="font-black text-base sm:text-lg text-gray-900">Nouveau Code Promo</h3>
+              <button 
+                onClick={() => setShowAddCouponModal(false)} 
+                className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCoupon} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Code Réduction</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: BIENVENUE20"
-                  value={newCoupon.code}
-                  onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold uppercase"
-                />
+            <form onSubmit={handleCreateCoupon} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 custom-scrollbar">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Code Réduction</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: BIENVENUE20"
+                    value={newCoupon.code}
+                    onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold uppercase focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Type de Remise</label>
+                    <select
+                      value={newCoupon.discount_type}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewCoupon({ ...newCoupon, discount_type: e.target.value as "percentage" | "fixed_amount" })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    >
+                      <option value="percentage">Pourcentage (%)</option>
+                      <option value="fixed_amount">Montant Fixe (FCFA)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Valeur</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={newCoupon.discount_value}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, discount_value: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Panier Minimum (FCFA)</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={newCoupon.min_order_amount}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, min_order_amount: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Plafond Max Remise (FCFA)</label>
+                    <input
+                      type="number"
+                      placeholder="Optionnel"
+                      value={newCoupon.max_discount_amount || ""}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, max_discount_amount: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Limite d&apos;utilisations</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={newCoupon.usage_limit}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, usage_limit: parseInt(e.target.value) || 100 })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">Date d&apos;Expiration</label>
+                    <input
+                      type="date"
+                      required
+                      value={newCoupon.expires_at}
+                      onChange={(e) => setNewCoupon({ ...newCoupon, expires_at: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Type de Remise</label>
-                  <select
-                    value={newCoupon.discount_type}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewCoupon({ ...newCoupon, discount_type: e.target.value as "percentage" | "fixed_amount" })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold"
-                  >
-                    <option value="percentage">Pourcentage (%)</option>
-                    <option value="fixed_amount">Montant Fixe (FCFA)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Valeur</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={newCoupon.discount_value}
-                    onChange={(e) => setNewCoupon({ ...newCoupon, discount_value: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Panier Minimum (FCFA)</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={newCoupon.min_order_amount}
-                    onChange={(e) => setNewCoupon({ ...newCoupon, min_order_amount: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Plafond Max Remise (FCFA)</label>
-                  <input
-                    type="number"
-                    placeholder="Optionnel"
-                    value={newCoupon.max_discount_amount || ""}
-                    onChange={(e) => setNewCoupon({ ...newCoupon, max_discount_amount: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Limite d&apos;utilisations</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={newCoupon.usage_limit}
-                    onChange={(e) => setNewCoupon({ ...newCoupon, usage_limit: parseInt(e.target.value) || 100 })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Date d&apos;Expiration</label>
-                  <input
-                    type="date"
-                    required
-                    value={newCoupon.expires_at}
-                    onChange={(e) => setNewCoupon({ ...newCoupon, expires_at: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <div className="p-4 sm:p-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 shrink-0 bg-gray-50/70">
                 <button
                   type="button"
                   onClick={() => setShowAddCouponModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 cursor-pointer"
+                  className="w-full sm:w-1/2 py-2.5 sm:py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer transition-colors text-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-pink-600 text-white font-bold text-xs hover:bg-pink-700 shadow-md cursor-pointer"
+                  className="w-full sm:w-1/2 py-2.5 sm:py-3 rounded-xl bg-pink-600 text-white font-bold text-xs hover:bg-pink-700 shadow-md cursor-pointer transition-all text-center"
                 >
                   Créer le Coupon
                 </button>
@@ -1861,70 +1878,75 @@ export default function MarketingPage() {
       {/* MODAL: MANUAL ADJUSTMENT */}
       {/* ======================================================== */}
       {showAdjustmentModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-black text-lg text-gray-900 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6 shrink-0 bg-white">
+              <h3 className="font-black text-base sm:text-lg text-gray-900 flex items-center gap-2">
                 <Gift size={20} className="text-amber-600" />
                 Geste Commercial (Points)
               </h3>
-              <button onClick={() => setShowAdjustmentModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
-                <X size={20} />
+              <button 
+                onClick={() => setShowAdjustmentModal(false)} 
+                className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleManualAdjustment} className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Email du Client</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="client@gmail.com"
-                  value={adjustmentTargetEmail}
-                  onChange={(e) => setAdjustmentTargetEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium"
-                />
+            <form onSubmit={handleManualAdjustment} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 custom-scrollbar">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Email du Client</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="client@gmail.com"
+                    value={adjustmentTargetEmail}
+                    onChange={(e) => setAdjustmentTargetEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-amber-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Points à créditer (+)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={adjustmentPoints}
+                    onChange={(e) => setAdjustmentPoints(parseInt(e.target.value) || 0)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-emerald-600 focus:outline-hidden focus:border-amber-500 focus:bg-white transition-all"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Équivaut à {(adjustmentPoints * loyaltySettings.point_value_cfa).toLocaleString("fr-FR")} FCFA de pouvoir d&apos;achat.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">Motif d&apos;Audit Obligatoire</label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Ex: Dédommagement retard de livraison commande #8204"
+                    value={adjustmentReason}
+                    onChange={(e) => setAdjustmentReason(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium resize-none focus:outline-hidden focus:border-amber-500 focus:bg-white transition-all"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Points à créditer (+)</label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={adjustmentPoints}
-                  onChange={(e) => setAdjustmentPoints(parseInt(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-mono font-bold text-emerald-600"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Équivaut à {(adjustmentPoints * loyaltySettings.point_value_cfa).toLocaleString("fr-FR")} FCFA de pouvoir d&apos;achat.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">Motif d&apos;Audit Obligatoire</label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Ex: Dédommagement retard de livraison commande #8204"
-                  value={adjustmentReason}
-                  onChange={(e) => setAdjustmentReason(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <div className="p-4 sm:p-6 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 shrink-0 bg-gray-50/70">
                 <button
                   type="button"
                   onClick={() => setShowAdjustmentModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-gray-100 font-bold text-xs hover:bg-gray-200 cursor-pointer"
+                  className="w-full sm:w-1/2 py-2.5 sm:py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-100 cursor-pointer transition-colors text-center"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
                   disabled={isProcessingAdjustment}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 shadow-md cursor-pointer disabled:opacity-50"
+                  className="w-full sm:w-1/2 py-2.5 sm:py-3 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 shadow-md cursor-pointer disabled:opacity-50 transition-all text-center"
                 >
                   {isProcessingAdjustment ? "Attribution..." : "Créditer les Points"}
                 </button>
