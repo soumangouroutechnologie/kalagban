@@ -112,6 +112,21 @@ export default function ProductDetailScreen() {
         : [DEFAULT_PRODUCT_FALLBACK];
 
       if (data) {
+        // Check for active promotional campaign special price
+        const { data: activeCp } = await supabase
+          .from('campaign_products')
+          .select('special_price, discount_percentage, promotional_campaigns!inner(status)')
+          .eq('product_id', productId)
+          .eq('promotional_campaigns.status', 'active')
+          .order('special_price', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const rawPrice = Number(data.price);
+        const hasPromo = Boolean(activeCp && activeCp.special_price && Number(activeCp.special_price) < rawPrice);
+        const finalPrice = (hasPromo && activeCp?.special_price) ? Number(activeCp.special_price) : rawPrice;
+        const finalOldPrice = hasPromo ? rawPrice : (data.old_price ? Number(data.old_price) : undefined);
+
         setProduct({
           id: data.id,
           shop_id: data.shop_id,
@@ -119,8 +134,8 @@ export default function ProductDetailScreen() {
           title: data.title,
           description: data.description,
           category: data.category,
-          price: Number(data.price),
-          old_price: data.old_price ? Number(data.old_price) : undefined,
+          price: finalPrice,
+          old_price: finalOldPrice,
           stock_quantity: data.stock_quantity || 0,
           images: mediaList,
         });

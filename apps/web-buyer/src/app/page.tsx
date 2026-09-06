@@ -297,6 +297,37 @@ export default function BuyerHomePage() {
         .eq("status", "active")
         .order("created_at", { ascending: false });
 
+      // 2. Fetch Active Promotional Campaigns (SDUI) & products
+      const { data: promoCamps } = await supabase
+        .from("promotional_campaigns")
+        .select("*")
+        .eq("status", "active")
+        .order("position", { ascending: true });
+
+      const promoProductMap = new Map<string, { special_price: number; discount_percentage: number }>();
+
+      if (promoCamps && promoCamps.length > 0) {
+        setPromotionalCampaigns(promoCamps as PromotionalCampaign[]);
+        const campIds = promoCamps.map((c) => c.id);
+        const { data: promoItems } = await supabase
+          .from("campaign_products")
+          .select("product_id, special_price, discount_percentage")
+          .in("campaign_id", campIds);
+
+        if (promoItems && promoItems.length > 0) {
+          for (const item of promoItems) {
+            if (item.product_id && item.special_price) {
+              promoProductMap.set(item.product_id, {
+                special_price: Number(item.special_price),
+                discount_percentage: Number(item.discount_percentage) || 20,
+              });
+            }
+          }
+        }
+      } else {
+        setPromotionalCampaigns([]);
+      }
+
       if (!prodErr && prodData) {
         const approvedOnly = prodData.filter((item: {
           status: string;
@@ -319,18 +350,27 @@ export default function BuyerHomePage() {
           stock_quantity: number;
           status: string;
           product_media?: { url: string }[];
-        }) => ({
-          id: item.id,
-          shop_id: item.shop_id,
-          title: item.title,
-          description: item.description,
-          category: item.category,
-          price: Number(item.price),
-          old_price: item.old_price ? Number(item.old_price) : null,
-          stock_quantity: item.stock_quantity,
-          status: item.status,
-          image_url: item.product_media && item.product_media.length > 0 ? item.product_media[0].url : null,
-        }));
+        }) => {
+          const promoInfo = promoProductMap.get(item.id);
+          const rawPrice = Number(item.price) || 0;
+          const hasPromo = Boolean(promoInfo && promoInfo.special_price && promoInfo.special_price < rawPrice);
+
+          const finalPrice = hasPromo ? promoInfo!.special_price : rawPrice;
+          const finalOldPrice = hasPromo ? rawPrice : (item.old_price ? Number(item.old_price) : null);
+
+          return {
+            id: item.id,
+            shop_id: item.shop_id,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: finalPrice,
+            old_price: finalOldPrice,
+            stock_quantity: item.stock_quantity,
+            status: item.status,
+            image_url: item.product_media && item.product_media.length > 0 ? item.product_media[0].url : null,
+          };
+        });
         setProducts(formatted);
       }
 
@@ -354,20 +394,6 @@ export default function BuyerHomePage() {
           setShops(shopData as ShopType[]);
         }
       }
-
-      // 4. Fetch Active Promotional Campaigns (SDUI)
-      const { data: promoCamps } = await supabase
-        .from("promotional_campaigns")
-        .select("*")
-        .eq("status", "active")
-        .order("position", { ascending: true });
-
-      if (promoCamps && promoCamps.length > 0) {
-        setPromotionalCampaigns(promoCamps as PromotionalCampaign[]);
-      } else {
-        setPromotionalCampaigns([]);
-      }
-
     } catch (err) {
       console.error("Unexpected error fetching homepage data:", err);
     } finally {

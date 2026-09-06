@@ -105,26 +105,64 @@ export default function DynamicPromoCampaignScreen() {
       const decodedSlug = decodeURIComponent(rawSlug).trim();
       const normalizedSlug = slugify(decodedSlug);
 
-      // 1. Search campaign with multiple candidate keys
-      const candidateKeys = Array.from(new Set([rawSlug, decodedSlug, normalizedSlug, decodedSlug.toLowerCase()])).filter(Boolean);
+      // 1. Search campaign with multiple candidate keys (Exact, normalized, decoded, title search)
       let targetCamp: CampaignData | null = null;
 
-      for (const key of candidateKeys) {
-        const { data } = await supabase
-          .from('promotional_campaigns')
-          .select('*')
-          .or(`slug.eq."${key}",id.eq."${key}",slug.ilike."%${key}%",title.ilike."%${key}%"`)
-          .limit(1)
-          .maybeSingle();
+      // A. Direct slug search (normalized)
+      const { data: byNorm } = await supabase
+        .from('promotional_campaigns')
+        .select('*')
+        .eq('slug', normalizedSlug)
+        .maybeSingle();
 
-        if (data) {
-          targetCamp = data;
-          break;
-        }
+      if (byNorm) {
+        targetCamp = byNorm;
       }
 
+      // B. Search by decoded slug
+      if (!targetCamp && decodedSlug !== normalizedSlug) {
+        const { data: byDecoded } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .eq('slug', decodedSlug)
+          .maybeSingle();
+        if (byDecoded) targetCamp = byDecoded;
+      }
+
+      // C. Search by raw slug
+      if (!targetCamp && rawSlug !== normalizedSlug && rawSlug !== decodedSlug) {
+        const { data: byRaw } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .eq('slug', rawSlug)
+          .maybeSingle();
+        if (byRaw) targetCamp = byRaw;
+      }
+
+      // D. Search by ID if valid UUID
+      if (!targetCamp && rawSlug.length === 36) {
+        const { data: byId } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .eq('id', rawSlug)
+          .maybeSingle();
+        if (byId) targetCamp = byId;
+      }
+
+      // E. Search by Title (ilike)
       if (!targetCamp) {
-        // Fallback to latest active campaign
+        const { data: byTitle } = await supabase
+          .from('promotional_campaigns')
+          .select('*')
+          .ilike('title', `%${decodedSlug}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (byTitle) targetCamp = byTitle;
+      }
+
+      // F. Fallback to latest active campaign
+      if (!targetCamp) {
         const { data: latestActive } = await supabase
           .from('promotional_campaigns')
           .select('*')

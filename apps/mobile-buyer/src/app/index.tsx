@@ -311,23 +311,54 @@ export default function MarketplaceHomeScreen() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const { data: dbProducts, error } = await supabase
-        .from('products')
-        .select(`
-          id,
-          shop_id,
-          title,
-          description,
-          category,
-          price,
-          old_price,
-          stock_quantity,
-          status,
-          moderation_status,
-          shops ( name ),
-          product_media ( url )
-        `)
-        .eq('status', 'active');
+      const [productsRes, activeCampsRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select(`
+            id,
+            shop_id,
+            title,
+            description,
+            category,
+            price,
+            old_price,
+            stock_quantity,
+            status,
+            moderation_status,
+            shops ( name ),
+            product_media ( url )
+          `)
+          .eq('status', 'active'),
+        supabase
+          .from('promotional_campaigns')
+          .select('id, status')
+          .eq('status', 'active'),
+      ]);
+
+      const dbProducts = productsRes.data;
+      const error = productsRes.error;
+      const activeCamps = activeCampsRes.data;
+
+      // Map active campaign product promo prices
+      const promoProductMap = new Map<string, { special_price: number; discount_percentage: number }>();
+      if (activeCamps && activeCamps.length > 0) {
+        const campIds = activeCamps.map((c) => c.id);
+        const { data: promoItems } = await supabase
+          .from('campaign_products')
+          .select('product_id, special_price, discount_percentage')
+          .in('campaign_id', campIds);
+
+        if (promoItems && promoItems.length > 0) {
+          for (const item of promoItems) {
+            if (item.product_id && item.special_price) {
+              promoProductMap.set(item.product_id, {
+                special_price: Number(item.special_price),
+                discount_percentage: Number(item.discount_percentage) || 20,
+              });
+            }
+          }
+        }
+      }
 
       if (!error && dbProducts) {
         const approvedOnly = dbProducts.filter((p: any) => {
@@ -337,20 +368,31 @@ export default function MarketplaceHomeScreen() {
           return p.status === "active" && isApproved && !isPending && !isRejected;
         });
 
-        const formatted: ProductItem[] = approvedOnly.map((p: any) => ({
-          id: p.id,
-          shop_id: p.shop_id,
-          shop_name: p.shops?.name || 'Boutique Partenaire',
-          title: p.title,
-          description: p.description,
-          category: p.category || '',
-          price: Number(p.price),
-          old_price: p.old_price ? Number(p.old_price) : undefined,
-          stock_quantity: p.stock_quantity || 0,
-          image_url: getSafeImageUrl(
-            p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null
-          ),
-        }));
+        const formatted: ProductItem[] = approvedOnly.map((p: any) => {
+          const promoInfo = promoProductMap.get(p.id);
+          const rawPrice = Number(p.price) || 0;
+          const hasActivePromo = Boolean(promoInfo && promoInfo.special_price && promoInfo.special_price < rawPrice);
+
+          const finalPrice = hasActivePromo ? promoInfo!.special_price : rawPrice;
+          const finalOldPrice = hasActivePromo
+            ? rawPrice
+            : p.old_price ? Number(p.old_price) : undefined;
+
+          return {
+            id: p.id,
+            shop_id: p.shop_id,
+            shop_name: p.shops?.name || 'Boutique Partenaire',
+            title: p.title,
+            description: p.description,
+            category: p.category || '',
+            price: finalPrice,
+            old_price: finalOldPrice,
+            stock_quantity: p.stock_quantity || 0,
+            image_url: getSafeImageUrl(
+              p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null
+            ),
+          };
+        });
         setProducts(formatted);
       } else {
         setProducts([]);
