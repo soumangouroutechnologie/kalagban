@@ -187,6 +187,7 @@ export default function MarketingPage() {
     is_featured_home: true,
   });
 
+  const [editingPromoCampaignId, setEditingPromoCampaignId] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedCampaignProduct[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<ProductOption[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
@@ -210,10 +211,10 @@ export default function MarketingPage() {
   };
 
   // Helper get product image
-  const getProductImage = (p: ProductOption | SelectedCampaignProduct) => {
-    if ("image_url" in p && p.image_url) return p.image_url;
+  const getProductImage = (p: ProductOption | SelectedCampaignProduct | Record<string, unknown>) => {
+    if ("image_url" in p && typeof p.image_url === "string" && p.image_url) return p.image_url;
     if ("images" in p && Array.isArray(p.images) && p.images.length > 0) return p.images[0];
-    if ("product_media" in p && Array.isArray(p.product_media) && p.product_media.length > 0) return p.product_media[0].url;
+    if ("product_media" in p && Array.isArray(p.product_media) && p.product_media.length > 0) return (p.product_media[0] as { url?: string })?.url || "";
     return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80";
   };
 
@@ -283,6 +284,7 @@ export default function MarketingPage() {
   };
 
   const openAddCampaignModal = async () => {
+    setEditingPromoCampaignId(null);
     const today = new Date();
     const in7Days = new Date(today.getTime() + 7 * 86400000);
     setNewPromoCampaign({
@@ -302,6 +304,62 @@ export default function MarketingPage() {
 
     // Initial load of products
     fetchCatalogProducts("");
+  };
+
+  // Open Edit Campaign Modal with Pre-loaded Selected Products
+  const openEditPromoCampaignModal = async (camp: Campaign) => {
+    setEditingPromoCampaignId(camp.id);
+    setNewPromoCampaign({
+      title: camp.title || "",
+      slug: camp.slug || slugify(camp.title),
+      subtitle: camp.subtitle || "",
+      badge_text: camp.badge_text || "JUSQU'À -40%",
+      theme_color: camp.theme_color || "#E65100",
+      banner_url: camp.banner_url || "",
+      countdown_end: camp.countdown_end ? new Date(camp.countdown_end).toISOString().slice(0, 16) : "",
+      status: (camp.status as "active" | "draft" | "ended") || "active",
+      is_featured_home: camp.is_featured_home ?? true,
+    });
+    setProductSearchTerm("");
+    setShowAddCampaignModal(true);
+    fetchCatalogProducts("");
+
+    // Load already linked products
+    try {
+      const { data: cpRows } = await supabase
+        .from("campaign_products")
+        .select("*, products(*, product_media(url))")
+        .eq("campaign_id", camp.id)
+        .order("position", { ascending: true });
+
+      if (cpRows && cpRows.length > 0) {
+        type CpJoinRow = (typeof cpRows)[number];
+        const loaded: SelectedCampaignProduct[] = cpRows.map((row: CpJoinRow) => {
+          const prod = (row.products as unknown as Record<string, unknown>) || {};
+          const originalPrice = Number(prod.price) || 0;
+          const discount = Number(row.discount_percentage) || 20;
+          const specialPrice = row.special_price
+            ? Number(row.special_price)
+            : Math.round(originalPrice * (1 - discount / 100));
+
+          return {
+            product_id: row.product_id,
+            title: (prod.title as string) || "Produit",
+            price: originalPrice,
+            discount_percentage: discount,
+            special_price: specialPrice,
+            stock_allocated: Number(row.stock_allocated) || 50,
+            available_stock: Number(prod.stock_quantity ?? prod.stock ?? 50),
+            image_url: getProductImage(prod),
+          };
+        });
+        setSelectedProducts(loaded);
+      } else {
+        setSelectedProducts([]);
+      }
+    } catch (err) {
+      console.error("Erreur chargement produits de la campagne:", err);
+    }
   };
 
   // Debounced search on typing
@@ -673,7 +731,7 @@ export default function MarketingPage() {
     toast.success(`Remise de -${cleanPct}% appliquée à tous les ${selectedProducts.length} articles !`);
   };
 
-  // Save Promo Campaign
+  // Save Promo Campaign (Create or Update with 100% resilient product linking)
   const handleCreatePromoCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPromoCampaign.title.trim()) {
@@ -689,39 +747,85 @@ export default function MarketingPage() {
 
     setIsSubmittingCampaign(true);
     try {
-      // 1. Insert into promotional_campaigns
-      const { data: createdCamp, error: campErr } = await supabase
-        .from("promotional_campaigns")
-        .upsert({
-          slug: finalSlug,
-          title: newPromoCampaign.title.trim(),
-          subtitle: newPromoCampaign.subtitle.trim(),
-          badge_text: newPromoCampaign.badge_text.trim(),
-          banner_url: newPromoCampaign.banner_url || null,
-          theme_color: newPromoCampaign.theme_color || "#E65100",
-          countdown_end: newPromoCampaign.countdown_end ? new Date(newPromoCampaign.countdown_end).toISOString() : null,
-          status: newPromoCampaign.status,
-          is_featured_home: newPromoCampaign.is_featured_home,
-        })
-        .select()
-        .single();
+      let targetCampaignId: string | null = editingPromoCampaignId;
 
-      if (campErr) throw campErr;
+      const campaignPayload = {
+        slug: finalSlug,
+        title: newPromoCampaign.title.trim(),
+        subtitle: newPromoCampaign.subtitle.trim(),
+        badge_text: newPromoCampaign.badge_text.trim(),
+        banner_url: newPromoCampaign.banner_url || null,
+        theme_color: newPromoCampaign.theme_color || "#E65100",
+        countdown_end: newPromoCampaign.countdown_end ? new Date(newPromoCampaign.countdown_end).toISOString() : null,
+        status: newPromoCampaign.status,
+        is_featured_home: newPromoCampaign.is_featured_home,
+        updated_at: new Date().toISOString(),
+      };
 
-      // 2. Insert linked products if any
-      if (selectedProducts.length > 0 && createdCamp?.id) {
+      // 1. If not editing by ID, check if slug already exists to prevent duplicate key constraint
+      if (!targetCampaignId) {
+        const { data: existingBySlug } = await supabase
+          .from("promotional_campaigns")
+          .select("id")
+          .eq("slug", finalSlug)
+          .maybeSingle();
+
+        if (existingBySlug?.id) {
+          targetCampaignId = existingBySlug.id;
+        }
+      }
+
+      if (targetCampaignId) {
+        const { error: updateErr } = await supabase
+          .from("promotional_campaigns")
+          .update(campaignPayload)
+          .eq("id", targetCampaignId);
+
+        if (updateErr) throw updateErr;
+      } else {
+        const { data: insertedCamp, error: insertErr } = await supabase
+          .from("promotional_campaigns")
+          .insert(campaignPayload)
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+        targetCampaignId = insertedCamp?.id || null;
+      }
+
+      if (!targetCampaignId) {
+        throw new Error("Impossible d'obtenir l'identifiant de la campagne.");
+      }
+
+      // 2. Clear old linked products & insert new selection
+      const { error: delErr } = await supabase
+        .from("campaign_products")
+        .delete()
+        .eq("campaign_id", targetCampaignId);
+
+      if (delErr) {
+        console.warn("Notice suppression anciens campaign_products:", delErr);
+      }
+
+      if (selectedProducts.length > 0) {
         const payload = selectedProducts.map((p, idx) => ({
-          campaign_id: createdCamp.id,
+          campaign_id: targetCampaignId,
           product_id: p.product_id,
-          discount_percentage: p.discount_percentage,
-          special_price: p.special_price || Math.round(p.price * (1 - p.discount_percentage / 100)),
-          stock_allocated: p.stock_allocated,
+          discount_percentage: Number(p.discount_percentage) || 20,
+          special_price: p.special_price || Math.round(p.price * (1 - (p.discount_percentage || 20) / 100)),
+          stock_allocated: Number(p.stock_allocated) || 50,
           stock_sold: 0,
           position: idx + 1,
         }));
 
-        await supabase.from("campaign_products").delete().eq("campaign_id", createdCamp.id);
-        await supabase.from("campaign_products").insert(payload);
+        const { error: cpErr } = await supabase
+          .from("campaign_products")
+          .insert(payload);
+
+        if (cpErr) {
+          console.error("Erreur insertion campaign_products:", cpErr);
+          throw new Error(`Erreur lors de l'enregistrement des produits: ${cpErr.message}`);
+        }
 
         // Dispatch notifications to vendors
         try {
@@ -739,7 +843,7 @@ export default function MarketingPage() {
                 title: "🎉 Produit en Campagne Promo !",
                 message: `Votre produit "${p.title}" a été sélectionné pour la campagne promotionnelle "${newPromoCampaign.title}".`,
                 type: "marketing_promo",
-                reference_id: `campaign_${createdCamp.id}`,
+                reference_id: `campaign_${targetCampaignId}`,
                 is_read: false,
               }));
 
@@ -757,6 +861,7 @@ export default function MarketingPage() {
         "Campagne SDUI Publiée"
       );
       setShowAddCampaignModal(false);
+      setEditingPromoCampaignId(null);
       fetchMarketingData();
     } catch (err: unknown) {
       console.error("Erreur création campagne promo:", err);
@@ -1009,6 +1114,14 @@ export default function MarketingPage() {
                       {/* Action buttons */}
                       <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => openEditPromoCampaignModal(camp)}
+                            className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                            title="Modifier la campagne et les produits associés"
+                          >
+                            <Sliders size={13} /> Gérer Produits
+                          </button>
+
                           <button
                             onClick={() => handleCopyLink(slug)}
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1326,7 +1439,9 @@ export default function MarketingPage() {
                   <Sparkles size={18} className="sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm sm:text-base text-gray-900 leading-tight">Nouvelle Campagne Promotionnelle (SDUI)</h3>
+                  <h3 className="font-black text-sm sm:text-base text-gray-900 leading-tight">
+                    {editingPromoCampaignId ? "Modifier la Campagne Promotionnelle (SDUI)" : "Nouvelle Campagne Promotionnelle (SDUI)"}
+                  </h3>
                   <p className="text-[10px] sm:text-xs text-gray-500">Mise à jour en direct sur mobile sans recompilation</p>
                 </div>
               </div>
@@ -1752,10 +1867,10 @@ export default function MarketingPage() {
                   {isSubmittingCampaign ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Publication en cours...
+                      Enregistrement en cours...
                     </>
                   ) : (
-                    `🚀 Publier la Grille (${selectedProducts.length} articles)`
+                    `${editingPromoCampaignId ? "💾 Enregistrer les Modifications" : "🚀 Publier la Grille"} (${selectedProducts.length} articles)`
                   )}
                 </button>
               </div>

@@ -235,11 +235,11 @@ export default function WebBuyerPromoCampaignPage() {
         if (foundProducts.length > 0) {
           if (isMounted) setProducts(foundProducts);
         } else {
-          // Fallback: active catalog products with promotional discount
+          // Fallback: catalog products with promotional discount
           const { data: generalProducts } = await supabase
             .from("products")
             .select("id, shop_id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)")
-            .eq("status", "active")
+            .order("created_at", { ascending: false })
             .limit(24);
 
           if (generalProducts && generalProducts.length > 0) {
