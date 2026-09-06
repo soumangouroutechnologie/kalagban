@@ -185,6 +185,7 @@ export default function DynamicPromoCampaignScreen() {
                   ? Number(r.special_price)
                   : Math.round(original * (1 - discount / 100));
                 const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+                const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as any)?.name;
 
                 return {
                   id: p.id,
@@ -196,7 +197,7 @@ export default function DynamicPromoCampaignScreen() {
                   stock_allocated: Number(r.stock_allocated) || Number(p.stock_quantity) || 50,
                   stock_sold: Number(r.stock_sold) || 0,
                   image_url: getSafeImageUrl(rawImg),
-                  vendor_name: p.shops?.name,
+                  vendor_name: vendorName,
                 };
               });
           }
@@ -219,6 +220,7 @@ export default function DynamicPromoCampaignScreen() {
             const discount = 20 + (idx % 4) * 15;
             const finalPrice = Math.round(original * (1 - discount / 100));
             const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+            const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as any)?.name;
 
             return {
               id: p.id,
@@ -230,7 +232,7 @@ export default function DynamicPromoCampaignScreen() {
               stock_allocated: Number(p.stock_quantity) || 25,
               stock_sold: 2 + idx,
               image_url: getSafeImageUrl(rawImg),
-              vendor_name: p.shops?.name,
+              vendor_name: vendorName,
             };
           });
           setProducts(fallbackMapped);

@@ -31,26 +31,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Récupération robuste des profils cibles
-    const { data: allProfiles, error: fetchErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, phone, role, expo_push_token");
+    const cleanTitle = title.trim();
+    const cleanMessage = message.trim();
+    const nowIso = new Date().toISOString();
 
-    if (fetchErr) {
-      console.error("[Notifications API] Erreur récupération profils:", fetchErr);
+    // 1. Récupération robuste des profils et des boutiques
+    const [profilesRes, shopsRes] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, phone, role, expo_push_token"),
+      supabaseAdmin
+        .from("shops")
+        .select("id, name, owner_id"),
+    ]);
+
+    if (profilesRes.error) {
+      console.error("[Notifications API] Erreur lecture profils:", profilesRes.error);
       return NextResponse.json(
-        { error: `Erreur base de données : ${fetchErr.message || "Impossible de lire les profils."}` },
+        { error: `Erreur base de données : ${profilesRes.error.message}` },
         { status: 500 }
       );
     }
 
-    let recipientList = allProfiles || [];
+    const allProfiles = profilesRes.data || [];
+    const allShops = shopsRes.data || [];
 
-    // Filtrage propre et sécurisé en mémoire
+    // Map pour retrouver rapidement la boutique d'un vendeur
+    const ownerToShopMap = new Map<string, string>();
+    for (const shop of allShops) {
+      if (shop.owner_id) {
+        ownerToShopMap.set(shop.owner_id, shop.id);
+      }
+    }
+
+    // 2. Filtrage des destinataires selon la cible
+    let recipientList = [...allProfiles];
+
     if (target_type === "all_buyers") {
-      recipientList = recipientList.filter((p) => p.role !== "seller" && p.role !== "admin" && p.role !== "courier");
+      recipientList = recipientList.filter(
+        (p) => p.role !== "seller" && p.role !== "admin" && p.role !== "superadmin" && p.role !== "courier"
+      );
     } else if (target_type === "all_sellers") {
-      recipientList = recipientList.filter((p) => p.role === "seller");
+      recipientList = recipientList.filter(
+        (p) => p.role === "seller" || ownerToShopMap.has(p.id)
+      );
+    } else if (target_type === "all_admins") {
+      recipientList = recipientList.filter(
+        (p) => p.role === "admin" || p.role === "superadmin"
+      );
     } else if (target_type === "specific_buyer" || target_type === "specific_seller") {
       if (!target_id) {
         return NextResponse.json(
@@ -61,56 +89,76 @@ export async function POST(req: NextRequest) {
       recipientList = recipientList.filter((p) => p.id === target_id);
     }
 
-    interface InAppNotification {
-      title: string;
-      message: string;
-      type: string;
-      reference_id: string;
-      image_url: string | null;
-      data: Record<string, unknown>;
-      is_read: boolean;
-      created_at: string;
-      updated_at: string;
-      customer_id?: string;
-      seller_id?: string;
-    }
-
+    // 3. Préparation des structures d'insertion in-app et push
     const validPushTokens: { token: string; userId: string; role: string }[] = [];
-    const buyerNotificationsToInsert: InAppNotification[] = [];
-    const sellerNotificationsToInsert: InAppNotification[] = [];
+    const buyerNotifsToInsert: Record<string, unknown>[] = [];
+    const sellerNotifsToInsert: Record<string, unknown>[] = [];
+    const adminNotifsToInsert: Record<string, unknown>[] = [];
 
-    const nowIso = new Date().toISOString();
+    // Normalisation sécurisée du type pour compatibilité totale
+    const safeDbType = ["order", "delivery", "pickup", "system", "promo"].includes(notification_type)
+      ? notification_type
+      : notification_type === "support"
+      ? "system"
+      : "info";
 
     for (const p of recipientList) {
-      const notifItem = {
-        title: title.trim(),
-        message: message.trim(),
-        type: notification_type,
-        reference_id: `campaign_${Date.now()}`,
-        image_url: image_url || null,
-        data: {
-          url: url_redirect || null,
-          image: image_url || null,
-          campaign: true,
-          sent_by,
-        },
-        is_read: false,
-        created_at: nowIso,
-        updated_at: nowIso,
+      const isSeller = p.role === "seller" || ownerToShopMap.has(p.id);
+      const isAdmin = p.role === "admin" || p.role === "superadmin";
+
+      const commonData = {
+        url: url_redirect || null,
+        image: image_url || null,
+        campaign: true,
+        sent_by,
+        sent_by_role,
+        notification_type,
+        category: notification_type,
       };
 
-      if (p.role === "seller") {
-        sellerNotificationsToInsert.push({
-          ...notifItem,
+      if (isSeller) {
+        const shopId = ownerToShopMap.get(p.id) || null;
+        sellerNotifsToInsert.push({
           seller_id: p.id,
+          shop_id: shopId,
+          title: cleanTitle,
+          message: cleanMessage,
+          type: safeDbType,
+          reference_id: `notif_${Date.now()}_${p.id.substring(0, 6)}`,
+          image_url: image_url || null,
+          data: commonData,
+          is_read: false,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+      } else if (isAdmin) {
+        adminNotifsToInsert.push({
+          title: cleanTitle,
+          message: cleanMessage,
+          notification_type: safeDbType,
+          target_role: "admin",
+          is_broadcast: target_type === "all" || target_type === "all_admins",
+          is_read: false,
+          image_url: image_url || null,
+          data: commonData,
+          created_at: nowIso,
         });
       } else {
-        buyerNotificationsToInsert.push({
-          ...notifItem,
+        buyerNotifsToInsert.push({
           customer_id: p.id,
+          title: cleanTitle,
+          message: cleanMessage,
+          type: safeDbType,
+          reference_id: `notif_${Date.now()}_${p.id.substring(0, 6)}`,
+          image_url: image_url || null,
+          data: commonData,
+          is_read: false,
+          created_at: nowIso,
+          updated_at: nowIso,
         });
       }
 
+      // Collecte du token Expo Push
       if (p.expo_push_token && p.expo_push_token.startsWith("ExponentPushToken[")) {
         validPushTokens.push({
           token: p.expo_push_token,
@@ -120,26 +168,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Insertion in-app dans les tables respectives
-    if (buyerNotificationsToInsert.length > 0) {
-      const { error: buyerInsertErr } = await supabaseAdmin
-        .from("customer_notifications")
-        .insert(buyerNotificationsToInsert);
-      if (buyerInsertErr) {
-        console.warn("[Notifications API] Avertissement insertion customer_notifications:", buyerInsertErr.message);
-      }
-    }
+    // 4. Exécution parallèle des insertions in-app
+    await Promise.allSettled([
+      buyerNotifsToInsert.length > 0
+        ? supabaseAdmin.from("customer_notifications").insert(buyerNotifsToInsert)
+        : Promise.resolve(),
+      sellerNotifsToInsert.length > 0
+        ? supabaseAdmin.from("seller_notifications").insert(sellerNotifsToInsert)
+        : Promise.resolve(),
+      adminNotifsToInsert.length > 0
+        ? supabaseAdmin.from("admin_notifications").insert(adminNotifsToInsert)
+        : Promise.resolve(),
+    ]);
 
-    if (sellerNotificationsToInsert.length > 0) {
-      const { error: sellerInsertErr } = await supabaseAdmin
-        .from("seller_notifications")
-        .insert(sellerNotificationsToInsert);
-      if (sellerInsertErr) {
-        console.warn("[Notifications API] Avertissement insertion seller_notifications:", sellerInsertErr.message);
-      }
-    }
-
-    // 3. Envoi via l'API officielle Expo Push par lots de 100
+    // 5. Envoi des Push Notifications Natives via Expo API
     let deliveredCount = 0;
     let failedCount = 0;
 
@@ -147,16 +189,17 @@ export async function POST(req: NextRequest) {
       const messages = validPushTokens.map((item) => ({
         to: item.token,
         sound: "default",
-        title: title.trim(),
-        body: message.trim(),
+        title: cleanTitle,
+        body: cleanMessage,
         priority: "high",
         channelId: "default",
         data: {
           url: url_redirect || null,
           image: image_url || null,
           type: notification_type,
-          title: title.trim(),
-          message: message.trim(),
+          notification_type,
+          title: cleanTitle,
+          message: cleanMessage,
           sentAt: nowIso,
         },
       }));
@@ -176,7 +219,7 @@ export async function POST(req: NextRequest) {
           });
 
           const result = await expoRes.json();
-          if (result && result.data) {
+          if (result && Array.isArray(result.data)) {
             for (const ticket of result.data) {
               if (ticket.status === "ok") {
                 deliveredCount++;
@@ -192,20 +235,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Enregistrement dans l'historique push_campaigns
+    // 6. Enregistrement dans l'historique push_campaigns
+    const targetDisplay =
+      target_name ||
+      (target_type === "all"
+        ? "Tous les utilisateurs"
+        : target_type === "all_buyers"
+        ? "Tous les clients"
+        : target_type === "all_sellers"
+        ? "Tous les vendeurs"
+        : target_type === "all_admins"
+        ? "Tous les administrateurs"
+        : "Cible spécifique");
+
     const { data: campaign } = await supabaseAdmin
       .from("push_campaigns")
       .insert({
-        title: title.trim(),
-        message: message.trim(),
+        title: cleanTitle,
+        message: cleanMessage,
         target_type,
         target_id: target_id || null,
-        target_name: target_name || (
-          target_type === "all" ? "Tous les utilisateurs" :
-          target_type === "all_buyers" ? "Tous les clients" :
-          target_type === "all_sellers" ? "Tous les vendeurs" :
-          "Cible spécifique"
-        ),
+        target_name: targetDisplay,
         sent_by,
         sent_by_role,
         notification_type,
@@ -217,7 +267,7 @@ export async function POST(req: NextRequest) {
         status: deliveredCount > 0 || recipientList.length === 0 ? "sent" : "failed",
       })
       .select()
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       success: true,

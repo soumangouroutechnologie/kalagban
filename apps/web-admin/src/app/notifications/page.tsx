@@ -34,7 +34,7 @@ interface PushCampaign {
   id: string;
   title: string;
   message: string;
-  target_type: "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "specific_seller";
+  target_type: "all" | "all_buyers" | "all_sellers" | "all_admins" | "specific_buyer" | "specific_seller";
   target_id?: string;
   target_name?: string;
   notification_type: "promo" | "info" | "alert" | "support" | "system";
@@ -64,7 +64,7 @@ interface SearchableShop {
   owner_name?: string;
 }
 
-type TargetType = "all" | "all_buyers" | "all_sellers" | "specific_buyer" | "specific_seller";
+type TargetType = "all" | "all_buyers" | "all_sellers" | "all_admins" | "specific_buyer" | "specific_seller";
 
 const QUICK_EMOJIS = ["🔥", "📦", "🎁", "⚡", "🎉", "🚀", "🔔", "🛍️", "📢", "🚚", "🏷️", "✨", "💎", "⏳"];
 
@@ -502,6 +502,7 @@ function NotificationsPageContent() {
                         {c.target_type === "all" && <Users className="w-3 h-3 text-indigo-600" />}
                         {c.target_type === "all_buyers" && <UserCheck className="w-3 h-3 text-blue-600" />}
                         {c.target_type === "all_sellers" && <Store className="w-3 h-3 text-amber-600" />}
+                        {c.target_type === "all_admins" && <ShieldCheck className="w-3 h-3 text-purple-600" />}
                         {c.target_type === "specific_buyer" && <UserCheck className="w-3 h-3 text-purple-600" />}
                         {c.target_type === "specific_seller" && <Store className="w-3 h-3 text-emerald-600" />}
                         {c.target_name || c.target_type}
@@ -670,7 +671,8 @@ function NotificationsPageContent() {
                 >
                   <option value="all_buyers">🛍️ Tous les Clients (Acheteurs)</option>
                   <option value="all_sellers">🏪 Tous les Vendeurs (Boutiques)</option>
-                  <option value="all">🌍 Tout le monde (Clients + Vendeurs)</option>
+                  <option value="all_admins">🛡️ Tous les Administrateurs & Équipe</option>
+                  <option value="all">🌍 Tout le monde (Clients + Vendeurs + Admins)</option>
                   <option value="specific_buyer">👤 Un Client Spécifique</option>
                   <option value="specific_seller">🏬 Un Vendeur Spécifique</option>
                 </select>
