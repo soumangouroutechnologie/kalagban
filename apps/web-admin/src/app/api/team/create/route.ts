@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ROLE_BASE_PERMISSIONS, AdminRole } from "@/lib/rbac";
+import { checkRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -13,6 +14,17 @@ const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 export async function POST(req: Request) {
+  // Rate limit : max 5 créations de compte par minute par IP
+  const rateLimit = await checkRateLimit(req, {
+    limit: 5,
+    windowSeconds: 60,
+    prefix: "admin_team_create",
+  });
+
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit, "Trop de tentatives de création d'accès. Veuillez patienter une minute.");
+  }
+
   try {
     const body = await req.json();
     const { full_name, email, password, admin_role, custom_permissions } = body;

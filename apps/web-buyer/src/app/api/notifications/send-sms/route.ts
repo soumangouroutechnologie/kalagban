@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function POST(req: NextRequest) {
+  // Rate limit : max 5 SMS par minute par IP pour éviter le spam et les coûts abusifs
+  const rateLimit = await checkRateLimit(req, {
+    limit: 5,
+    windowSeconds: 60,
+    prefix: "send_sms",
+  });
+
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit, "Trop d'envois de SMS demandés. Veuillez patienter une minute.");
+  }
+
   try {
     const body = await req.json();
     const { phone, message, channel = "whatsapp" } = body;

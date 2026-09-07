@@ -1,7 +1,19 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { checkRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
+  // Rate limit : max 10 vérifications OTP par minute par IP pour bloquer le brute-force
+  const rateLimit = await checkRateLimit(req, {
+    limit: 10,
+    windowSeconds: 60,
+    prefix: "delivery_verify_otp",
+  });
+
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit, "Trop de tentatives de vérification OTP. Veuillez patienter une minute.");
+  }
+
   try {
     const body = await req.json();
     const { orderId, otp, courierId } = body;

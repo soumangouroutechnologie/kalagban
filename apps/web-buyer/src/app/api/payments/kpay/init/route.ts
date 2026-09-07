@@ -1,7 +1,19 @@
 import { NextResponse } from "next/server";
 import { getPaymentGateway } from "@/lib/payments";
+import { checkRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
+  // Rate limit : max 10 tentatives de paiement par minute par IP
+  const rateLimit = await checkRateLimit(req, {
+    limit: 10,
+    windowSeconds: 60,
+    prefix: "payment_init",
+  });
+
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit, "Trop de tentatives de paiement. Veuillez patienter une minute avant de réessayer.");
+  }
+
   try {
     const body = await req.json();
     const { 
