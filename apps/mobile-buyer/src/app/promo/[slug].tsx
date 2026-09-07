@@ -208,7 +208,7 @@ export default function DynamicPromoCampaignScreen() {
           const productIds = cpRows.map((r) => r.product_id).filter(Boolean);
           const { data: prodsData } = await supabase
             .from('products')
-            .select('id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)')
+            .select('id, shop_id, title, category, price, old_price, stock_quantity, product_media(url), shops(name)')
             .in('id', productIds);
 
           if (prodsData && prodsData.length > 0) {
@@ -222,7 +222,7 @@ export default function DynamicPromoCampaignScreen() {
                 const finalPrice = r.special_price
                   ? Number(r.special_price)
                   : Math.round(original * (1 - discount / 100));
-                const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+                const rawImg = p.product_media?.[0]?.url || DEFAULT_BANNER_FALLBACK;
                 const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as any)?.name;
 
                 return {
@@ -248,7 +248,7 @@ export default function DynamicPromoCampaignScreen() {
         // Fallback: catalog products with promotional discount
         const { data: generalProducts } = await supabase
           .from('products')
-          .select('id, title, category, price, images, image_url, stock_quantity, product_media(url), shops(name)')
+          .select('id, shop_id, title, category, price, old_price, stock_quantity, product_media(url), shops(name)')
           .order('created_at', { ascending: false })
           .limit(20);
 
@@ -257,7 +257,7 @@ export default function DynamicPromoCampaignScreen() {
             const original = Number(p.price) || 25000;
             const discount = 20 + (idx % 4) * 15;
             const finalPrice = Math.round(original * (1 - discount / 100));
-            const rawImg = p.product_media?.[0]?.url || p.image_url || p.images?.[0];
+            const rawImg = p.product_media?.[0]?.url || DEFAULT_BANNER_FALLBACK;
             const vendorName = Array.isArray(p.shops) ? p.shops[0]?.name : (p.shops as any)?.name;
 
             return {
