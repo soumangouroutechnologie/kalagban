@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { 
   Palette, 
@@ -266,7 +267,7 @@ export default function CMSPage() {
     setUploadingPromo(false);
   };
 
-  const fetchSiteSettings = async () => {
+  const fetchSiteSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("site_settings")
@@ -303,7 +304,7 @@ export default function CMSPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -329,7 +330,7 @@ export default function CMSPage() {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchSiteSettings]);
 
   const handleSaveCMS = async () => {
     setSaving(true);
@@ -697,7 +698,7 @@ export default function CMSPage() {
                       accept="image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
+                        if (file && file.size <= MAX_CONTENT_LENGTH) {
                           setUploadingPopup(true);
                           const url = await uploadFileToSupabase(file);
                           if (url) {
@@ -1394,7 +1395,7 @@ export default function CMSPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center font-black text-indigo-600 text-sm">
                           {shop.logo_url ? (
-                            <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
+                            <Image src={shop.logo_url} alt={shop.name} width={40} height={40} className="w-full h-full object-cover" unoptimized />
                           ) : (
                             shop.name.charAt(0)
                           )}

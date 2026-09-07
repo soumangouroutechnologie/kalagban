@@ -117,6 +117,10 @@ export default function SettingsPage() {
   const handleShopLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > MAX_CONTENT_LENGTH) {
+        toast.error("Le fichier dépasse la limite autorisée de 5 Mo.");
+        return;
+      }
       const url = await uploadFile(file, 'shop_logo');
       if (url) {
         setShopLogoUrl(url);
@@ -132,6 +136,10 @@ export default function SettingsPage() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > MAX_CONTENT_LENGTH) {
+        toast.error("Le fichier dépasse la limite autorisée de 5 Mo.");
+        return;
+      }
       const url = await uploadFile(file, 'avatar');
       if (url) {
         setAvatarUrl(url);
