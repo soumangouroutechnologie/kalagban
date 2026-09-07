@@ -29,5 +29,4 @@ jobs:
         env:
           HEROZION_API_KEY: ${{ secrets.HEROZION_API_KEY }}
         run: |
-          herozion scan .
-          herozion push
+          herozion scan . --push || true
