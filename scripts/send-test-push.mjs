@@ -46,10 +46,10 @@ const options = {
   },
 };
 
-console.log(`\n🚀 Envoi de la notification de test vers : ${pushToken}...`);
-console.log(`📌 Titre : ${title}`);
-console.log(`💬 Message : ${body}`);
-console.log(`🔗 Payload Deep Link : orderId = ${orderId}\n`);
+console.log("\n🚀 Envoi de la notification de test...");
+console.log("📌 Titre :", title);
+console.log("💬 Message :", body);
+console.log("🔗 Payload Deep Link : orderId =", orderId, "\n");
 
 const req = https.request(options, (res) => {
   let data = "";
@@ -62,15 +62,15 @@ const req = https.request(options, (res) => {
     try {
       const response = JSON.parse(data);
       console.log("✅ Réponse d'Expo Push API :");
-      console.dir(response, { depth: null, colors: true });
+      console.log("%s", JSON.stringify(response, null, 2));
 
       if (response.data && response.data[0] && response.data[0].status === "ok") {
         console.log("\n🎉 Succès ! La notification a été envoyée avec succès à votre appareil Android.");
       } else if (response.data && response.data[0] && response.data[0].status === "error") {
-        console.error(`\n⚠️ Erreur Expo : ${response.data[0].message} (${response.data[0].details?.error})`);
+        console.error("\n⚠️ Erreur Expo :", response.data[0].message, response.data[0].details?.error || "");
       }
     } catch (e) {
-      console.log("Réponse brute :", data);
+      console.log("Réponse brute :", String(data));
     }
   });
 });

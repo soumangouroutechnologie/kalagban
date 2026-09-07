@@ -1,0 +1,33 @@
+name: Herozion Security Scan
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Herozion CLI
+        run: npm install -g herozion
+
+      - name: Run Herozion Scan & Push
+        env:
+          HEROZION_API_KEY: ${{ secrets.HEROZION_API_KEY }}
+        run: |
+          herozion scan .
+          herozion push
