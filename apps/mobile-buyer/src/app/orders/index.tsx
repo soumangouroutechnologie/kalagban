@@ -47,6 +47,7 @@ export default function OrderHistoryScreen() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -57,16 +58,19 @@ export default function OrderHistoryScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
-
-      if (session?.user) {
-        query = query.eq('customer_id', session.user.id);
-      } else {
-        // If not logged in, limit 5 recent
-        query = query.limit(5);
+      if (!session?.user) {
+        setIsAuthenticated(false);
+        setOrders([]);
+        return;
       }
 
-      const { data, error } = await query;
+      setIsAuthenticated(true);
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('customer_id', session.user.id)
+        .order('created_at', { ascending: false });
+
       if (!error && data) {
         const formatted: OrderItem[] = data.map((o: any) => ({
           ...o,
@@ -142,7 +146,26 @@ export default function OrderHistoryScreen() {
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={styles.loadingText}>Chargement de vos commandes...</Text>
+          <Text style={styles.loadingText}>Vérification du compte...</Text>
+        </View>
+      ) : !isAuthenticated ? (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.packageCircle, { backgroundColor: '#EEF2FF' }]}>
+            <ShieldCheck size={44} color="#4F46E5" />
+          </View>
+          <Text style={styles.emptyTitle}>Connexion Requise</Text>
+          <Text style={styles.emptySub}>
+            Connectez-vous à votre compte pour consulter vos commandes personnelles, vos reçus et vos codes OTP de retrait en toute confidentialité.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.exploreBtn}
+            onPress={() => router.push('/profile')}
+            activeOpacity={0.85}
+          >
+            <KeyRound size={16} color="#FFFFFF" />
+            <Text style={styles.exploreBtnText}>Se Connecter / S&apos;inscrire</Text>
+          </TouchableOpacity>
         </View>
       ) : orders.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -151,7 +174,7 @@ export default function OrderHistoryScreen() {
           </View>
           <Text style={styles.emptyTitle}>Aucune commande trouvée</Text>
           <Text style={styles.emptySub}>
-            Vous n'avez pas encore passé de commande sur Kalagban.
+            Vous n&apos;avez pas encore passé de commande sur Kalagban.
           </Text>
 
           <TouchableOpacity

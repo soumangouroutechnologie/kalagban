@@ -126,6 +126,8 @@ export default function OrderDetailsReceiptScreen() {
     const fetchOrder = async () => {
       if (!id) return;
       
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const { data } = await supabase
         .from('orders')
         .select('*')
@@ -133,6 +135,13 @@ export default function OrderDetailsReceiptScreen() {
         .maybeSingle();
 
       if (isMounted && data) {
+        // Enforce privacy: if order has a customer_id, only the owner can inspect it
+        if (data.customer_id && (!session?.user || session.user.id !== data.customer_id)) {
+          setOrder(null);
+          setIsLoading(false);
+          return;
+        }
+
         setOrder(data);
 
         // Fetch assigned courier if any
