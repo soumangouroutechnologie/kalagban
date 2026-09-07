@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/auth-context';
@@ -22,10 +22,12 @@ import {
   Plus,
   ArrowRight,
   Bell,
-  Search,
-  CheckCircle2,
   Clock,
+  ShieldCheck,
+  CheckCircle2,
+  FileCheck,
 } from 'lucide-react-native';
+import { SellerNotificationsModal } from '../../components/notifications/SellerNotificationsModal';
 
 interface DashboardProduct {
   id: string;
@@ -54,18 +56,29 @@ interface ActiveCampaignInfo {
   theme_color?: string;
 }
 
+interface KycData {
+  id?: string;
+  status?: 'pending' | 'approved' | 'rejected' | 'none';
+  business_type?: string;
+}
+
 export default function SellerDashboardScreen() {
   const router = useRouter();
   const { shop, user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  const [kycInfo, setKycInfo] = useState<KycData | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/(auth)/login');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -80,7 +93,7 @@ export default function SellerDashboardScreen() {
   const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaignInfo[]>([]);
   const [myParticipatingCount, setMyParticipatingCount] = useState<number>(0);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       let targetShopId = shop?.id || user?.id;
       if (!targetShopId) {
@@ -93,26 +106,57 @@ export default function SellerDashboardScreen() {
         return;
       }
 
-      // 1. Fetch Orders for this shop
+      // 1. Fetch KYC Certification status & Shop info
+      const { data: shopRecord } = await supabase
+        .from('shops')
+        .select('is_verified')
+        .eq('id', targetShopId)
+        .maybeSingle();
+
+      const { data: kycRecord } = await supabase
+        .from('seller_certifications')
+        .select('*')
+        .eq('shop_id', targetShopId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const verified = !!shopRecord?.is_verified || kycRecord?.status === 'approved';
+      setIsVerified(verified);
+      setKycInfo(kycRecord as KycData || null);
+
+      // 2. Fetch Orders for this shop (Excluding cancelled orders from revenue)
       const { data: orders } = await supabase
         .from('orders')
-        .select('id, total_amount, status, customer_name, created_at')
+        .select('id, total_amount, subtotal, status, customer_name, created_at')
         .eq('shop_id', targetShopId)
         .order('created_at', { ascending: false });
 
       if (orders) {
-        const revenue = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-        const pending = orders.filter(o => o.status === 'pending' || o.status === 'processing').length;
-        setStats(prev => ({
+        let revenue = 0;
+        let validOrdersCount = 0;
+        let pending = 0;
+
+        orders.forEach((o) => {
+          if (o.status !== 'cancelled') {
+            revenue += Number(o.subtotal || o.total_amount || 0);
+            validOrdersCount++;
+          }
+          if (o.status === 'pending' || o.status === 'processing') {
+            pending++;
+          }
+        });
+
+        setStats((prev) => ({
           ...prev,
           totalRevenue: revenue,
-          totalOrders: orders.length,
+          totalOrders: validOrdersCount,
           pendingOrdersCount: pending,
         }));
         setRecentOrders(orders.slice(0, 3) as DashboardOrder[]);
       }
 
-      // 2. Fetch Products for this shop
+      // 3. Fetch Products for this shop
       const { data: prods } = await supabase
         .from('products')
         .select('id, title, price, stock_quantity, category, product_media(url)')
@@ -120,14 +164,14 @@ export default function SellerDashboardScreen() {
         .order('created_at', { ascending: false });
 
       if (prods) {
-        const outOfStock = prods.filter(p => Number(p.stock_quantity) <= 0).length;
-        setStats(prev => ({
+        const outOfStock = prods.filter((p) => Number(p.stock_quantity) <= 0).length;
+        setStats((prev) => ({
           ...prev,
           outOfStockCount: outOfStock,
         }));
         setRecentProducts(prods.slice(0, 4) as DashboardProduct[]);
 
-        // 3. Fetch Active Marketing Campaigns & Participating Products
+        // 4. Fetch Active Marketing Campaigns & Participating Products
         const { data: activeCamps } = await supabase
           .from('promotional_campaigns')
           .select('id, title, subtitle, badge_text, banner_url, slug, theme_color')
@@ -135,7 +179,7 @@ export default function SellerDashboardScreen() {
           .limit(3);
 
         if (activeCamps && activeCamps.length > 0 && prods.length > 0) {
-          const prodIds = prods.map(p => p.id);
+          const prodIds = prods.map((p) => p.id);
           const { data: cpData } = await supabase
             .from('campaign_products')
             .select('id, product_id')
@@ -154,11 +198,11 @@ export default function SellerDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [shop?.id, user?.id]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [shop, user]);
+  }, [fetchDashboardData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -178,13 +222,32 @@ export default function SellerDashboardScreen() {
             )}
           </View>
           <View>
-            <Text style={styles.shopWelcomeLabel}>VENDEUR</Text>
+            <View style={styles.badgeIdentityRow}>
+              <Text style={styles.shopWelcomeLabel}>VENDEUR</Text>
+              {isVerified && (
+                <View style={styles.verifiedMiniBadge}>
+                  <CheckCircle2 size={10} color="#16A34A" />
+                  <Text style={styles.verifiedMiniText}>Certifié</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.shopNameText}>{shop?.name || 'Ma Boutique'}</Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.iconCircleButton}>
+        <TouchableOpacity
+          style={styles.iconCircleButton}
+          onPress={() => setIsNotificationsOpen(true)}
+          activeOpacity={0.7}
+        >
           <Bell size={20} color="#334155" />
+          {unreadNotifCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>
+                {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -195,26 +258,96 @@ export default function SellerDashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />
         }
       >
-        {/* Promotional Hero Banner (Matching captured web dashboard) */}
-        <View style={styles.heroBanner}>
-          <View style={styles.onlineBadge}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.onlineBadgeText}>VOTRE BOUTIQUE EST EN LIGNE</Text>
+        {/* ============================================================ */}
+        {/* BLOC 1 : Bannière de Certification KYC (Image 3)             */}
+        {/* ============================================================ */}
+        {isVerified ? (
+          <View style={styles.kycVerifiedBanner}>
+            <View style={styles.kycIconBoxVerified}>
+              <ShieldCheck size={22} color="#16A34A" />
+            </View>
+            <View style={styles.kycTextContainer}>
+              <View style={styles.kycTagRow}>
+                <View style={styles.kycStatusPillVerified}>
+                  <Text style={styles.kycStatusPillTextVerified}>OFFICIEL</Text>
+                </View>
+                <Text style={styles.kycBadgeActiveText}>Badge Officiel Activé</Text>
+              </View>
+              <Text style={styles.kycTitleVerified}>Boutique Officiellement Certifiée Kalagban 🛡️</Text>
+              <Text style={styles.kycDescVerified}>
+                Vos documents sont validés par la Conformité. Vos clients commandent en toute confiance.
+              </Text>
+            </View>
           </View>
+        ) : kycInfo?.status === 'pending' ? (
+          <View style={styles.kycPendingBanner}>
+            <View style={styles.kycIconBoxPending}>
+              <Clock size={22} color="#D97706" />
+            </View>
+            <View style={styles.kycTextContainer}>
+              <View style={styles.kycTagRow}>
+                <View style={styles.kycStatusPillPending}>
+                  <Text style={styles.kycStatusPillTextPending}>EN EXAMEN</Text>
+                </View>
+                <Text style={styles.kycTimePendingText}>Validation sous 24h à 48h</Text>
+              </View>
+              <Text style={styles.kycTitlePending}>Dossier de Certification en Cours ⏳</Text>
+              <Text style={styles.kycDescPending}>
+                Vos pièces sont en cours de vérification. Vous recevrez une alerte dès l&apos;activation.
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.kycActionBanner}>
+            <View style={styles.kycIconBoxAction}>
+              <FileCheck size={22} color="#6366F1" />
+            </View>
+            <View style={styles.kycTextContainer}>
+              <View style={styles.kycTagRow}>
+                <View style={styles.kycStatusPillAction}>
+                  <Text style={styles.kycStatusPillTextAction}>CERTIFICATION</Text>
+                </View>
+                <Text style={styles.kycTimeActionText}>Délai : 5 jours</Text>
+              </View>
+              <Text style={styles.kycTitleAction}>Obtenez votre Badge &apos;Vendeur Certifié&apos; 🛡️</Text>
+              <Text style={styles.kycDescAction}>
+                Déposez vos pièces d&apos;identité et photos de boutique pour booster vos ventes.
+              </Text>
+            </View>
+          </View>
+        )}
 
-          <Text style={styles.heroTitle}>Développez votre audience avec Kalagban ✨</Text>
-          <Text style={styles.heroSubtitle}>
-            Consultez vos statistiques en temps réel, gérez vos stocks et expédiez vos commandes rapidement.
-          </Text>
+        {/* ============================================================ */}
+        {/* BLOC 2 : Hero Banner avec Image & Slider (Image 3)          */}
+        {/* ============================================================ */}
+        <View style={styles.heroBannerWrapper}>
+          <Image
+            source={require('../../../assets/images/imgslide1.jpg')}
+            style={styles.heroBannerBackground}
+            resizeMode="cover"
+          />
+          <View style={styles.heroBannerOverlay} />
 
-          <TouchableOpacity
-            style={styles.heroCTAButton}
-            onPress={() => router.push('/product-editor')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.heroCTAButtonText}>Créer un produit</Text>
-            <ArrowRight size={16} color="#4F46E5" />
-          </TouchableOpacity>
+          <View style={styles.heroBannerContent}>
+            <View style={styles.onlineBadge}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineBadgeText}>VOTRE BOUTIQUE EST EN LIGNE</Text>
+            </View>
+
+            <Text style={styles.heroTitle}>Développez votre audience avec Kalagban ✨</Text>
+            <Text style={styles.heroSubtitle}>
+              Consultez vos statistiques en temps réel, gérez vos stocks et expédiez vos commandes rapidement.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.heroCTAButton}
+              onPress={() => router.push('/product-editor')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.heroCTAButtonText}>Créer un produit</Text>
+              <ArrowRight size={16} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Aperçu de la Boutique - KPI Grid */}
@@ -232,7 +365,7 @@ export default function SellerDashboardScreen() {
               <TrendingUp size={20} color="#4F46E5" />
             </View>
             <Text style={styles.kpiLabel}>Ventes générées</Text>
-            <Text style={styles.kpiValue}>
+            <Text style={styles.kpiValue} numberOfLines={1}>
               {stats.totalRevenue.toLocaleString('fr-FR')} FCFA
             </Text>
           </View>
@@ -330,9 +463,9 @@ export default function SellerDashboardScreen() {
               <Text style={styles.emptyText}>Aucune commande récente pour le moment.</Text>
             </View>
           ) : (
-            recentOrders.map(ord => (
+            recentOrders.map((ord) => (
               <View key={ord.id} style={styles.orderRowItem}>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.orderCustomerText}>{ord.customer_name || 'Client Kalagban'}</Text>
                   <Text style={styles.orderDateText}>
                     {new Date(ord.created_at).toLocaleDateString('fr-FR')}
@@ -342,8 +475,18 @@ export default function SellerDashboardScreen() {
                   <Text style={styles.orderAmountText}>
                     {Number(ord.total_amount).toLocaleString('fr-FR')} FCFA
                   </Text>
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeText}>{ord.status}</Text>
+                  <View style={[
+                    styles.statusBadge,
+                    ord.status === 'delivered' ? styles.statusBadgeDelivered :
+                    ord.status === 'cancelled' ? styles.statusBadgeCancelled : styles.statusBadgePending
+                  ]}>
+                    <Text style={[
+                      styles.statusBadgeText,
+                      ord.status === 'delivered' ? styles.statusBadgeTextDelivered :
+                      ord.status === 'cancelled' ? styles.statusBadgeTextCancelled : styles.statusBadgeTextPending
+                    ]}>
+                      {ord.status}
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -375,7 +518,7 @@ export default function SellerDashboardScreen() {
             </View>
             <Text style={styles.emptyProductsTitle}>Aucun produit</Text>
             <Text style={styles.emptyProductsSubtitle}>
-              Vous n'avez pas encore de produits dans votre boutique. Lancez-vous !
+              Vous n&apos;avez pas encore de produits dans votre boutique. Lancez-vous !
             </Text>
             <TouchableOpacity
               style={styles.addProductBtn}
@@ -388,7 +531,7 @@ export default function SellerDashboardScreen() {
           </View>
         ) : (
           <View style={styles.productsGrid}>
-            {recentProducts.map(item => {
+            {recentProducts.map((item) => {
               const rawUrl = item.product_media?.[0]?.url;
               const imgUrl = rawUrl && (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:image')) ? rawUrl : null;
               return (
@@ -420,6 +563,14 @@ export default function SellerDashboardScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Notifications Modal Component */}
+      <SellerNotificationsModal
+        visible={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        shopId={shop?.id || user?.id}
+        onUnreadCountChange={setUnreadNotifCount}
+      />
     </View>
   );
 }
@@ -430,7 +581,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   topHeader: {
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 54 : 42,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
@@ -460,11 +611,32 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 14,
   },
+  badgeIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   shopWelcomeLabel: {
     fontSize: 10,
     fontWeight: '800',
     color: '#4F46E5',
     letterSpacing: 1,
+  },
+  verifiedMiniBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  verifiedMiniText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#16A34A',
   },
   shopNameText: {
     fontSize: 16,
@@ -472,38 +644,235 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   iconCircleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
-  heroBanner: {
-    backgroundColor: '#1E1B4B',
+
+  /* KYC Banners */
+  kycVerifiedBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  kycIconBoxVerified: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycPendingBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  kycIconBoxPending: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycActionBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  kycIconBoxAction: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycTextContainer: {
+    flex: 1,
+  },
+  kycTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  kycStatusPillVerified: {
+    backgroundColor: '#16A34A',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  kycStatusPillTextVerified: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  kycBadgeActiveText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  kycTitleVerified: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#14532D',
+    marginBottom: 2,
+  },
+  kycDescVerified: {
+    fontSize: 12,
+    color: '#166534',
+    lineHeight: 17,
+  },
+  kycStatusPillPending: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  kycStatusPillTextPending: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  kycTimePendingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  kycTitlePending: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#78350F',
+    marginBottom: 2,
+  },
+  kycDescPending: {
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 17,
+  },
+  kycStatusPillAction: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  kycStatusPillTextAction: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  kycTimeActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4338CA',
+  },
+  kycTitleAction: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E1B4B',
+    marginBottom: 2,
+  },
+  kycDescAction: {
+    fontSize: 12,
+    color: '#3730A3',
+    lineHeight: 17,
+  },
+
+  /* Hero Banner with African Woman Image & Gradient */
+  heroBannerWrapper: {
     borderRadius: 24,
-    padding: 20,
+    overflow: 'hidden',
+    position: 'relative',
     marginBottom: 24,
     shadowColor: '#1E1B4B',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  heroBannerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  heroBannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+  },
+  heroBannerContent: {
+    padding: 22,
+    zIndex: 2,
   },
   onlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    gap: 6,
+    gap: 8,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   onlineDot: {
     width: 8,
@@ -512,39 +881,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
   },
   onlineBadgeText: {
-    color: '#E0E7FF',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '900',
     color: '#FFFFFF',
-    lineHeight: 28,
     marginBottom: 8,
+    lineHeight: 27,
   },
   heroSubtitle: {
     fontSize: 13,
-    color: '#C7D2FE',
-    lineHeight: 18,
+    color: '#E2E8F0',
+    lineHeight: 19,
     marginBottom: 18,
   },
   heroCTAButton: {
-    backgroundColor: '#FFFFFF',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   heroCTAButtonText: {
-    color: '#4F46E5',
-    fontSize: 14,
+    color: '#0F172A',
     fontWeight: '800',
+    fontSize: 14,
   },
+
+  /* Section Header */
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -561,6 +937,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#4F46E5',
   },
+
+  /* KPI Grid */
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -570,50 +948,63 @@ const styles = StyleSheet.create({
   kpiCard: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   kpiIconBox: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   kpiLabel: {
     fontSize: 12,
-    fontWeight: '600',
     color: '#64748B',
+    fontWeight: '600',
     marginBottom: 4,
   },
   kpiValue: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '900',
     color: '#0F172A',
   },
+
+  /* Campaigns Banner */
   campaignsCard: {
     backgroundColor: '#FFF7ED',
     borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#FED7AA',
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFEDD5',
     marginBottom: 24,
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   campaignsCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    gap: 8,
   },
   campaignsHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flex: 1,
-    marginRight: 8,
+    minWidth: 0,
   },
   campaignsCardTitle: {
     fontSize: 15,
@@ -623,16 +1014,19 @@ const styles = StyleSheet.create({
   },
   campaignsCountBadge: {
     backgroundColor: '#FFEDD5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
     flexShrink: 0,
   },
   campaignsCountBadgeActive: {
     backgroundColor: '#EA580C',
+    borderColor: '#C2410C',
   },
   campaignsCountText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#C2410C',
   },
@@ -640,68 +1034,69 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   campaignsList: {
-    gap: 8,
+    gap: 10,
   },
   campaignItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    padding: 10,
     borderRadius: 14,
+    padding: 10,
+    gap: 12,
     borderWidth: 1,
-    borderColor: '#FFEDD5',
+    borderColor: '#FED7AA',
   },
   campaignThumbImage: {
-    width: 46,
-    height: 46,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     backgroundColor: '#F1F5F9',
   },
   campaignThumbPlaceholder: {
-    width: 46,
-    height: 46,
+    width: 48,
+    height: 48,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   campaignInfoCol: {
     flex: 1,
-    gap: 2,
-    marginLeft: 10,
-    marginRight: 6,
+    minWidth: 0,
   },
   campaignItemTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#0F172A',
+    marginBottom: 2,
   },
   campaignItemSubtitle: {
     fontSize: 11,
     color: '#64748B',
+    marginBottom: 4,
   },
   campaignBadgePill: {
-    backgroundColor: '#FFEDD5',
     alignSelf: 'flex-start',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 2,
     borderRadius: 6,
-    marginTop: 2,
   },
   campaignBadgePillText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#EA580C',
+    color: '#B45309',
+    letterSpacing: 0.5,
   },
   campaignLivePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#DCFCE7',
+    gap: 5,
+    backgroundColor: '#F0FDF4',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
-    flexShrink: 0,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
   },
   liveGreenDot: {
     width: 6,
@@ -710,17 +1105,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#16A34A',
   },
   liveGreenText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     color: '#16A34A',
   },
+
+  /* Recent Orders Card */
   recentOrdersCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   recentOrdersHeader: {
     flexDirection: 'row',
@@ -729,12 +1126,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   recentOrdersTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
   emptyOrdersSubBox: {
-    paddingVertical: 16,
+    paddingVertical: 20,
     alignItems: 'center',
   },
   emptyText: {
@@ -745,9 +1142,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#F8FAFC',
   },
   orderCustomerText: {
     fontSize: 14,
@@ -762,50 +1159,68 @@ const styles = StyleSheet.create({
   orderAmountText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#4F46E5',
+    color: '#0F172A',
   },
   statusBadge: {
-    backgroundColor: '#FEF3C7',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    marginTop: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  statusBadgePending: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusBadgeDelivered: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusBadgeCancelled: {
+    backgroundColor: '#FEE2E2',
   },
   statusBadgeText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  statusBadgeTextPending: {
     color: '#D97706',
   },
+  statusBadgeTextDelivered: {
+    color: '#16A34A',
+  },
+  statusBadgeTextCancelled: {
+    color: '#DC2626',
+  },
   processOrdersBtn: {
-    backgroundColor: '#4F46E5',
-    height: 46,
-    borderRadius: 14,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4F46E5',
+    paddingVertical: 14,
+    borderRadius: 14,
     gap: 8,
-    marginTop: 14,
+    marginTop: 16,
   },
   processOrdersBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
     fontWeight: '800',
+    fontSize: 14,
   },
+
+  /* Empty Products Card */
   emptyProductsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 24,
+    padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
   },
   emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
   emptyProductsTitle: {
@@ -822,19 +1237,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addProductBtn: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#4F46E5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     gap: 6,
   },
   addProductBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
+
+  /* Products Grid */
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -843,10 +1260,15 @@ const styles = StyleSheet.create({
   productCardItem: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   productImage: {
     width: '100%',
@@ -856,40 +1278,42 @@ const styles = StyleSheet.create({
   productImagePlaceholder: {
     width: '100%',
     height: 120,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   productCardBody: {
-    padding: 10,
+    padding: 12,
   },
   productCategory: {
     fontSize: 10,
     fontWeight: '700',
     color: '#64748B',
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   productTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#0F172A',
-    marginVertical: 2,
+    marginBottom: 4,
   },
   productPrice: {
     fontSize: 14,
     fontWeight: '900',
     color: '#4F46E5',
+    marginBottom: 6,
   },
   stockBadge: {
+    alignSelf: 'flex-start',
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 4,
   },
   stockBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
     color: '#475569',
+    fontWeight: '600',
   },
 });
