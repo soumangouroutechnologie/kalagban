@@ -32,7 +32,9 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     loadFavorites();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      loadFavorites(currentUser?.id || null);
     });
 
     return () => {
@@ -47,15 +49,59 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return !!currentUser;
   };
 
-  const loadFavorites = async () => {
+  const loadFavorites = async (userIdOverride?: string | null) => {
+    let localFavs: FavoriteItem[] = [];
     try {
       const stored = await AsyncStorage.getItem(FAVORITES_STORAGE_KEY);
       if (stored) {
-        setFavorites(JSON.parse(stored));
+        localFavs = JSON.parse(stored);
       }
     } catch (e) {
-      console.error('Failed to load favorites', e);
+      console.error('Failed to load favorites from AsyncStorage', e);
     }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = userIdOverride !== undefined ? userIdOverride : (session?.user?.id || null);
+
+    if (uid) {
+      try {
+        const { data: dbWishlist, error } = await supabase
+          .from('wishlists')
+          .select('id, product_id, products(id, title, price, old_price, product_media(url), shops(name))')
+          .eq('user_id', uid);
+
+        if (!error && dbWishlist && dbWishlist.length > 0) {
+          const dbFavs: FavoriteItem[] = dbWishlist
+            .filter((w: any) => w.products)
+            .map((w: any) => {
+              const p = w.products;
+              const img = p.product_media && p.product_media.length > 0 ? p.product_media[0].url : '';
+              return {
+                id: p.id,
+                title: p.title,
+                price: Number(p.price || 0),
+                old_price: p.old_price ? Number(p.old_price) : undefined,
+                image_url: img,
+                shop_name: p.shops?.name || 'Vendeur Kalagban',
+              };
+            });
+
+          // Merge local & db
+          const mergedMap = new Map<string, FavoriteItem>();
+          localFavs.forEach((f) => mergedMap.set(f.id, f));
+          dbFavs.forEach((f) => mergedMap.set(f.id, f));
+
+          const merged = Array.from(mergedMap.values());
+          setFavorites(merged);
+          await saveFavorites(merged);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to fetch wishlist from Supabase', err);
+      }
+    }
+
+    setFavorites(localFavs);
   };
 
   const saveFavorites = async (items: FavoriteItem[]) => {
@@ -88,18 +134,20 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (currentUser?.id) {
       try {
         if (exists) {
-          await supabase
+          const { error: delErr } = await supabase
             .from('wishlists')
             .delete()
             .eq('user_id', currentUser.id)
             .eq('product_id', item.id);
+          if (delErr) console.warn('Error removing from wishlists:', delErr);
         } else {
-          await supabase
+          const { error: insErr } = await supabase
             .from('wishlists')
             .upsert({
               user_id: currentUser.id,
               product_id: item.id,
             }, { onConflict: 'user_id,product_id' });
+          if (insErr) console.warn('Error adding to wishlists:', insErr);
         }
       } catch (err) {
         console.error('Error syncing wishlist with Supabase:', err);

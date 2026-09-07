@@ -50,6 +50,7 @@ export default function ProfileScreen() {
   const { checkAuthStatus } = useFavorites();
 
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<{ full_name?: string; phone?: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Auth Modal States
@@ -76,6 +77,19 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchUserData();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchUserData();
+      } else {
+        setUser(null);
+        setUserProfile(null);
+      }
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
   }, []);
 
   // Countdown timer for OTP resend
@@ -101,11 +115,32 @@ export default function ProfileScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
+        const { data: profData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profData) {
+          setUserProfile({
+            full_name: profData.full_name || session.user.user_metadata?.full_name || 'Client',
+            phone: profData.phone || session.user.phone || session.user.user_metadata?.phone || '',
+            email: session.user.email || '',
+          });
+        } else {
+          setUserProfile({
+            full_name: session.user.user_metadata?.full_name || 'Client',
+            phone: session.user.phone || session.user.user_metadata?.phone || '',
+            email: session.user.email || '',
+          });
+        }
       } else {
         setUser(null);
+        setUserProfile(null);
       }
     } catch {
       setUser(null);
+      setUserProfile(null);
     } finally {
       setLoading(false);
     }
@@ -334,14 +369,19 @@ export default function ProfileScreen() {
     }
   };
 
-  const getUserPhone = () => {
+  const getUserContact = () => {
     if (!user) return '';
-    return user.user_metadata?.phone || user.email?.split('@')[0] || '';
+    const ph = userProfile?.phone || user.phone || user.user_metadata?.phone || '';
+    const em = userProfile?.email || user.email || '';
+    if (em && ph) return `${em} • ${ph}`;
+    if (ph) return ph;
+    if (em) return em;
+    return 'Client vérifié';
   };
 
   const getUserName = () => {
     if (!user) return 'Acheteur Kalagban';
-    return user.user_metadata?.full_name || `Client ${getUserPhone()}`;
+    return userProfile?.full_name || user.user_metadata?.full_name || 'Client';
   };
 
   return (
@@ -374,7 +414,7 @@ export default function ProfileScreen() {
             {user ? (
               <View style={styles.phoneBadge}>
                 <Phone size={12} color="#10B981" />
-                <Text style={styles.phoneText}>+225 {getUserPhone()}</Text>
+                <Text style={styles.phoneText}>{getUserContact()}</Text>
               </View>
             ) : (
               <Text style={styles.userSub}>Non connecté</Text>
