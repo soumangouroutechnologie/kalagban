@@ -1046,8 +1046,8 @@ export default function MarketplaceHomeScreen() {
         onRequestClose={() => setShowNotifModal(false)}
       >
         <SafeAreaView style={styles.notifModalContainer}>
-          <View style={styles.notifModalHeader}>
-            <View>
+          <View style={[styles.notifModalHeader, { paddingTop: topPadding + 8 }]}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
               <Text style={styles.notifModalTitle}>Notifications</Text>
               <Text style={styles.notifModalSubtitle}>Suivi de vos commandes & alertes</Text>
             </View>
@@ -1063,6 +1063,7 @@ export default function MarketplaceHomeScreen() {
               <TouchableOpacity
                 style={styles.notifModalClose}
                 onPress={() => setShowNotifModal(false)}
+                activeOpacity={0.7}
               >
                 <X size={20} color="#0F172A" />
               </TouchableOpacity>
