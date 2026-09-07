@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
+function makeHeader(k: string, v: string) {
+  return { key: k, value: v };
+}
+
 const nextConfig: NextConfig = {
-  // Activation de la compression Brotli et Gzip
+  reactStrictMode: false,
   compress: true,
 
   // Sécurité : masquer l'en-tête x-powered-by
@@ -9,7 +13,6 @@ const nextConfig: NextConfig = {
 
   // Optimisation et mise en cache des images (30 jours)
   images: {
-    minimumCacheTTL: 2592000,
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
@@ -23,41 +26,31 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Cache pour les images et icônes publiques
-        source: "/:all*(svg|jpg|jpeg|png|webp|avif|ico|woff|woff2)",
+        source: "/_next/static/:path*",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400",
-          },
+          makeHeader("Cache-Control", "public, max-age=31536000, immutable"),
+        ],
+      },
+      {
+        source: "/_next/image/:path*",
+        headers: [
+          makeHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"),
         ],
       },
       {
         // Cache pour les pages statiques d'information
         source: "/(terms|privacy-policy|shipping-policy|quality-charter|seller-guide|faq)",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400",
-          },
+          makeHeader("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400"),
         ],
       },
       {
         // En-têtes de sécurité généraux
         source: "/:path*",
         headers: [
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "X-Frame-Options",
-            value: "SAMEORIGIN",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
+          makeHeader("X-Content-Type-Options", "nosniff"),
+          makeHeader("X-Frame-Options", "SAMEORIGIN"),
+          makeHeader("Referrer-Policy", "strict-origin-when-cross-origin"),
         ],
       },
     ];

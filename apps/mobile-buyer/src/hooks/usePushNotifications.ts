@@ -95,7 +95,7 @@ export function usePushNotifications(initialUserId?: string | null) {
           await registerForPushNotificationsAsync(activeUserId, token);
         }
       } catch (e) {
-        console.warn("Erreur récupération Expo Push Token:", e);
+        console.warn("Erreur initialisation service notifications:", e);
       }
     }
 

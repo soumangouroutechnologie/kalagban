@@ -13,8 +13,6 @@ import {
   Eye, 
   Megaphone, 
   Layout, 
-  Phone, 
-  Mail, 
   MapPin,
   Clock,
   Store
@@ -178,7 +176,20 @@ export default function CMSPage() {
     });
   };
 
+  const MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10 Mo maximum
+  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+
   const uploadFileToSupabase = async (file: File): Promise<string | null> => {
+    if (file.size > MAX_CONTENT_LENGTH) {
+      console.warn("Fichier trop volumineux (max 10 Mo).");
+      return null;
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      console.warn("Format non autorisé.");
+      return null;
+    }
+
     try {
       // 1. Instant local Data URL conversion (< 5ms)
       const base64Url = await readFileAsBase64(file);
@@ -192,11 +203,11 @@ export default function CMSPage() {
         .from('kalagban_media')
         .upload(filePath, file);
 
-      const timeoutPromise = new Promise<{ error: any }>((resolve) =>
+      const timeoutPromise = new Promise<{ error: Error | null }>((resolve) =>
         setTimeout(() => resolve({ error: new Error('Storage timeout') }), 1200)
       );
 
-      const res = (await Promise.race([uploadPromise, timeoutPromise])) as { error: any };
+      const res = (await Promise.race([uploadPromise, timeoutPromise])) as { error: Error | null };
 
       if (!res.error) {
         const { data } = supabase.storage
@@ -214,7 +225,7 @@ export default function CMSPage() {
 
   const handleHeroFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingHero(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -229,7 +240,7 @@ export default function CMSPage() {
 
   const handleSellerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingSeller(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -241,7 +252,7 @@ export default function CMSPage() {
 
   const handlePromoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingPromo(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -295,14 +306,27 @@ export default function CMSPage() {
   };
 
   useEffect(() => {
-    fetchSiteSettings();
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (isMounted) {
+        await fetchSiteSettings();
+      }
+    };
+
+    loadData();
 
     const channel = supabase
       .channel("admin_cms_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => fetchSiteSettings())
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => {
+        if (isMounted) {
+          fetchSiteSettings();
+        }
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, []);
@@ -1007,7 +1031,7 @@ export default function CMSPage() {
                       <label className="text-xs font-bold text-gray-700 block">📐 Cadrage / Position du Visuel</label>
                       <select
                         value={promoBanner.image_position || "top"}
-                        onChange={(e) => setPromoBanner({ ...promoBanner, image_position: e.target.value as any })}
+                        onChange={(e) => setPromoBanner({ ...promoBanner, image_position: e.target.value as "top" | "center" | "bottom" | "contain" })}
                         className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 outline-none focus:border-indigo-600"
                       >
                         <option value="top">👤 Cadrer vers le Haut (Visages et Personnes visibles)</option>
@@ -1022,7 +1046,7 @@ export default function CMSPage() {
                       <label className="text-xs font-bold text-gray-700 block">📏 Hauteur de la Bannière</label>
                       <select
                         value={promoBanner.banner_height || "standard"}
-                        onChange={(e) => setPromoBanner({ ...promoBanner, banner_height: e.target.value as any })}
+                        onChange={(e) => setPromoBanner({ ...promoBanner, banner_height: e.target.value as "auto" | "compact" | "standard" | "large" })}
                         className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 outline-none focus:border-indigo-600"
                       >
                         <option value="auto">🌟 Automatique (Selon le format de l&apos;image)</option>

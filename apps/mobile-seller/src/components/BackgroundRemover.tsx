@@ -193,6 +193,10 @@ const HTML_WORKER = `
 
     window.addEventListener('message', handleIncomingMessage);
     document.addEventListener('message', handleIncomingMessage);
+    window.addEventListener('unload', function() {
+      window.removeEventListener('message', handleIncomingMessage);
+      document.removeEventListener('message', handleIncomingMessage);
+    });
   </script>
 </body>
 </html>
