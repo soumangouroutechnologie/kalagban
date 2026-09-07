@@ -112,10 +112,10 @@ export function initMobileCrashHandler(appName: 'mobile-buyer' | 'mobile-seller'
   isGlobalHandlerSet = true;
 
   // React Native Global Error Handler
-  const defaultHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
+  const defaultHandler = (globalThis as any).ErrorUtils?.getGlobalHandler?.();
 
-  if ((global as any).ErrorUtils) {
-    (global as any).ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+  if ((globalThis as any).ErrorUtils) {
+    (globalThis as any).ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
       reportMobileError({
         app: appName,
         level: isFatal ? 'fatal' : 'error',

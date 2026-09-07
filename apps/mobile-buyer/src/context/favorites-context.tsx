@@ -17,7 +17,9 @@ interface FavoritesContextType {
   toggleFavorite: (item: FavoriteItem) => Promise<{ success: boolean; requiresAuth?: boolean }>;
   isAuthenticated: boolean;
   user: any;
+  loading: boolean;
   checkAuthStatus: () => Promise<boolean>;
+  loadFavorites: (userIdOverride?: string | null) => Promise<void>;
 }
 
 const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
@@ -26,6 +28,7 @@ const FAVORITES_STORAGE_KEY = '@kalagban_mobile_favorites';
 export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -50,6 +53,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const loadFavorites = async (userIdOverride?: string | null) => {
+    setLoading(true);
     let localFavs: FavoriteItem[] = [];
     try {
       const stored = await AsyncStorage.getItem(FAVORITES_STORAGE_KEY);
@@ -70,7 +74,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           .select('id, product_id, products(id, title, price, old_price, product_media(url), shops(name))')
           .eq('user_id', uid);
 
-        if (!error && dbWishlist && dbWishlist.length > 0) {
+        if (!error && dbWishlist) {
           const dbFavs: FavoriteItem[] = dbWishlist
             .filter((w: any) => w.products)
             .map((w: any) => {
@@ -86,14 +90,9 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               };
             });
 
-          // Merge local & db
-          const mergedMap = new Map<string, FavoriteItem>();
-          localFavs.forEach((f) => mergedMap.set(f.id, f));
-          dbFavs.forEach((f) => mergedMap.set(f.id, f));
-
-          const merged = Array.from(mergedMap.values());
-          setFavorites(merged);
-          await saveFavorites(merged);
+          setFavorites(dbFavs);
+          await saveFavorites(dbFavs);
+          setLoading(false);
           return;
         }
       } catch (err) {
@@ -102,6 +101,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     setFavorites(localFavs);
+    setLoading(false);
   };
 
   const saveFavorites = async (items: FavoriteItem[]) => {
@@ -165,7 +165,9 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         toggleFavorite,
         isAuthenticated: !!user,
         user,
+        loading,
         checkAuthStatus,
+        loadFavorites,
       }}
     >
       {children}

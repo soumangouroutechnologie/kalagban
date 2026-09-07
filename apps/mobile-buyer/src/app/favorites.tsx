@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,10 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import {
   ArrowLeft,
   Heart,
@@ -42,8 +43,24 @@ export default function FavoritesScreen() {
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 8);
 
   const router = useRouter();
-  const { favorites, toggleFavorite, isAuthenticated, checkAuthStatus } = useFavorites();
+  const { favorites, toggleFavorite, isAuthenticated, checkAuthStatus, loadFavorites, loading } = useFavorites();
   const { addToCart } = useCart();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkAuthStatus().then(() => {
+        loadFavorites();
+      });
+    }, [])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await checkAuthStatus();
+    await loadFavorites();
+    setRefreshing(false);
+  };
 
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
@@ -167,31 +184,44 @@ export default function FavoritesScreen() {
         </View>
       ) : favorites.length === 0 ? (
         /* Empty Favorites */
-        <View style={styles.emptyContainer}>
-          <View style={styles.heartCircle}>
-            <Heart size={44} color="#94A3B8" />
-          </View>
-          <Text style={styles.emptyTitle}>Aucun favori pour l'instant</Text>
-          <Text style={styles.emptySub}>
-            Cliquez sur le cœur d'un produit pour l'ajouter à vos coup de cœur !
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreBtn}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/');
-              }
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.exploreBtnText}>Explorer la Marketplace</Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.emptyContainer}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />}
+        >
+          {loading ? (
+            <ActivityIndicator size="large" color="#4F46E5" />
+          ) : (
+            <>
+              <View style={styles.heartCircle}>
+                <Heart size={44} color="#94A3B8" />
+              </View>
+              <Text style={styles.emptyTitle}>Aucun favori pour l'instant</Text>
+              <Text style={styles.emptySub}>
+                Cliquez sur le cœur d'un produit pour l'ajouter à vos coup de cœur !
+              </Text>
+              <TouchableOpacity
+                style={styles.exploreBtn}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/');
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.exploreBtnText}>Explorer la Marketplace</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
       ) : (
         /* Favorites List */
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />}
+        >
           {favorites.map((item) => (
             <View key={item.id} style={styles.favCard}>
               <Image source={{ uri: getSafeImageUrl(item.image_url) }} style={styles.favImage} />
