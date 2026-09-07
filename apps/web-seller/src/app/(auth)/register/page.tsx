@@ -86,6 +86,11 @@ export default function RegisterPage() {
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+      if (!ALLOWED_TYPES.includes(file.type) || file.size > 5 * 1024 * 1024) {
+        setErrorMsg("Le logo doit être une image valide (JPG, PNG, WEBP) de moins de 5 Mo.");
+        return;
+      }
       setLogoFile(file);
       setLogoPreview(URL.createObjectURL(file));
     }

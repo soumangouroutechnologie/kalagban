@@ -113,7 +113,7 @@ export default function AdminUsersPage() {
         await supabase
           .from("shops")
           .update({ status: newStatus })
-          .or(`id.eq.${user.id},owner_id.eq.${user.id}`);
+          .eq("owner_id", user.id);
       }
 
       setUsers((prev) =>

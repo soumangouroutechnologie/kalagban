@@ -103,13 +103,16 @@ export async function POST(req: NextRequest) {
       else detectedModel = "Desktop Browser";
     }
 
-    const effectiveDeviceId = device_id || `anon_${crypto.createHash("sha1").update(ip + userAgent).digest("hex").slice(0, 16)}`;
+    const effectiveDeviceId = typeof device_id === "string" && device_id.length > 0
+      ? device_id
+      : "anon_" + crypto.createHash("sha1").update(ip + userAgent).digest("hex").slice(0, 16);
 
-    // Deterministic Fingerprint: sha256(app + level + normalized_message)
+    // Deterministic Fingerprint: sha256
     const normalizedMsg = String(message).trim().replace(/\d+/g, "N").slice(0, 200);
+    const fingerprintPayload = [normalizedApp, normalizedLevel, normalizedMsg].join(":");
     const fingerprint = crypto
       .createHash("sha256")
-      .update(`${normalizedApp}:${normalizedLevel}:${normalizedMsg}`)
+      .update(fingerprintPayload)
       .digest("hex")
       .slice(0, 32);
 

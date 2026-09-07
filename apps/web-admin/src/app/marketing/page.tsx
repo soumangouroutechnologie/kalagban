@@ -239,8 +239,10 @@ export default function MarketingPage() {
         .limit(60);
 
       if (term.trim()) {
-        const clean = term.trim();
-        query = query.or(`title.ilike.%${clean}%,description.ilike.%${clean}%,category.ilike.%${clean}%`);
+        const clean = term.replace(/[^a-zA-Z0-9\s+@._-]/g, "").trim();
+        if (clean) {
+          query = query.or(`title.ilike.%${clean}%,description.ilike.%${clean}%,category.ilike.%${clean}%`);
+        }
       }
 
       const { data, error } = await query;
@@ -622,6 +624,13 @@ export default function MarketingPage() {
 
   // Handle Banner Upload
   const handleUploadBanner = async (file: File) => {
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    if (!ALLOWED_TYPES.includes(file.type) || file.size > MAX_SIZE) {
+      toast.error("Format d'image non supporté ou fichier supérieur à 10 Mo.");
+      return;
+    }
+
     setUploadingBanner(true);
     try {
       const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";

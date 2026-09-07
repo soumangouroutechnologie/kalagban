@@ -16,7 +16,6 @@ import {
   Smartphone,
   Search,
   Check,
-  AlertCircle,
   Megaphone,
   Headphones,
   UserCheck,
@@ -24,7 +23,7 @@ import {
   UploadCloud,
   Trash2,
   Smile,
-  Tag
+  AlertTriangle
 } from "lucide-react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -156,6 +155,27 @@ function NotificationsPageContent() {
           .eq("status", "active")
           .order("created_at", { ascending: false });
         if (isMounted && promoData) setAvailableCampaigns(promoData);
+
+        // Check incoming query params from marketing tab
+        if (isMounted && searchParams) {
+          const titleParam = searchParams.get("title");
+          const msgParam = searchParams.get("message");
+          const imgParam = searchParams.get("image");
+          const urlParam = searchParams.get("url");
+
+          if (titleParam || urlParam) {
+            setFormData((prev) => ({
+              ...prev,
+              title: titleParam || prev.title,
+              message: msgParam || prev.message,
+              image_url: imgParam || prev.image_url,
+              url_redirect: urlParam || prev.url_redirect,
+              notification_type: "promo",
+              sent_by_role: "marketing",
+            }));
+            setShowSendModal(true);
+          }
+        }
       } catch (err) {
         if (isMounted) {
           console.error("Error fetching campaigns:", err);
@@ -165,27 +185,6 @@ function NotificationsPageContent() {
     };
 
     initFetch();
-
-    // Check incoming query params from marketing tab
-    if (searchParams) {
-      const titleParam = searchParams.get("title");
-      const msgParam = searchParams.get("message");
-      const imgParam = searchParams.get("image");
-      const urlParam = searchParams.get("url");
-
-      if (titleParam || urlParam) {
-        setFormData((prev) => ({
-          ...prev,
-          title: titleParam || prev.title,
-          message: msgParam || prev.message,
-          image_url: imgParam || prev.image_url,
-          url_redirect: urlParam || prev.url_redirect,
-          notification_type: "promo",
-          sent_by_role: "marketing",
-        }));
-        setShowSendModal(true);
-      }
-    }
 
     const channel = supabase
       .channel("push_campaigns_realtime")
@@ -201,7 +200,7 @@ function NotificationsPageContent() {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [searchParams]);
 
   // Search users or shops when specific target selected
   useEffect(() => {
@@ -218,18 +217,27 @@ function NotificationsPageContent() {
 
       if (isMounted) setSearchingTargets(true);
       try {
+        const cleanSearch = searchQuery.replace(/[^a-zA-Z0-9\s+@._-]/g, "").trim();
         if (formData.target_type === "specific_buyer") {
+          if (!cleanSearch) {
+            if (isMounted) setUserSearchResults([]);
+            return;
+          }
           const { data } = await supabase
             .from("profiles")
             .select("id, full_name, phone, role, expo_push_token")
-            .or(`full_name.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
+            .or(`full_name.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%`)
             .limit(8);
           if (isMounted) setUserSearchResults(data || []);
         } else if (formData.target_type === "specific_seller") {
+          if (!cleanSearch) {
+            if (isMounted) setShopSearchResults([]);
+            return;
+          }
           const { data } = await supabase
             .from("shops")
             .select("id, name, owner_id")
-            .ilike("name", `%${searchQuery}%`)
+            .ilike("name", `%${cleanSearch}%`)
             .limit(8);
           if (isMounted) setShopSearchResults(data || []);
         }
@@ -250,6 +258,12 @@ function NotificationsPageContent() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setSendError("Format d'image non valide (seuls JPEG, PNG, WEBP sont autorisés).");
+      return;
+    }
 
     if (file.size > 5 * 1024 * 1024) {
       setSendError("L'image ne doit pas dépasser 5 Mo.");
@@ -571,6 +585,13 @@ function NotificationsPageContent() {
                 <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   <p className="font-semibold">{sendSuccess}</p>
+                </div>
+              )}
+
+              {sendError && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <p className="font-semibold">{sendError}</p>
                 </div>
               )}
 

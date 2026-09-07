@@ -378,7 +378,13 @@ export default function RelayDashboardHome() {
     if (!rawInput) return;
 
     setIsDepositing(true);
-    const searchCode = rawInput.replace("#", "").trim();
+    const searchCode = rawInput.replace("#", "").replace(/[^a-zA-Z0-9-]/g, "").trim();
+
+    if (!searchCode) {
+      toast.error("Code invalide", "Veuillez entrer une référence de commande valide.");
+      setIsDepositing(false);
+      return;
+    }
 
     try {
       // Find matching order in Database

@@ -210,6 +210,11 @@ export default function CouriersPage() {
   };
 
   const handleValidateFile = (file: File) => {
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      alert(`Format de fichier non autorisé pour "${file.name}". Seuls JPG, PNG, WEBP et PDF sont acceptés.`);
+      return false;
+    }
     if (file.size > 5 * 1024 * 1024) {
       alert(`Le fichier "${file.name}" dépasse la limite maximale de 5 MB.`);
       return false;

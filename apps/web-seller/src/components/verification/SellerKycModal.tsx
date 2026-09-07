@@ -239,6 +239,13 @@ export default function SellerKycModal({
 
   // Upload helper to Supabase Storage
   const uploadToStorage = async (file: File, prefix: string): Promise<string> => {
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new Error(`Format non supporté pour "${file.name}". Seuls JPG, PNG, WEBP et PDF sont autorisés.`);
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error(`Le fichier "${file.name}" dépasse la taille maximale de 5 Mo.`);
+    }
     const ext = file.name.split(".").pop() || "jpg";
     const path = `kyc/${shopId}/${prefix}_${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("kalagban_media").upload(path, file);

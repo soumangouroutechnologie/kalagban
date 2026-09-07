@@ -60,7 +60,7 @@ export default function OrderHistoryScreen() {
       let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
 
       if (session?.user) {
-        query = query.or(`customer_id.eq.${session.user.id},customer_email.eq.${session.user.email}`);
+        query = query.eq('customer_id', session.user.id);
       } else {
         // If not logged in, limit 5 recent
         query = query.limit(5);

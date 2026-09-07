@@ -215,8 +215,18 @@ export default function NewProductPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files);
+      const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+      const MAX_SIZE = 10 * 1024 * 1024;
+      const validFiles = selectedFiles.filter(
+        (f) => ALLOWED_TYPES.includes(f.type) && f.size <= MAX_SIZE
+      );
+
+      if (validFiles.length < selectedFiles.length) {
+        toast.warning("Certains fichiers ont été ignorés (formats acceptés: JPG, PNG, WEBP, taille max 10 Mo).");
+      }
+
       const remainingSlots = 5 - images.length;
-      const filesToAdd = selectedFiles.slice(0, remainingSlots);
+      const filesToAdd = validFiles.slice(0, remainingSlots);
 
       const newImages: ProductImage[] = filesToAdd.map((file) => ({
         id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

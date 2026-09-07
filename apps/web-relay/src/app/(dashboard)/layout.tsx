@@ -84,7 +84,10 @@ export default function RelayDashboardLayout({
         .limit(10);
 
       if (pointId) {
-        query = query.or(`pickup_point_id.eq.${pointId},pickup_point_id.is.null`);
+        const cleanPointId = pointId.replace(/[^a-zA-Z0-9-]/g, "").trim();
+        if (cleanPointId) {
+          query = query.or(`pickup_point_id.eq.${cleanPointId},pickup_point_id.is.null`);
+        }
       }
 
       const { data } = await query;
