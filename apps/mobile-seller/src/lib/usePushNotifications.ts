@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
@@ -35,7 +34,8 @@ export function usePushNotifications(initialUserId?: string | null) {
     let currentToken: string | null = null;
 
     async function registerToken() {
-      if (!Device.isDevice) {
+      const isDevice = Constants.isDevice ?? true;
+      if (!isDevice) {
         console.log("Les notifications push requièrent un appareil physique.");
         return;
       }
