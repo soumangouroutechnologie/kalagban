@@ -58,6 +58,9 @@ interface FooterContactConfig {
   about_text: string;
 }
 
+export const MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10 Mo maximum
+export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+
 export default function CMSPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -176,9 +179,6 @@ export default function CMSPage() {
       reader.readAsDataURL(file);
     });
   };
-
-  const MAX_CONTENT_LENGTH = 10 * 1024 * 1024; // 10 Mo maximum
-  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
 
   const uploadFileToSupabase = async (file: File): Promise<string | null> => {
     if (file.size > MAX_CONTENT_LENGTH) {

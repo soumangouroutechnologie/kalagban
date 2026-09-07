@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     // Detect user-agent fallback if device_os or model not provided
     const userAgent = req.headers.get("user-agent") || "";
     let detectedOS = device_os;
-    let detectedModel = device_model;
+    const detectedModel = device_model || (/mobile/i.test(userAgent) ? "Mobile Web" : "Desktop Browser");
 
     if (!detectedOS) {
       if (/android/i.test(userAgent)) detectedOS = "Android";
@@ -98,14 +98,11 @@ export async function POST(req: NextRequest) {
       else detectedOS = "Autre";
     }
 
-    if (!detectedModel) {
-      if (/mobile/i.test(userAgent)) detectedModel = "Mobile Web";
-      else detectedModel = "Desktop Browser";
-    }
-
-    const effectiveDeviceId = typeof device_id === "string" && device_id.length > 0
-      ? device_id
-      : "anon_" + crypto.createHash("sha1").update(ip + userAgent).digest("hex").slice(0, 16);
+    const userAgentParts = [ip, userAgent];
+    const hashBuffer = userAgentParts.join(":");
+    const anonHex = crypto.createHash("sha1").update(hashBuffer).digest("hex").slice(0, 16);
+    const anonId = ["anon", anonHex].join("_");
+    const effectiveDeviceId = (typeof device_id === "string" && device_id.length > 0) ? device_id : anonId;
 
     // Deterministic Fingerprint: sha256
     const normalizedMsg = String(message).trim().replace(/\d+/g, "N").slice(0, 200);

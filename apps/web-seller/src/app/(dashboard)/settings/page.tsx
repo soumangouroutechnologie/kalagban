@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
 
+export const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5 Mo maximum
+export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+
 export default function SettingsPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -76,9 +79,6 @@ export default function SettingsPage() {
       loadData();
     }, 0);
   }, []);
-
-  const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5 Mo maximum
-  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 
   const uploadFile = async (file: File, pathPrefix: string): Promise<string | null> => {
     if (file.size > MAX_CONTENT_LENGTH) {
