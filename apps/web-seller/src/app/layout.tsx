@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/context/ToastContext";
+import { TelemetryErrorBoundary, TelemetryInitializer } from "@/components/TelemetryErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Kalagban - Portail Vendeur",
@@ -15,9 +16,12 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className="antialiased overflow-hidden bg-bg-app text-text-main" suppressHydrationWarning>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <TelemetryErrorBoundary appName="web-seller">
+          <TelemetryInitializer appName="web-seller" />
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </TelemetryErrorBoundary>
       </body>
     </html>
   );

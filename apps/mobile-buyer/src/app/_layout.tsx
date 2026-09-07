@@ -8,6 +8,9 @@ import { FavoritesProvider } from '@/context/favorites-context';
 import SplashScreen from '@/components/SplashScreen';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/lib/supabase';
+import { initMobileCrashHandler } from '@/lib/telemetry';
+
+initMobileCrashHandler('mobile-buyer');
 
 SplashScreenNative.preventAutoHideAsync().catch(() => {});
 

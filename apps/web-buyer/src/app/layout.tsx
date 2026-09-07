@@ -5,6 +5,7 @@ import { FavoritesProvider } from "@/context/FavoritesContext";
 import { ToastProvider } from "@/context/ToastContext";
 import CartDrawer from "@/components/CartDrawer";
 import FloatingSupportButton from "@/components/FloatingSupportButton";
+import { TelemetryErrorBoundary, TelemetryInitializer } from "@/components/TelemetryErrorBoundary";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -26,15 +27,18 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900 font-sans">
-        <ToastProvider>
-          <FavoritesProvider>
-            <CartProvider>
-              {children}
-              <CartDrawer />
-              <FloatingSupportButton />
-            </CartProvider>
-          </FavoritesProvider>
-        </ToastProvider>
+        <TelemetryErrorBoundary appName="web-buyer">
+          <TelemetryInitializer appName="web-buyer" />
+          <ToastProvider>
+            <FavoritesProvider>
+              <CartProvider>
+                {children}
+                <CartDrawer />
+                <FloatingSupportButton />
+              </CartProvider>
+            </FavoritesProvider>
+          </ToastProvider>
+        </TelemetryErrorBoundary>
       </body>
     </html>
   );

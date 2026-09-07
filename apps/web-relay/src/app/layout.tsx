@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastContext";
+import { TelemetryErrorBoundary, TelemetryInitializer } from "@/components/TelemetryErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Point Relais Kalagban - Portal Partenaire",
@@ -15,9 +16,12 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className="antialiased bg-[#f8fafc] text-gray-900 min-h-screen" suppressHydrationWarning>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <TelemetryErrorBoundary appName="web-relay">
+          <TelemetryInitializer appName="web-relay" />
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </TelemetryErrorBoundary>
       </body>
     </html>
   );

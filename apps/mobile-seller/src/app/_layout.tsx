@@ -6,6 +6,9 @@ import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '../context/auth-context';
 import { usePushNotifications } from '../lib/usePushNotifications';
 import { supabase } from '../lib/supabase';
+import { initMobileCrashHandler } from '../lib/telemetry';
+
+initMobileCrashHandler('mobile-seller');
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
