@@ -47,7 +47,9 @@ interface DashboardOrder {
 interface ActiveCampaignInfo {
   id: string;
   title: string;
+  subtitle?: string;
   badge_text?: string;
+  banner_url?: string;
   slug?: string;
   theme_color?: string;
 }
@@ -128,7 +130,7 @@ export default function SellerDashboardScreen() {
         // 3. Fetch Active Marketing Campaigns & Participating Products
         const { data: activeCamps } = await supabase
           .from('promotional_campaigns')
-          .select('id, title, badge_text, slug, theme_color')
+          .select('id, title, subtitle, badge_text, banner_url, slug, theme_color')
           .eq('status', 'active')
           .limit(3);
 
@@ -267,9 +269,11 @@ export default function SellerDashboardScreen() {
         {activeCampaigns.length > 0 && (
           <View style={styles.campaignsCard}>
             <View style={styles.campaignsCardHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.campaignsHeaderLeft}>
                 <Sparkles size={18} color="#EA580C" />
-                <Text style={styles.campaignsCardTitle}>Événements Promo en Direct</Text>
+                <Text style={styles.campaignsCardTitle} numberOfLines={1}>
+                  Événements Promo en Direct
+                </Text>
               </View>
               <View style={[styles.campaignsCountBadge, myParticipatingCount > 0 && styles.campaignsCountBadgeActive]}>
                 <Text style={[styles.campaignsCountText, myParticipatingCount > 0 && styles.campaignsCountTextActive]}>
@@ -283,8 +287,18 @@ export default function SellerDashboardScreen() {
             <View style={styles.campaignsList}>
               {activeCampaigns.map((c) => (
                 <View key={c.id} style={styles.campaignItemRow}>
-                  <View style={{ flex: 1, gap: 2 }}>
+                  {c.banner_url ? (
+                    <Image source={{ uri: c.banner_url }} style={styles.campaignThumbImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.campaignThumbPlaceholder, { backgroundColor: c.theme_color || '#EA580C' }]}>
+                      <Sparkles size={16} color="#FFFFFF" />
+                    </View>
+                  )}
+                  <View style={styles.campaignInfoCol}>
                     <Text style={styles.campaignItemTitle} numberOfLines={1}>{c.title}</Text>
+                    {c.subtitle ? (
+                      <Text style={styles.campaignItemSubtitle} numberOfLines={1}>{c.subtitle}</Text>
+                    ) : null}
                     <View style={styles.campaignBadgePill}>
                       <Text style={styles.campaignBadgePillText}>{c.badge_text || 'OFFRE SPÉCIALE'}</Text>
                     </View>
@@ -594,16 +608,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  campaignsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
   campaignsCardTitle: {
     fontSize: 15,
     fontWeight: '800',
     color: '#9A3412',
+    flexShrink: 1,
   },
   campaignsCountBadge: {
     backgroundColor: '#FFEDD5',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
+    flexShrink: 0,
   },
   campaignsCountBadgeActive: {
     backgroundColor: '#EA580C',
@@ -624,15 +647,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
-    padding: 12,
+    padding: 10,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#FFEDD5',
+  },
+  campaignThumbImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  campaignThumbPlaceholder: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  campaignInfoCol: {
+    flex: 1,
+    gap: 2,
+    marginLeft: 10,
+    marginRight: 6,
   },
   campaignItemTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#1E293B',
+  },
+  campaignItemSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
   },
   campaignBadgePill: {
     backgroundColor: '#FFEDD5',
@@ -653,8 +699,9 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
+    flexShrink: 0,
   },
   liveGreenDot: {
     width: 6,

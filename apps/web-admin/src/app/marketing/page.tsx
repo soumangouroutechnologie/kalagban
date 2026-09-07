@@ -73,6 +73,8 @@ interface ProductOption {
   category_id?: string;
   stock_quantity?: number;
   stock?: number;
+  shop_id?: string;
+  shops?: { id: string; name: string; logo_url?: string } | null;
 }
 
 interface SelectedCampaignProduct {
@@ -84,6 +86,7 @@ interface SelectedCampaignProduct {
   stock_allocated: number;
   available_stock?: number;
   image_url?: string;
+  shop_name?: string;
 }
 
 interface LoyaltySettings {
@@ -190,6 +193,8 @@ export default function MarketingPage() {
   const [editingPromoCampaignId, setEditingPromoCampaignId] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedCampaignProduct[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<ProductOption[]>([]);
+  const [availableShops, setAvailableShops] = useState<{ id: string; name: string; logo_url?: string }[]>([]);
+  const [selectedShopFilter, setSelectedShopFilter] = useState<string>("all");
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [globalDiscountPct, setGlobalDiscountPct] = useState(25);
@@ -228,15 +233,26 @@ export default function MarketingPage() {
     setShowAddCouponModal(true);
   };
 
-  // Fetch catalog products with dynamic query & search
+  // Fetch catalog products and shops with dynamic query & search
   const fetchCatalogProducts = useCallback(async (term = "") => {
     setLoadingCatalog(true);
     try {
+      // 1. Fetch available shops for filtering
+      const { data: shopsData } = await supabase
+        .from("shops")
+        .select("id, name, logo_url")
+        .order("name", { ascending: true });
+
+      if (shopsData && shopsData.length > 0) {
+        setAvailableShops(shopsData);
+      }
+
+      // 2. Fetch products with media & shop details
       let query = supabase
         .from("products")
-        .select("*, product_media(url)")
+        .select("*, product_media(url), shops(id, name, logo_url)")
         .order("created_at", { ascending: false })
-        .limit(60);
+        .limit(100);
 
       if (term.trim()) {
         const clean = term.replace(/[^a-zA-Z0-9\s+@._-]/g, "").trim();
@@ -252,9 +268,9 @@ export default function MarketingPage() {
         // Fallback simple query
         const { data: fallbackData } = await supabase
           .from("products")
-          .select("*")
+          .select("*, shops(id, name, logo_url)")
           .order("created_at", { ascending: false })
-          .limit(60);
+          .limit(100);
 
         if (fallbackData) {
           if (term.trim()) {
@@ -688,6 +704,7 @@ export default function MarketingPage() {
           stock_allocated: Math.max(1, actualStock),
           available_stock: actualStock,
           image_url: getProductImage(prod),
+          shop_name: prod.shops?.name || "Boutique Kalagban",
         },
       ]);
     }
@@ -1634,29 +1651,48 @@ export default function MarketingPage() {
                       1. Sélectionner les Produits du Catalogue
                     </label>
                     <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
-                      {catalogProducts.length} produit{catalogProducts.length > 1 ? "s" : ""} disponible{catalogProducts.length > 1 ? "s" : ""}
+                      {catalogProducts.filter(p => selectedShopFilter === "all" || p.shop_id === selectedShopFilter).length} produit(s) disponible(s)
                     </span>
                   </div>
 
-                  {/* Search Bar */}
-                  <div className="relative">
-                    <Search size={15} className="absolute left-3.5 top-3 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher un produit par titre ou catégorie (ex: meuble, sac, kit, cahier, téléphone)..."
-                      value={productSearchTerm}
-                      onChange={(e) => setProductSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
-                    />
-                    {productSearchTerm.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => setProductSearchTerm("")}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  {/* Filter by Boutique + Search Bar */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {/* Boutique Selector */}
+                    <div className="sm:w-1/3">
+                      <select
+                        value={selectedShopFilter}
+                        onChange={(e) => setSelectedShopFilter(e.target.value)}
+                        className="w-full py-2.5 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-800 focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all cursor-pointer"
                       >
-                        <X size={14} />
-                      </button>
-                    )}
+                        <option value="all">🏬 Toutes les Boutiques ({availableShops.length})</option>
+                        {availableShops.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            🏬 {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                      <Search size={15} className="absolute left-3.5 top-3 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Rechercher un produit par titre ou catégorie..."
+                        value={productSearchTerm}
+                        onChange={(e) => setProductSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs font-medium focus:outline-hidden focus:border-orange-500 focus:bg-white transition-all"
+                      />
+                      {productSearchTerm.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setProductSearchTerm("")}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Catalog List */}
@@ -1666,72 +1702,80 @@ export default function MarketingPage() {
                         <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto" />
                         <p className="text-[11px] text-gray-400 font-medium">Recherche dans la base de données...</p>
                       </div>
-                    ) : catalogProducts.length === 0 ? (
+                    ) : catalogProducts.filter(p => selectedShopFilter === "all" || p.shop_id === selectedShopFilter).length === 0 ? (
                       <div className="text-center py-6 text-gray-400 space-y-1">
-                        <p className="text-xs font-bold text-gray-600">Aucun produit trouvé pour &quot;{productSearchTerm}&quot;</p>
-                        <p className="text-[10px]">Vérifiez l&apos;orthographe ou essayez un mot plus général.</p>
+                        <p className="text-xs font-bold text-gray-600">Aucun produit trouvé pour ce filtre</p>
+                        <p className="text-[10px]">Sélectionnez une autre boutique ou modifiez votre recherche.</p>
                       </div>
                     ) : (
-                      catalogProducts.map((prod) => {
-                        const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
-                        const imgUrl = getProductImage(prod);
+                      catalogProducts
+                        .filter(p => selectedShopFilter === "all" || p.shop_id === selectedShopFilter)
+                        .map((prod) => {
+                          const isSelected = selectedProducts.some((p) => p.product_id === prod.id);
+                          const imgUrl = getProductImage(prod);
+                          const shopName = prod.shops?.name || "Boutique Kalagban";
 
-                        return (
-                          <div
-                            key={prod.id}
-                            onClick={() => toggleSelectProduct(prod)}
-                            className={`p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs cursor-pointer transition-all ${
-                              isSelected
-                                ? "bg-orange-100/70 border border-orange-300 text-orange-950 shadow-2xs"
-                                : "bg-white hover:bg-orange-50/50 border border-gray-100"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 relative shrink-0 border border-gray-200">
-                                <Image
-                                  src={imgUrl}
-                                  alt={prod.title}
-                                  fill
-                                  className="object-cover"
-                                  unoptimized
-                                />
-                              </div>
-                              <div className="truncate min-w-0">
-                                <p className="font-bold text-gray-900 truncate">{prod.title}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] text-gray-500 font-medium truncate">
-                                    Catégorie : {prod.category || prod.category_id || "Général"}
-                                  </span>
-                                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold shrink-0">
-                                    Stock : {prod.stock_quantity ?? prod.stock ?? 0}
-                                  </span>
+                          return (
+                            <div
+                              key={prod.id}
+                              onClick={() => toggleSelectProduct(prod)}
+                              className={`p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs cursor-pointer transition-all ${
+                                isSelected
+                                  ? "bg-orange-100/70 border border-orange-300 text-orange-950 shadow-2xs"
+                                  : "bg-white hover:bg-orange-50/50 border border-gray-100"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                                <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 relative shrink-0 border border-gray-200">
+                                  <Image
+                                    src={imgUrl}
+                                    alt={prod.title}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
+                                </div>
+                                <div className="truncate min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-bold text-gray-900 truncate">{prod.title}</p>
+                                    <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.5 rounded shrink-0">
+                                      🏬 {shopName}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-gray-500 font-medium truncate">
+                                      Catégorie : {prod.category || prod.category_id || "Général"}
+                                    </span>
+                                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold shrink-0">
+                                      Stock : {prod.stock_quantity ?? prod.stock ?? 0}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-100">
-                              <span className="font-extrabold text-gray-900">
-                                {Number(prod.price).toLocaleString()} FCFA
-                              </span>
-                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${
-                                isSelected
-                                  ? "bg-orange-600 text-white"
-                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                              }`}>
-                                {isSelected ? (
-                                  <>
-                                    <Check size={12} /> Ajouté
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus size={12} /> Ajouter
-                                  </>
-                                )}
-                              </span>
+                              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                                <span className="font-extrabold text-gray-900">
+                                  {Number(prod.price).toLocaleString()} FCFA
+                                </span>
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-orange-600 text-white"
+                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}>
+                                  {isSelected ? (
+                                    <>
+                                      <Check size={12} /> Ajouté
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus size={12} /> Ajouter
+                                    </>
+                                  )}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })
                     )}
                   </div>
                 </div>
@@ -1800,9 +1844,14 @@ export default function MarketingPage() {
                             </div>
                             <div className="flex-1 min-w-0 pr-6">
                               <p className="font-bold text-xs text-gray-900 truncate">{sp.title}</p>
-                              <p className="text-[11px] text-gray-400 line-through">
-                                {Number(sp.price).toLocaleString()} FCFA
-                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1 py-0.2 rounded truncate max-w-32">
+                                  🏬 {sp.shop_name || "Boutique"}
+                                </span>
+                                <span className="text-[11px] text-gray-400 line-through">
+                                  {Number(sp.price).toLocaleString()} FCFA
+                                </span>
+                              </div>
                             </div>
                             <button
                               type="button"

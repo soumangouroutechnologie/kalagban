@@ -36,6 +36,7 @@ import {
   Wand2,
   RotateCcw,
   ShieldCheck,
+  Lock,
 } from 'lucide-react-native';
 
 const STUDIO_BACKGROUNDS = [
@@ -77,6 +78,7 @@ export default function ProductEditorScreen() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [activePromo, setActivePromo] = useState<{ campaign_title: string; discount_percentage: number } | null>(null);
 
   const activeParent = CATEGORY_TREE.find(c => c.id === selectedParentCat) || CATEGORY_TREE[0];
 
@@ -124,6 +126,26 @@ export default function ProductEditorScreen() {
         if (data.product_media?.[0]?.url) {
           setImageUri(data.product_media[0].url);
           setOriginalImageUri(data.product_media[0].url);
+        }
+
+        // Check if this product is part of an active promotional campaign
+        const { data: promoData } = await supabase
+          .from('campaign_products')
+          .select('discount_percentage, promotional_campaigns(title, status)')
+          .eq('product_id', id);
+
+        if (promoData && promoData.length > 0) {
+          const active = promoData.find((p: any) => p.promotional_campaigns?.status === 'active');
+          if (active) {
+            setActivePromo({
+              campaign_title: (active as any).promotional_campaigns?.title || 'Campagne en cours',
+              discount_percentage: Number(active.discount_percentage) || 20,
+            });
+          } else {
+            setActivePromo(null);
+          }
+        } else {
+          setActivePromo(null);
         }
       }
     } catch (err) {
@@ -211,6 +233,14 @@ export default function ProductEditorScreen() {
   };
 
   const handleSave = async () => {
+    if (activePromo) {
+      Alert.alert(
+        'Modification Impossible 🔒',
+        `Ce produit participe actuellement à la promotion active "${activePromo.campaign_title}" (-${activePromo.discount_percentage}%).\n\nLes modifications sont temporairement verrouillées tant que la campagne est active.`
+      );
+      return;
+    }
+
     if (!title.trim() || !price.trim() || !stockQuantity.trim()) {
       Alert.alert('Champs obligatoires', 'Veuillez remplir le titre, le prix et la quantité en stock.');
       return;
@@ -319,13 +349,15 @@ export default function ProductEditorScreen() {
           {productId ? 'Modifier le Produit' : 'Ajouter un Produit'}
         </Text>
         <TouchableOpacity
-          style={styles.saveBtn}
+          style={[styles.saveBtn, !!activePromo && { backgroundColor: '#94A3B8' }]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || !!activePromo}
           activeOpacity={0.85}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : activePromo ? (
+            <Text style={styles.saveBtnText}>Verrouillé 🔒</Text>
           ) : (
             <Text style={styles.saveBtnText}>Soumettre</Text>
           )}
@@ -340,6 +372,19 @@ export default function ProductEditorScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Active Promo Locked Banner */}
+          {activePromo && (
+            <View style={styles.promoLockedBanner}>
+              <Lock size={20} color="#EA580C" style={{ marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.promoLockedTitle}>Produit sous Promotion Active 🔒</Text>
+                <Text style={styles.promoLockedDesc}>
+                  Ce produit participe à la campagne marketing &ldquo;{activePromo.campaign_title}&rdquo; (-{activePromo.discount_percentage}%). Les modifications sont temporairement verrouillées tant que la promotion est active.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Moderation Notice Banner */}
           <View style={styles.moderationNoticeBox}>
             <ShieldCheck size={20} color="#D97706" style={{ marginTop: 2 }} />
@@ -562,13 +607,21 @@ export default function ProductEditorScreen() {
 
             {/* Big Submit Button */}
             <TouchableOpacity
-              style={[styles.bigSubmitBtn, loading && { opacity: 0.7 }]}
+              style={[
+                styles.bigSubmitBtn,
+                (loading || !!activePromo) && { opacity: 0.6, backgroundColor: !!activePromo ? '#94A3B8' : '#4F46E5' },
+              ]}
               onPress={handleSave}
-              disabled={loading}
+              disabled={loading || !!activePromo}
               activeOpacity={0.85}
             >
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
+              ) : activePromo ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Lock size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.bigSubmitBtnText}>Modifications Verrouillées (En Promo)</Text>
+                </View>
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Check size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
@@ -860,6 +913,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 14,
+  },
+  promoLockedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+  },
+  promoLockedTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#9A3412',
+    marginBottom: 2,
+  },
+  promoLockedDesc: {
+    fontSize: 11,
+    color: '#C2410C',
+    lineHeight: 16,
   },
   moderationNoticeBox: {
     flexDirection: 'row',

@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   Plus,
   Trash2,
-  Star
+  Star,
+  Lock
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
@@ -38,6 +39,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [activePromo, setActivePromo] = useState<{ campaign_title: string; discount_percentage: number } | null>(null);
 
   // Form states
   const [title, setTitle] = useState("");
@@ -219,6 +221,35 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           setSelectedImageIndex(0);
         }
 
+        // Check active promotional campaigns
+        interface CampaignProductPromoJoin {
+          discount_percentage: number | null;
+          promotional_campaigns: {
+            title: string;
+            status: string;
+          } | null;
+        }
+
+        const { data: promoData } = await supabase
+          .from('campaign_products')
+          .select('discount_percentage, promotional_campaigns(title, status)')
+          .eq('product_id', productId);
+
+        if (promoData && promoData.length > 0) {
+          const promoRows = promoData as unknown as CampaignProductPromoJoin[];
+          const active = promoRows.find((p) => p.promotional_campaigns?.status === 'active');
+          if (active) {
+            setActivePromo({
+              campaign_title: active.promotional_campaigns?.title || 'Campagne en cours',
+              discount_percentage: Number(active.discount_percentage) || 20,
+            });
+          } else {
+            setActivePromo(null);
+          }
+        } else {
+          setActivePromo(null);
+        }
+
       } catch (err) {
         console.error("Erreur de chargement produit:", err);
       } finally {
@@ -340,6 +371,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (activePromo) {
+      toast.error(`Ce produit participe actuellement à la promotion active "${activePromo.campaign_title}". Les modifications sont verrouillées.`);
+      return;
+    }
+
     if (!title || !price) {
       toast.warning("Veuillez remplir au moins le titre et le prix.");
       return;
@@ -432,8 +468,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto pb-10">
       
+      {/* Active Promo Locked Banner */}
+      {activePromo && (
+        <div className="bg-linear-to-r from-orange-500/15 via-orange-500/10 to-transparent border border-orange-500/30 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center text-orange-600 shrink-0">
+            <Lock size={22} />
+          </div>
+          <div className="flex-1 text-sm text-orange-950">
+            <span className="font-extrabold text-orange-900 block">Produit sous Promotion Active 🔒</span>
+            Ce produit participe actuellement à la campagne marketing &ldquo;{activePromo.campaign_title}&rdquo; (-{activePromo.discount_percentage}%). Les modifications sont temporairement verrouillées tant que la promotion est active pour préserver la cohérence des offres.
+          </div>
+        </div>
+      )}
+
       {/* Moderation Status Banner */}
-      {!isAlreadyApproved && (
+      {!isAlreadyApproved && !activePromo && (
         <div className="bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
             <ShieldCheck size={22} />
@@ -462,17 +511,23 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <button 
             onClick={handleUpdate}
-            disabled={isSaving}
-            className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-primary/30 hover:bg-indigo-600 transform hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-70 disabled:hover:translate-y-0"
+            disabled={isSaving || !!activePromo}
+            className={`font-bold px-6 py-2.5 rounded-xl shadow-lg transition-all flex items-center gap-2 ${
+              activePromo 
+                ? "bg-gray-400 text-white cursor-not-allowed shadow-none" 
+                : "bg-primary text-white shadow-primary/30 hover:bg-indigo-600 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0"
+            }`}
           >
             {isSaving ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : isSaved ? (
               <CheckCircle size={20} />
+            ) : activePromo ? (
+              <Lock size={18} />
             ) : (
               <Save size={20} />
             )}
-            {isSaving ? "Enregistrement..." : "Enregistrer les modifications"}
+            {isSaving ? "Enregistrement..." : activePromo ? "Verrouillé (En Promotion)" : "Enregistrer les modifications"}
           </button>
         </div>
       </div>

@@ -106,10 +106,11 @@ export function initMobileCrashHandler(appName: 'mobile-buyer' | 'mobile-seller'
   if (isGlobalHandlerSet) return;
   isGlobalHandlerSet = true;
 
-  const defaultHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
+  const globalObj = globalThis as unknown as { ErrorUtils?: { getGlobalHandler?: () => any; setGlobalHandler?: (handler: any) => void } };
+  const defaultHandler = globalObj.ErrorUtils?.getGlobalHandler?.();
 
-  if ((global as any).ErrorUtils) {
-    (global as any).ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
+  if (globalObj.ErrorUtils?.setGlobalHandler) {
+    globalObj.ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
       reportMobileError({
         app: appName,
         level: isFatal ? 'fatal' : 'error',

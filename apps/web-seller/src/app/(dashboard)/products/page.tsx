@@ -12,7 +12,8 @@ import {
   Loader2, 
   Image as ImageIcon,
   AlertTriangle, 
-  X
+  X,
+  Lock
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/context/ToastContext";
@@ -480,24 +481,37 @@ export default function ProductsPage() {
                           <Eye size={16} />
                         </button>
 
-                        {/* Edit Product Button */}
-                        <Link
-                          href={`/products/${product.id}/edit`}
-                          title="Modifier ce produit"
-                          className="p-2 text-gray-500 hover:text-primary bg-gray-50 hover:bg-primary/10 rounded-xl transition-all border border-gray-200/80"
-                        >
-                          <Edit size={16} />
-                        </Link>
+                        {productPromos.has(product.id) ? (
+                          <button
+                            type="button"
+                            title={`Produit sous promotion active (${productPromos.get(product.id)!.campaign_title}) - Modifications verrouillées`}
+                            onClick={() => alert(`Ce produit participe actuellement à la campagne marketing "${productPromos.get(product.id)!.campaign_title}". Pour garantir la cohérence des offres promotionnelles clients, les modifications et la suppression sont verrouillées tant que la promotion est active.`)}
+                            className="p-2 text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all border border-orange-200"
+                          >
+                            <Lock size={16} />
+                          </button>
+                        ) : (
+                          <>
+                            {/* Edit Product Button */}
+                            <Link
+                              href={`/products/${product.id}/edit`}
+                              title="Modifier ce produit"
+                              className="p-2 text-gray-500 hover:text-primary bg-gray-50 hover:bg-primary/10 rounded-xl transition-all border border-gray-200/80"
+                            >
+                              <Edit size={16} />
+                            </Link>
 
-                        {/* Delete Button (Triggers Popup) */}
-                        <button
-                          type="button"
-                          onClick={() => setProductToDelete(product)}
-                          title="Supprimer ce produit"
-                          className="p-2 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-xl transition-all border border-gray-200/80"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                            {/* Delete Button (Triggers Popup) */}
+                            <button
+                              type="button"
+                              onClick={() => setProductToDelete(product)}
+                              title="Supprimer ce produit"
+                              className="p-2 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-xl transition-all border border-gray-200/80"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
 

@@ -23,6 +23,7 @@ import {
   Edit3,
   Check,
   AlertCircle,
+  Lock,
 } from 'lucide-react-native';
 
 interface ProductItem {
@@ -410,24 +411,41 @@ export default function SellerProductsScreen() {
 
                   {/* Actions (Edit / Delete) */}
                   <View style={styles.actionButtonsCol}>
-                    <TouchableOpacity
-                      style={styles.iconBtn}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/product-editor',
-                          params: { id: p.id },
-                        } as any)
-                      }
-                    >
-                      <Edit3 size={18} color="#4F46E5" />
-                    </TouchableOpacity>
+                    {productPromos.has(p.id) ? (
+                      <TouchableOpacity
+                        style={[styles.iconBtn, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1 }]}
+                        onPress={() => {
+                          const promo = productPromos.get(p.id);
+                          Alert.alert(
+                            'Produit sous Promotion Active 🔒',
+                            `Ce produit participe actuellement à la campagne marketing "${promo?.campaign_title || 'En cours'}".\n\nPour préserver la cohérence des offres clients, la modification et la suppression sont temporairement verrouillées tant que la promotion est active.`
+                          );
+                        }}
+                      >
+                        <Lock size={17} color="#EA580C" />
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={styles.iconBtn}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/product-editor',
+                              params: { id: p.id },
+                            } as any)
+                          }
+                        >
+                          <Edit3 size={18} color="#4F46E5" />
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.iconBtn, { backgroundColor: '#FEF2F2' }]}
-                      onPress={() => handleDeleteProduct(p.id, p.title)}
-                    >
-                      <Trash2 size={18} color="#DC2626" />
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.iconBtn, { backgroundColor: '#FEF2F2' }]}
+                          onPress={() => handleDeleteProduct(p.id, p.title)}
+                        >
+                          <Trash2 size={18} color="#DC2626" />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 </View>
               );
