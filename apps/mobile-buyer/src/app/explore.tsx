@@ -49,6 +49,7 @@ interface Product {
   category?: string;
   price: number;
   old_price?: number;
+  discount_percentage?: number;
   stock_quantity?: number;
   image_url: string;
   shop_id?: string;
@@ -97,33 +98,67 @@ export default function ExploreScreen() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Shops
-      const { data: shopsData } = await supabase
-        .from('shops')
-        .select('id, name, description, logo_url')
-        .order('name', { ascending: true });
+      const [shopsRes, productsRes, activeCampsRes, settingsRes] = await Promise.all([
+        supabase
+          .from('shops')
+          .select('id, name, description, logo_url')
+          .order('name', { ascending: true }),
+        supabase
+          .from('products')
+          .select(`
+            id,
+            title,
+            description,
+            category,
+            price,
+            old_price,
+            shop_id,
+            status,
+            moderation_status,
+            shops ( id, name ),
+            product_media ( url )
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('promotional_campaigns')
+          .select('id, status')
+          .eq('status', 'active'),
+        supabase
+          .from('site_settings')
+          .select('key, value')
+          .eq('key', 'promo_banner')
+          .maybeSingle(),
+      ]);
 
-      if (shopsData) {
-        setShops(shopsData);
+      if (shopsRes.data) {
+        setShops(shopsRes.data);
       }
 
-      const { data: productsData, error: prodErr } = await supabase
-        .from('products')
-        .select(`
-          id,
-          title,
-          description,
-          category,
-          price,
-          old_price,
-          shop_id,
-          status,
-          moderation_status,
-          shops ( id, name ),
-          product_media ( url )
-        `)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+      const productsData = productsRes.data;
+      const prodErr = productsRes.error;
+      const activeCamps = activeCampsRes.data;
+
+      // Map active campaign product promo prices
+      const promoProductMap = new Map<string, { special_price: number; discount_percentage: number }>();
+      if (activeCamps && activeCamps.length > 0) {
+        const campIds = activeCamps.map((c) => c.id);
+        const { data: promoItems } = await supabase
+          .from('campaign_products')
+          .select('product_id, special_price, discount_percentage')
+          .in('campaign_id', campIds);
+
+        if (promoItems && promoItems.length > 0) {
+          for (const item of promoItems) {
+            if (item.product_id && item.special_price) {
+              promoProductMap.set(item.product_id, {
+                special_price: Number(item.special_price),
+                discount_percentage: Number(item.discount_percentage) || 20,
+              });
+            }
+          }
+        }
+      }
 
       if (!prodErr && productsData) {
         const approvedOnly = productsData.filter((p: any) => {
@@ -133,33 +168,38 @@ export default function ExploreScreen() {
           return p.status === "active" && isApproved && !isPending && !isRejected;
         });
 
-        const formatted: Product[] = approvedOnly.map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          category: p.category || '',
-          price: Number(p.price),
-          old_price: p.old_price ? Number(p.old_price) : undefined,
-          shop_id: p.shop_id,
-          shop_name: p.shops?.name || 'Boutique Partenaire',
-          image_url: getSafeImageUrl(
-            p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null
-          ),
-        }));
+        const formatted: Product[] = approvedOnly.map((p: any) => {
+          const promo = promoProductMap.get(p.id);
+          const rawPrice = Number(p.price);
+          const hasPromo = Boolean(promo && promo.special_price && promo.special_price < rawPrice);
+          const finalPrice = hasPromo ? promo!.special_price : rawPrice;
+          const finalOldPrice = hasPromo ? rawPrice : (p.old_price ? Number(p.old_price) : undefined);
+          const discountPercentage = hasPromo
+            ? promo!.discount_percentage
+            : (finalOldPrice && finalOldPrice > finalPrice ? Math.round(((finalOldPrice - finalPrice) / finalOldPrice) * 100) : undefined);
+
+          return {
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            category: p.category || '',
+            price: finalPrice,
+            old_price: finalOldPrice,
+            discount_percentage: discountPercentage,
+            shop_id: p.shop_id,
+            shop_name: p.shops?.name || 'Boutique Partenaire',
+            image_url: getSafeImageUrl(
+              p.product_media && p.product_media.length > 0 ? p.product_media[0].url : null
+            ),
+          };
+        });
         setProducts(formatted);
       } else {
         setProducts([]);
       }
 
-      // 3. Fetch CMS Promo Banner
-      const { data: settingsData } = await supabase
-        .from('site_settings')
-        .select('key, value')
-        .eq('key', 'promo_banner')
-        .single();
-
-      if (settingsData && settingsData.value) {
-        setAdBanner(settingsData.value as PromoBannerConfig);
+      if (settingsRes.data && settingsRes.data.value) {
+        setAdBanner(settingsRes.data.value as PromoBannerConfig);
       }
     } catch {
       // Error fallback
@@ -443,6 +483,11 @@ export default function ExploreScreen() {
                 >
                   <View style={styles.imageContainer}>
                     <Image source={{ uri: product.image_url }} style={styles.productImage} />
+                    {product.discount_percentage ? (
+                      <View style={styles.discountBadge}>
+                        <Text style={styles.discountText}>-{product.discount_percentage}%</Text>
+                      </View>
+                    ) : null}
                     <TouchableOpacity
                       style={[styles.favBtn, fav && styles.favBtnActive]}
                       onPress={(e) => {
@@ -821,6 +866,21 @@ const styles = StyleSheet.create({
   },
   favBtnActive: {
     backgroundColor: '#FEE2E2',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    zIndex: 2,
+  },
+  discountText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
   },
   productDetails: {
     padding: 12,

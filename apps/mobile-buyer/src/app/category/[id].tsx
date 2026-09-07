@@ -100,6 +100,7 @@ interface ProductItem {
   category?: string;
   price: number;
   old_price?: number;
+  discount_percentage?: number;
   stock_quantity?: number;
   image_url: string;
   shop_name?: string;
@@ -140,24 +141,55 @@ export default function CategoryJumiaStyleScreen() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          id,
-          title,
-          description,
-          category,
-          price,
-          old_price,
-          stock_quantity,
-          status,
-          moderation_status,
-          shop_id,
-          product_media (url),
-          shops (name)
-        `)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+      const [productsRes, activeCampsRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select(`
+            id,
+            title,
+            description,
+            category,
+            price,
+            old_price,
+            stock_quantity,
+            status,
+            moderation_status,
+            shop_id,
+            product_media (url),
+            shops (name)
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('promotional_campaigns')
+          .select('id, status')
+          .eq('status', 'active'),
+      ]);
+
+      const data = productsRes.data;
+      const error = productsRes.error;
+      const activeCamps = activeCampsRes.data;
+
+      // Map active campaign product promo prices
+      const promoProductMap = new Map<string, { special_price: number; discount_percentage: number }>();
+      if (activeCamps && activeCamps.length > 0) {
+        const campIds = activeCamps.map((c) => c.id);
+        const { data: promoItems } = await supabase
+          .from('campaign_products')
+          .select('product_id, special_price, discount_percentage')
+          .in('campaign_id', campIds);
+
+        if (promoItems && promoItems.length > 0) {
+          for (const item of promoItems) {
+            if (item.product_id && item.special_price) {
+              promoProductMap.set(item.product_id, {
+                special_price: Number(item.special_price),
+                discount_percentage: Number(item.discount_percentage) || 20,
+              });
+            }
+          }
+        }
+      }
 
       if (!error && data) {
         const approvedOnly = data.filter((p: any) => {
@@ -167,18 +199,30 @@ export default function CategoryJumiaStyleScreen() {
           return p.status === "active" && isApproved && !isPending && !isRejected;
         });
 
-        const formatted: ProductItem[] = approvedOnly.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          description: item.description,
-          category: item.category,
-          price: Number(item.price),
-          old_price: item.old_price ? Number(item.old_price) : undefined,
-          stock_quantity: Number(item.stock_quantity ?? 0),
-          image_url: getSafeImageUrl(item.product_media && item.product_media.length > 0 ? item.product_media[0].url : null),
-          shop_name: item.shops?.name || 'Vendeur Certifié',
-          shop_id: item.shop_id,
-        }));
+        const formatted: ProductItem[] = approvedOnly.map((item: any) => {
+          const promo = promoProductMap.get(item.id);
+          const rawPrice = Number(item.price);
+          const hasPromo = Boolean(promo && promo.special_price && promo.special_price < rawPrice);
+          const finalPrice = hasPromo ? promo!.special_price : rawPrice;
+          const finalOldPrice = hasPromo ? rawPrice : (item.old_price ? Number(item.old_price) : undefined);
+          const discountPercentage = hasPromo
+            ? promo!.discount_percentage
+            : (finalOldPrice && finalOldPrice > finalPrice ? Math.round(((finalOldPrice - finalPrice) / finalOldPrice) * 100) : undefined);
+
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: finalPrice,
+            old_price: finalOldPrice,
+            discount_percentage: discountPercentage,
+            stock_quantity: Number(item.stock_quantity ?? 0),
+            image_url: getSafeImageUrl(item.product_media && item.product_media.length > 0 ? item.product_media[0].url : null),
+            shop_name: item.shops?.name || 'Vendeur Certifié',
+            shop_id: item.shop_id,
+          };
+        });
         setProducts(formatted);
       } else {
         setProducts([]);
@@ -453,6 +497,12 @@ export default function CategoryJumiaStyleScreen() {
                           </View>
                         )}
 
+                        {prod.discount_percentage ? (
+                          <View style={styles.discountBadge}>
+                            <Text style={styles.discountText}>-{prod.discount_percentage}%</Text>
+                          </View>
+                        ) : null}
+
                         <TouchableOpacity
                           style={styles.favBtn}
                           onPress={() => handleToggleFav(prod)}
@@ -466,7 +516,12 @@ export default function CategoryJumiaStyleScreen() {
                         <Text style={styles.cardTitle} numberOfLines={2}>{prod.title}</Text>
 
                         <View style={styles.priceRow}>
-                          <Text style={styles.cardPrice}>{formatPrice(prod.price)}</Text>
+                          <View style={styles.priceColumn}>
+                            <Text style={styles.cardPrice}>{formatPrice(prod.price)}</Text>
+                            {prod.old_price && prod.old_price > prod.price ? (
+                              <Text style={styles.cardOldPrice}>{formatPrice(prod.old_price)}</Text>
+                            ) : null}
+                          </View>
                           <TouchableOpacity
                             style={styles.addCartBtn}
                             onPress={() => handleAddToCart(prod)}
@@ -747,16 +802,40 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     lineHeight: 14,
   },
+  discountBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+    zIndex: 2,
+  },
+  discountText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 3,
   },
+  priceColumn: {
+    flex: 1,
+  },
   cardPrice: {
     fontSize: 11,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  cardOldPrice: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
   },
   addCartBtn: {
     width: 24,

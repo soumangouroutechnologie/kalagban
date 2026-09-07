@@ -58,25 +58,56 @@ export default function DedicatedWebCategoryPage() {
     const loadCategoryProducts = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("products")
-          .select(`
-            id,
-            shop_id,
-            title,
-            description,
-            category,
-            price,
-            old_price,
-            stock_quantity,
-            status,
-            moderation_status,
-            product_media (url)
-          `)
-          .eq("status", "active")
-          .order("created_at", { ascending: false });
+        const [productsRes, activeCampsRes] = await Promise.all([
+          supabase
+            .from("products")
+            .select(`
+              id,
+              shop_id,
+              title,
+              description,
+              category,
+              price,
+              old_price,
+              stock_quantity,
+              status,
+              moderation_status,
+              product_media (url)
+            `)
+            .eq("status", "active")
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("promotional_campaigns")
+            .select("id, status")
+            .eq("status", "active"),
+        ]);
 
         if (!isMounted) return;
+
+        const data = productsRes.data;
+        const error = productsRes.error;
+        const activeCamps = activeCampsRes.data;
+
+        // Map active campaign product promo prices
+        const promoProductMap = new Map<string, { special_price: number; discount_percentage: number }>();
+        if (activeCamps && activeCamps.length > 0) {
+          const campIds = activeCamps.map((c) => c.id);
+          const { data: promoItems } = await supabase
+            .from("campaign_products")
+            .select("product_id, special_price, discount_percentage")
+            .in("campaign_id", campIds);
+
+          if (promoItems && promoItems.length > 0) {
+            for (const item of promoItems) {
+              if (item.product_id && item.special_price) {
+                promoProductMap.set(item.product_id, {
+                  special_price: Number(item.special_price),
+                  discount_percentage: Number(item.discount_percentage) || 20,
+                });
+              }
+            }
+          }
+        }
 
         if (!error && data) {
           const approvedOnly = data.filter((item: {
@@ -100,21 +131,29 @@ export default function DedicatedWebCategoryPage() {
             stock_quantity: number;
             status: string;
             product_media?: { url: string }[];
-          }) => ({
-            id: item.id,
-            shop_id: item.shop_id,
-            title: item.title,
-            description: item.description,
-            category: item.category,
-            price: Number(item.price),
-            old_price: item.old_price ? Number(item.old_price) : null,
-            stock_quantity: item.stock_quantity,
-            status: item.status,
-            image_url:
-              item.product_media && item.product_media.length > 0
-                ? item.product_media[0].url
-                : null,
-          }));
+          }) => {
+            const promo = promoProductMap.get(item.id);
+            const rawPrice = Number(item.price);
+            const hasPromo = Boolean(promo && promo.special_price && promo.special_price < rawPrice);
+            const finalPrice = hasPromo ? promo!.special_price : rawPrice;
+            const finalOldPrice = hasPromo ? rawPrice : (item.old_price ? Number(item.old_price) : null);
+
+            return {
+              id: item.id,
+              shop_id: item.shop_id,
+              title: item.title,
+              description: item.description,
+              category: item.category,
+              price: finalPrice,
+              old_price: finalOldPrice,
+              stock_quantity: item.stock_quantity,
+              status: item.status,
+              image_url:
+                item.product_media && item.product_media.length > 0
+                  ? item.product_media[0].url
+                  : null,
+            };
+          });
           setProducts(formatted);
         } else {
           setProducts([]);
