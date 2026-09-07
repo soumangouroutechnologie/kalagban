@@ -173,7 +173,8 @@ export default function AdminSidebar() {
     {
       groupTitle: "⚙️ Pilotage & Système",
       items: [
-        { label: "Journal Logs & Bugs", href: "/logs", icon: Bug, permissionKey: "can_manage_team", badge: openBugsCount },
+        { label: "Télémétrie & Bugs", href: "/bugs", icon: Bug, permissionKey: "can_manage_bugs", badge: openBugsCount },
+        { label: "Journal Système & Logs", href: "/logs", icon: FileText, permissionKey: "can_manage_team" },
         { label: "Journal d'Audit", href: "/audit", icon: FileText, permissionKey: "can_manage_team" },
         { label: "Éditeur Visuel CMS", href: "/cms", icon: Palette, permissionKey: "can_edit_cms" },
         { label: "Gestion Équipe & RBAC", href: "/team", icon: Users, permissionKey: "can_manage_team" },

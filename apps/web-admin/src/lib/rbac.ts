@@ -14,6 +14,7 @@ export interface AdminPermissions {
   // Administration & RBAC
   can_manage_team: boolean;
   can_edit_cms: boolean;
+  can_manage_bugs: boolean;
 
   // Logistique & Relais
   can_manage_logistics: boolean;
@@ -91,6 +92,7 @@ export interface AdminPermissions {
 export const DEFAULT_PERMISSIONS: AdminPermissions = {
   can_manage_team: false,
   can_edit_cms: false,
+  can_manage_bugs: false,
   can_manage_logistics: false,
   can_view_relays: false,
   can_manage_relays: false,
@@ -151,6 +153,7 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
   super_admin: {
     can_manage_team: true,
     can_edit_cms: true,
+    can_manage_bugs: true,
     can_manage_logistics: true,
     can_view_relays: true,
     can_manage_relays: true,
@@ -249,6 +252,7 @@ export const ROLE_BASE_PERMISSIONS: Record<AdminRole, Partial<AdminPermissions>>
   },
   developer: {
     can_edit_cms: true,
+    can_manage_bugs: true,
     can_send_notifications: true,
     can_view_analytics: true,
   },
