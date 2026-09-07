@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAdminAuth } from "@/lib/rbac";
 import { UserCheck, Search, Loader2, Users, ShoppingBag, ShieldCheck, UserPlus, Eye, Ban, CheckCircle2, X } from "lucide-react";
@@ -15,16 +15,39 @@ interface UserProfile {
   created_at?: string;
 }
 
+interface DbProfile {
+  id: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  role?: string | null;
+  admin_role?: string | null;
+  status?: string | null;
+  created_at?: string;
+}
+
+interface DbShop {
+  id: string;
+  owner_id?: string | null;
+  name: string;
+  phone?: string | null;
+  status?: string | null;
+  created_at?: string;
+}
+
+type TabType = "all" | "buyer" | "seller" | "admin";
+
 export default function AdminUsersPage() {
   const { isSuperAdmin, hasPermission } = useAdminAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "buyer" | "seller" | "admin">("all");
+  const [activeTab, setActiveTab] = useState<TabType>("all");
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       // 1. Fetch from profiles
       const { data: profileData } = await supabase
@@ -41,14 +64,14 @@ export default function AdminUsersPage() {
       const unifiedMap = new Map<string, UserProfile>();
 
       if (profileData && profileData.length > 0) {
-        profileData.forEach((p: any) => {
+        (profileData as DbProfile[]).forEach((p) => {
           const name = p.full_name || (p.first_name ? `${p.first_name} ${p.last_name || ''}`.trim() : '');
           unifiedMap.set(p.id, {
             id: p.id,
             full_name: name,
             phone: p.phone || '',
             role: p.role || (p.admin_role ? 'admin' : 'buyer'),
-            admin_role: p.admin_role,
+            admin_role: p.admin_role || undefined,
             status: p.status || 'active',
             created_at: p.created_at,
           });
@@ -56,7 +79,7 @@ export default function AdminUsersPage() {
       }
 
       if (shopsData && shopsData.length > 0) {
-        shopsData.forEach((s: any) => {
+        (shopsData as DbShop[]).forEach((s) => {
           const sellerId = s.owner_id || s.id;
           const existing = unifiedMap.get(sellerId);
           unifiedMap.set(sellerId, {
@@ -77,26 +100,33 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchUsers();
+    let isMounted = true;
+    const loadData = async () => {
+      if (isMounted) {
+        await fetchUsers();
+      }
+    };
+    loadData();
 
     // Supabase Live Realtime Subscription for Users & Shops
     const channel = supabase
       .channel("admin_users_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
-        fetchUsers();
+        if (isMounted) fetchUsers();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "shops" }, () => {
-        fetchUsers();
+        if (isMounted) fetchUsers();
       })
       .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchUsers]);
 
   const handleToggleUserStatus = async (user: UserProfile) => {
     const newStatus = user.status === "suspended" ? "active" : "suspended";
@@ -228,7 +258,7 @@ export default function AdminUsersPage() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as TabType)}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
