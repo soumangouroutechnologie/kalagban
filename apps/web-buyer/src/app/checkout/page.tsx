@@ -509,10 +509,15 @@ export default function CheckoutPage() {
           throw new Error(payData.error || "Impossible d'initialiser la passerelle de paiement K-PAY.");
         }
 
-        // Clear cart and redirect to K-PAY hosted page
-        clearCart();
-        window.location.href = payData.gatewayUrl;
-        return;
+        // Valider l'URL de redirection sécurisée (CWE-601)
+        const parsedUrl = new URL(payData.gatewayUrl, window.location.origin);
+        if (parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:") {
+          clearCart();
+          window.location.assign(parsedUrl.toString());
+          return;
+        } else {
+          throw new Error("URL de passerelle de paiement non sécurisée.");
+        }
       }
 
       // Send Order Confirmation Email asynchronously

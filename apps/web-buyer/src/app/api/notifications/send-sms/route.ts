@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
 
     const zavuApiKey = process.env.ZAVU_API_KEY;
     if (!zavuApiKey) {
-      console.warn("⚠️ ZAVU_API_KEY is not configured in environment variables.");
+      console.warn("Service SMS/WhatsApp externe non configuré en environnement.");
       return NextResponse.json({
         success: true,
         delivered: false,
-        message: "ZAVU_API_KEY missing. Notification logged in test mode.",
+        message: "Notification simulée en mode test (variable non configurée).",
       });
     }
 

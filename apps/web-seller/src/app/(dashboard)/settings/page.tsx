@@ -77,7 +77,20 @@ export default function SettingsPage() {
     }, 0);
   }, []);
 
+  const MAX_CONTENT_LENGTH = 5 * 1024 * 1024; // 5 Mo maximum
+  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+
   const uploadFile = async (file: File, pathPrefix: string): Promise<string | null> => {
+    if (file.size > MAX_CONTENT_LENGTH) {
+      toast.error("Le fichier est trop volumineux (maximum 5 Mo autorisés).");
+      return null;
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      toast.error("Format de fichier non autorisé (JPEG, PNG, WEBP, AVIF uniquement).");
+      return null;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
     

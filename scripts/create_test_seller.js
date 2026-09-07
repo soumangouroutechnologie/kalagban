@@ -10,11 +10,12 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 async function main() {
   console.log("Création du compte Vendeur de test...");
 
+  const testPassword = process.env.TEST_SELLER_PASSWORD || process.env.TEST_PASSWORD || `P@ss_${require('crypto').randomBytes(8).toString('hex')}!`;
   // 1. SignUp seller user
   const { data: userData, error: userError } = await supabase.auth.admin.createUser({
     email: 'vendeur@kalagban.ci',
     phone: '+2250700112233',
-    password: 'Password123!',
+    password: testPassword,
     email_confirm: true,
     phone_confirm: true,
     user_metadata: { full_name: 'Vendeur Certifié Kalagban' }

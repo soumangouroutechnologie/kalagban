@@ -189,7 +189,7 @@ export default function AssignCourierModal({
         const phoneClean = selectedCourier.phone.replace(/[^0-9]/g, "");
         const waPhone = phoneClean.startsWith("225") ? phoneClean : `225${phoneClean}`;
         const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(generateWhatsAppMessage())}`;
-        window.open(waUrl, "_blank");
+        window.open(waUrl, "_blank", "noopener,noreferrer");
       }
 
       setShowConfirmDialog(false);
