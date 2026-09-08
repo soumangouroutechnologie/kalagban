@@ -270,20 +270,20 @@ export default function OrderDetailsReceiptScreen() {
 
           {/* OTP Code Box (Point Relais ou Domicile) */}
           {Boolean(order.pickup_code) && (
-            <View style={[styles.otpCard, order.delivery_type === 'home' && { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
+            <View style={[styles.otpCard, (order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') && { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }]}>
               <View style={styles.otpCardHeader}>
-                <KeyRound size={16} color={order.delivery_type === 'home' ? '#4338CA' : '#0F172A'} />
-                <Text style={[styles.otpCardLabel, order.delivery_type === 'home' && { color: '#3730A3' }]}>
-                  {order.delivery_type === 'home' 
+                <KeyRound size={16} color={(order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') ? '#4338CA' : '#0F172A'} />
+                <Text style={[styles.otpCardLabel, (order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') && { color: '#3730A3' }]}>
+                  {(order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') 
                     ? 'CODE SECRET DE REMISE À DOMICILE' 
                     : 'CODE DE SÉCURITÉ OTP (RETRAIT POINT RELAIS)'}
                 </Text>
               </View>
-              <Text style={[styles.otpCardCode, order.delivery_type === 'home' && { color: '#312E81' }]}>
+              <Text style={[styles.otpCardCode, (order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') && { color: '#312E81' }]}>
                 {order.pickup_code}
               </Text>
-              <Text style={[styles.otpCardDesc, order.delivery_type === 'home' && { color: '#4338CA' }]}>
-                {order.delivery_type === 'home'
+              <Text style={[styles.otpCardDesc, (order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point') && { color: '#4338CA' }]}>
+                {(order.delivery_type === 'home' || order.delivery_type === 'home_delivery' || order.delivery_type !== 'pickup_point')
                   ? 'Communiquez ce code au livreur UNIQUEMENT au moment où vous recevez votre colis.'
                   : 'Présentez ce code de sécurité au gérant du Point Relais pour récupérer votre colis.'}
               </Text>

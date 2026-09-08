@@ -67,7 +67,7 @@ export default function OrderStatusTimeline({
     ? new Date(createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
     : "Aujourd'hui";
 
-  const isHomeDelivery = deliveryType === "home_delivery";
+  const isHomeDelivery = deliveryType === "home_delivery" || deliveryType === "home" || deliveryType !== "pickup_point";
 
   const steps = isHomeDelivery ? [
     {

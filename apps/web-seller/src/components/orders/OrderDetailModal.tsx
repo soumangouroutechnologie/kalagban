@@ -270,15 +270,29 @@ export default function OrderDetailModal({
             </a>
           </div>
 
-          {/* Privacy Note: No direct seller delivery */}
-          <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
-            <ShieldCheck size={20} className="text-blue-600 shrink-0 mt-0.5" />
+          {/* Privacy Note & Delivery Mode Instructions */}
+          <div className={`border rounded-2xl p-4 flex items-start gap-3 ${
+            order.delivery_type === "pickup_point" ? "bg-amber-50/80 border-amber-200" : "bg-blue-50/80 border-blue-200"
+          }`}>
+            <ShieldCheck size={20} className={`shrink-0 mt-0.5 ${
+              order.delivery_type === "pickup_point" ? "text-amber-600" : "text-blue-600"
+            }`} />
             <div className="space-y-1">
-              <p className="text-xs font-black text-blue-950 uppercase tracking-wide">
-                Logistique 100% Centralisée par Kalagban
+              <p className={`text-xs font-black uppercase tracking-wide ${
+                order.delivery_type === "pickup_point" ? "text-amber-950" : "text-blue-950"
+              }`}>
+                {order.delivery_type === "pickup_point" 
+                  ? "Point Relais Kalagban (Dépôt Vendeur)" 
+                  : "Livraison Directe Domicile (Retrait en Boutique)"}
               </p>
-              <p className="text-xs text-blue-900 font-medium leading-relaxed">
-                <strong>Aucune livraison directe par le marchand au client n&apos;est autorisée.</strong> Vous devez uniquement emballer soigneusement les articles et marquer le colis prêt. Le réseau logistique officiel de Kalagban prend le relais pour l&apos;acheminement et la remise sécurisée.
+              <p className={`text-xs font-medium leading-relaxed ${
+                order.delivery_type === "pickup_point" ? "text-amber-900" : "text-blue-900"
+              }`}>
+                {order.delivery_type === "pickup_point" ? (
+                  <>Emballez soigneusement la commande et déposez-la au Point Relais Kalagban sélectionné par l&apos;acheteur.</>
+                ) : (
+                  <><strong>Gardez le colis prêt à votre boutique.</strong> Le livreur officiel Kalagban passera directement à votre adresse pour récupérer le colis et l&apos;acheminer au client.</>
+                )}
               </p>
             </div>
           </div>

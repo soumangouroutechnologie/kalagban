@@ -96,15 +96,19 @@ export default function AssignCourierModal({
   const generateWhatsAppMessage = () => {
     const courierName = selectedCourier?.full_name || "Livreur";
     const deliveryUrl = `https://www.kalagban.com/delivery/${order.id}`;
+    const shopName = order.shops?.name || "Boutique Partenaire KALAGBAN";
     
-    return `🛵 *MISSION DE LIVRAISON KALAGBAN EXPRESS*\n\n` +
+    return `🛵 *MISSION DE LIVRAISON DIRECTE KALAGBAN*\n\n` +
       `Bonjour ${courierName},\n` +
-      `Une nouvelle course de livraison à domicile vous est assignée par KALAGBAN :\n\n` +
-      `📦 *Commande :* #${orderCode}\n` +
-      `🏢 *Expéditeur :* Plateforme KALAGBAN Express\n` +
-      `👤 *Destinataire :* ${order.customer_name || "Client"}\n` +
-      `📍 *Adresse / Repère :* ${addressStr}\n` +
-      `📞 *Contact Client :* ${order.customer_phone || "--"}\n\n` +
+      `Une nouvelle course de livraison directe à domicile vous est assignée par KALAGBAN :\n\n` +
+      `📦 *Commande :* #${orderCode}\n\n` +
+      `📍 *ÉTAPE 1 (POINT DE RETRAIT BOUTIQUE) :*\n` +
+      `• *Boutique :* ${shopName}\n` +
+      `• _Récupérez le colis scellé auprès du commerçant et validez sur votre lien._\n\n` +
+      `📍 *ÉTAPE 2 (DESTINATION & CLIENT) :*\n` +
+      `• *Destinataire :* ${order.customer_name || "Client"}\n` +
+      `• *Adresse de livraison :* ${addressStr}\n` +
+      `• *Contact Client :* ${order.customer_phone || "--"}\n\n` +
       `👉 *Cliquez sur votre lien pour démarrer la course et valider le code OTP :*\n` +
       `${deliveryUrl}\n\n` +
       `_SOUMANGOUROU TECHNOLOGIE - Plateforme KALAGBAN_`;
