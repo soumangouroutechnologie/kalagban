@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -9,8 +9,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Identifiant de commande manquant." }, { status: 400 });
     }
 
-    // 1. Récupérer la commande
-    const { data: order, error: orderErr } = await supabaseAdmin
+    // 1. Tenter via la RPC sécurisée confirm_courier_pickup
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("confirm_courier_pickup", {
+        p_order_id: orderId,
+        p_courier_id: courierId || null
+      });
+
+      if (!rpcErr && rpcData) {
+        if (!rpcData.success) {
+          return NextResponse.json({ error: rpcData.error || "Erreur de validation." }, { status: 400 });
+        }
+        return NextResponse.json(rpcData);
+      }
+    } catch (rpcCatch) {
+      console.warn("[delivery/pickup] Fallback direct query suite à RPC:", rpcCatch);
+    }
+
+    // 2. Fallback direct via supabaseAdmin / supabase
+    const client = supabaseAdmin || supabase;
+    const { data: order, error: orderErr } = await client
       .from("orders")
       .select("id, customer_id, shop_id, customer_name, status, pickup_code, delivery_otp")
       .eq("id", orderId)
@@ -31,17 +49,18 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const orderCode = `KB-${order.id.slice(0, 8).toUpperCase()}`;
 
-    // 2. Mettre à jour la commande à 'in_transit'
-    await supabaseAdmin
+    // Mettre à jour la commande à 'in_transit'
+    await client
       .from("orders")
       .update({
         status: "in_transit",
+        relay_status: "in_transit",
         updated_at: now
       })
       .eq("id", orderId);
 
-    // 3. Mettre à jour l'assignation du coursier
-    await supabaseAdmin
+    // Mettre à jour l'assignation du coursier
+    await client
       .from("courier_assignments")
       .update({
         status: "in_transit",
@@ -49,10 +68,10 @@ export async function POST(req: Request) {
       })
       .eq("order_id", orderId);
 
-    // 4. Récupérer les infos du coursier si dispo
+    // Récupérer les infos du coursier si dispo
     let courierName = "votre livreur dédié";
     if (courierId) {
-      const { data: courier } = await supabaseAdmin
+      const { data: courier } = await client
         .from("couriers")
         .select("full_name")
         .eq("id", courierId)
@@ -62,20 +81,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5. Notifier le client
+    // Notifier le client
     if (order.customer_id) {
-      await supabaseAdmin.from("customer_notifications").insert({
+      await client.from("customer_notifications").insert({
         customer_id: order.customer_id,
         order_id: order.id,
         title: "Colis en Route vers votre Domicile 🛵",
-        message: `Votre colis a été récupéré chez le vendeur par ${courierName}. Il fait actuellement route vers votre adresse de livraison !`,
+        message: `Votre colis a été pris en charge par ${courierName}. Il fait actuellement route vers votre adresse de livraison !`,
         type: "order"
       });
     }
 
-    // 6. Notifier le vendeur
+    // Notifier le vendeur
     if (order.shop_id) {
-      await supabaseAdmin.from("seller_notifications").insert({
+      await client.from("seller_notifications").insert({
         shop_id: order.shop_id,
         title: "Colis Remis au Livreur 📦",
         message: `Le coursier ${courierName} a pris en charge le colis de la commande #${orderCode}.`,
@@ -94,4 +113,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Erreur serveur lors de la prise en charge." }, { status: 500 });
   }
 }
-

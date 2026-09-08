@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { checkRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
@@ -27,8 +27,27 @@ export async function POST(req: Request) {
 
     const trimmedOtp = String(otp).trim();
 
-    // 1. Récupérer la commande
-    const { data: order, error: orderErr } = await supabaseAdmin
+    // 1. Tenter via la RPC sécurisée verify_courier_delivery_otp
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("verify_courier_delivery_otp", {
+        p_order_id: orderId,
+        p_otp: trimmedOtp,
+        p_courier_id: courierId || null
+      });
+
+      if (!rpcErr && rpcData) {
+        if (!rpcData.success) {
+          return NextResponse.json({ error: rpcData.error || "Code OTP incorrect." }, { status: 400 });
+        }
+        return NextResponse.json(rpcData);
+      }
+    } catch (rpcCatch) {
+      console.warn("[delivery/verify] Fallback direct query suite à RPC:", rpcCatch);
+    }
+
+    // 2. Fallback direct via supabaseAdmin / supabase
+    const client = supabaseAdmin || supabase;
+    const { data: order, error: orderErr } = await client
       .from("orders")
       .select("id, status, pickup_code, delivery_otp, customer_id, shop_id, customer_name, total_amount")
       .eq("id", orderId)
@@ -47,12 +66,12 @@ export async function POST(req: Request) {
 
     if (order.status === "delivered") {
       return NextResponse.json(
-        { error: "Cette commande est déjà marquée comme livrée." },
-        { status: 400 }
+        { success: true, message: "Cette commande est déjà marquée comme livrée." },
+        { status: 200 }
       );
     }
 
-    // 2. Vérification du code OTP
+    // Vérification du code OTP
     const validCodes = [
       String(order.pickup_code || "").trim(),
       String(order.delivery_otp || "").trim()
@@ -69,8 +88,8 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
 
-    // 3. Mise à jour de la commande vers 'delivered'
-    const { error: updateOrderErr } = await supabaseAdmin
+    // Mise à jour de la commande vers 'delivered'
+    const { error: updateOrderErr } = await client
       .from("orders")
       .update({
         status: "delivered",
@@ -87,9 +106,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Mise à jour de l'assignation coursier
+    // Mise à jour de l'assignation coursier
     try {
-      await supabaseAdmin
+      await client
         .from("courier_assignments")
         .update({
           status: "delivered",
@@ -97,16 +116,15 @@ export async function POST(req: Request) {
         })
         .eq("order_id", orderId);
 
-      // Si un coursier est identifié, mettre à jour ses livraisons
       if (courierId) {
-        const { data: courier } = await supabaseAdmin
+        const { data: courier } = await client
           .from("couriers")
           .select("total_deliveries")
           .eq("id", courierId)
           .maybeSingle();
 
         if (courier) {
-          await supabaseAdmin
+          await client
             .from("couriers")
             .update({
               total_deliveries: (courier.total_deliveries || 0) + 1,
@@ -119,50 +137,13 @@ export async function POST(req: Request) {
       console.warn("Avertissement mise à jour coursier:", assignErr);
     }
 
-    // 5. Notifications Temps Réel
-    try {
-      const orderShort = order.id.slice(0, 8).toUpperCase();
-
-      // A. Client
-      if (order.customer_id) {
-        await supabaseAdmin.from("customer_notifications").insert({
-          customer_id: order.customer_id,
-          order_id: order.id,
-          title: "Colis Livré avec Succès ! 🎉",
-          message: `Votre commande #${orderShort} a été remise en main propre. Merci d'avoir choisi Kalagban !`,
-          type: "order"
-        });
-      }
-
-      // B. Vendeur
-      if (order.shop_id) {
-        await supabaseAdmin.from("seller_notifications").insert({
-          shop_id: order.shop_id,
-          title: "Commande Livrée au Client 📦",
-          message: `La commande #${orderShort} a été remise au client. Vos gains sont débloqués.`,
-          type: "order",
-          reference_id: order.id
-        });
-      }
-
-      // C. Admin
-      await supabaseAdmin.from("admin_notifications").insert({
-        title: "Livraison à Domicile Effectuée",
-        message: `La commande #${orderShort} (${order.customer_name}) a été livrée avec succès par le coursier.`,
-        notification_type: "info",
-        target_role: "all",
-        is_broadcast: true
-      });
-    } catch (notifErr) {
-      console.warn("Avertissement envoi notifications:", notifErr);
-    }
-
     return NextResponse.json({
       success: true,
       message: "Livraison validée avec succès !"
     });
+
   } catch (err: unknown) {
     console.error("Erreur API delivery/verify:", err);
-    return NextResponse.json({ error: "Erreur serveur interne." }, { status: 500 });
+    return NextResponse.json({ error: "Erreur serveur lors de la validation OTP." }, { status: 500 });
   }
 }
