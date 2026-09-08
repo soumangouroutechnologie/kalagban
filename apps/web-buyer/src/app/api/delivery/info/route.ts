@@ -1,5 +1,49 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
+
+interface OrderRecord {
+  id: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  shipping_address?: string | null;
+  total_amount?: number | null;
+  status: string;
+  delivery_type?: string | null;
+  created_at: string;
+  assigned_courier_id?: string | null;
+}
+
+interface OrderItemRecord {
+  id: string;
+  quantity: number;
+  unit_price: number;
+  product_id?: string | null;
+}
+
+interface ProductRecord {
+  id: string;
+  title: string;
+}
+
+interface CourierRecord {
+  id: string;
+  full_name: string;
+  phone: string;
+  vehicle_type: string;
+  license_plate?: string | null;
+  preferred_zone?: string | null;
+}
+
+interface DeliveryItem {
+  id: string;
+  quantity: number;
+  unit_price: number;
+  product_id?: string | null;
+  products: {
+    title: string;
+  };
+}
 
 export async function GET(req: Request) {
   try {
@@ -10,29 +54,42 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Identifiant de commande manquant." }, { status: 400 });
     }
 
-    // 1. Récupérer la commande via supabaseAdmin (contourne les restrictions RLS)
-    let order: any = null;
+    // 1. Tenter via la RPC sécurisée get_public_delivery_info (ne bloque jamais sur RLS)
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase
+        .rpc("get_public_delivery_info", { p_order_id: orderId });
+
+      if (!rpcErr && rpcData && rpcData.success) {
+        return NextResponse.json(rpcData);
+      }
+    } catch (rpcCatch) {
+      console.warn("[delivery/info] Fallback direct query suite à RPC:", rpcCatch);
+    }
+
+    // 2. Fallback direct via supabaseAdmin / supabase
+    const client = supabaseAdmin || supabase;
+    let order: OrderRecord | null = null;
 
     // Essayer par UUID exact d'abord
-    const { data: orderData, error: orderErr } = await supabaseAdmin
+    const { data: orderData, error: orderErr } = await client
       .from("orders")
       .select("*")
       .eq("id", orderId)
-      .maybeSingle();
+      .maybeSingle<OrderRecord>();
 
     if (!orderErr && orderData) {
       order = orderData;
     } else {
       // Si l'ID est sous forme KB-XXXXX ou tronqué, chercher par correspondance
       const cleanId = orderId.replace(/^KB-/i, "");
-      const { data: fallbackOrders } = await supabaseAdmin
+      const { data: fallbackOrders } = await client
         .from("orders")
         .select("*")
         .ilike("id", `${cleanId}%`)
         .limit(1);
 
       if (fallbackOrders && fallbackOrders.length > 0) {
-        order = fallbackOrders[0];
+        order = fallbackOrders[0] as OrderRecord;
       }
     }
 
@@ -41,51 +98,43 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
     }
 
-    // 2. Récupérer la boutique
-    let shopData = null;
-    if (order.shop_id) {
-      const { data: shop } = await supabaseAdmin
-        .from("shops")
-        .select("id, name, payout_phone")
-        .eq("id", order.shop_id)
-        .maybeSingle();
-      shopData = shop;
-    }
-
     // 3. Récupérer les articles
-    let itemsData: any[] = [];
-    const { data: items } = await supabaseAdmin
+    let itemsData: DeliveryItem[] = [];
+    const { data: items } = await client
       .from("order_items")
       .select("id, quantity, unit_price, product_id")
       .eq("order_id", order.id);
 
     if (items && items.length > 0) {
-      const productIds = items.map((i: any) => i.product_id).filter(Boolean);
+      const typedItems = items as OrderItemRecord[];
+      const productIds = typedItems
+        .map((i) => i.product_id)
+        .filter((id): id is string => Boolean(id));
       const productsMap: Record<string, string> = {};
 
       if (productIds.length > 0) {
-        const { data: prods } = await supabaseAdmin
+        const { data: prods } = await client
           .from("products")
           .select("id, title")
           .in("id", productIds);
 
         if (prods) {
-          prods.forEach((p: any) => {
+          (prods as ProductRecord[]).forEach((p) => {
             productsMap[p.id] = p.title;
           });
         }
       }
 
-      itemsData = items.map((it: any) => ({
+      itemsData = typedItems.map((it) => ({
         ...it,
         products: {
-          title: productsMap[it.product_id] || "Article"
+          title: (it.product_id && productsMap[it.product_id]) || "Article"
         }
       }));
     }
 
     // 4. Récupérer l'assignation coursier
-    const { data: assignment } = await supabaseAdmin
+    const { data: assignment } = await client
       .from("courier_assignments")
       .select("id, status, assigned_at, delivered_at, notes, courier_id")
       .eq("order_id", order.id)
@@ -93,14 +142,14 @@ export async function GET(req: Request) {
       .limit(1)
       .maybeSingle();
 
-    let courierData = null;
+    let courierData: CourierRecord | null = null;
     const courierIdToFind = assignment?.courier_id || order.assigned_courier_id;
     if (courierIdToFind) {
-      const { data: courier } = await supabaseAdmin
+      const { data: courier } = await client
         .from("couriers")
         .select("id, full_name, phone, vehicle_type, license_plate, preferred_zone")
         .eq("id", courierIdToFind)
-        .maybeSingle();
+        .maybeSingle<CourierRecord>();
       courierData = courier;
     }
 
@@ -109,15 +158,18 @@ export async function GET(req: Request) {
       order: {
         id: order.id,
         orderCode: `KB-${order.id.slice(0, 8).toUpperCase()}`,
-        customerName: order.customer_name,
-        customerPhone: order.customer_phone,
-        customerEmail: order.customer_email,
-        shippingAddress: order.shipping_address,
-        totalAmount: order.total_amount,
+        customerName: order.customer_name || "Client",
+        customerPhone: order.customer_phone || "",
+        customerEmail: order.customer_email || "",
+        shippingAddress: order.shipping_address || "Abidjan",
+        totalAmount: order.total_amount || 0,
         status: order.status,
-        deliveryType: order.delivery_type,
+        deliveryType: order.delivery_type || "home_delivery",
         createdAt: order.created_at,
-        shop: shopData,
+        shop: {
+          name: "Plateforme KALAGBAN Express",
+          payout_phone: ""
+        },
         items: itemsData,
         assignment: assignment
           ? {
@@ -138,4 +190,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Erreur serveur interne." }, { status: 500 });
   }
 }
-

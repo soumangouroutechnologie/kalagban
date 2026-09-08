@@ -4,8 +4,6 @@ import React, { useState, useEffect, use } from "react";
 import { 
   Package, 
   MapPin, 
-  Phone, 
-  Store, 
   CheckCircle2, 
   AlertCircle, 
   Loader2, 
@@ -195,17 +193,6 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
     return `https://wa.me/${cleanPhone}?text=${text}`;
   };
 
-  // Helper WhatsApp Vendeur
-  const getShopWhatsappUrl = () => {
-    if (!course?.shop?.payout_phone) return "#";
-    const phone = course.shop.payout_phone.replace(/[^0-9]/g, "");
-    const cleanPhone = phone.startsWith("225") ? phone : `225${phone}`;
-    const text = encodeURIComponent(
-      `Bonjour ${course.shop.name}, je suis le coursier KALAGBAN en charge de la commande #${course.orderCode}. Je suis en route pour récupérer le colis.`
-    );
-    return `https://wa.me/${cleanPhone}?text=${text}`;
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
@@ -336,14 +323,14 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
           </div>
         )}
 
-        {/* 1. RETRAIT VENDEUR */}
+        {/* 1. RETRAIT COLIS KALAGBAN */}
         <section className={`bg-slate-900 border rounded-3xl p-5 space-y-3.5 transition-all ${
           isPickedUp ? "border-emerald-500/30 bg-slate-900/60" : "border-amber-500/50 ring-2 ring-amber-500/20 shadow-xl"
         }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-              <Store size={16} />
-              <span>1. Point de Retrait (Boutique Marchande)</span>
+              <Package size={16} />
+              <span>1. Prise en Charge du Colis</span>
             </div>
             {isPickedUp && (
               <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
@@ -353,34 +340,11 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
           </div>
 
           <div className="bg-slate-950/60 rounded-2xl p-3.5 border border-slate-800/60">
-            <h3 className="font-bold text-base text-white">{course.shop?.name || "Boutique Partenaire"}</h3>
-            {course.shop?.payout_phone && (
-              <p className="text-xs text-slate-400 mt-0.5">Contact : {course.shop.payout_phone}</p>
-            )}
+            <h3 className="font-bold text-base text-white">Centre d&apos;Expédition KALAGBAN</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Plateforme Centrale de Distribution Express</p>
           </div>
 
-          {course.shop?.payout_phone && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <a
-                href={`tel:${course.shop.payout_phone}`}
-                className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2.5 rounded-xl border border-slate-700 transition"
-              >
-                <Phone size={14} className="text-amber-400" />
-                Appeler Vendeur
-              </a>
-              <a
-                href={getShopWhatsappUrl()}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 bg-emerald-700/30 hover:bg-emerald-700/40 text-emerald-300 font-bold text-xs py-2.5 rounded-xl border border-emerald-600/30 transition"
-              >
-                <Send size={14} />
-                WhatsApp Vendeur
-              </a>
-            </div>
-          )}
-
-          {/* BOUTON CLÉ : CONFIRMER RÉCUPÉRATION CHEZ LE VENDEUR */}
+          {/* BOUTON CLÉ : CONFIRMER RÉCUPÉRATION DU COLIS */}
           {!isPickedUp && course.status !== "delivered" && (
             <div className="pt-2">
               {pickupError && (
@@ -402,7 +366,7 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
                 ) : (
                   <>
                     <Package size={18} />
-                    <span>J&apos;ai récupéré le colis chez le vendeur</span>
+                    <span>J&apos;ai récupéré le colis pour livraison</span>
                     <ArrowRight size={16} />
                   </>
                 )}

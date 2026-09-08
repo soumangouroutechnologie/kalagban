@@ -99,9 +99,9 @@ export default function AssignCourierModal({
     
     return `🛵 *MISSION DE LIVRAISON KALAGBAN EXPRESS*\n\n` +
       `Bonjour ${courierName},\n` +
-      `Une nouvelle course de livraison à domicile vous est assignée :\n\n` +
+      `Une nouvelle course de livraison à domicile vous est assignée par KALAGBAN :\n\n` +
       `📦 *Commande :* #${orderCode}\n` +
-      `🏪 *Retrait Boutique :* ${order.shops?.name || "Boutique Partenaire"} (${order.shops?.payout_phone || "Contact Boutique"})\n` +
+      `🏢 *Expéditeur :* Plateforme KALAGBAN Express\n` +
       `👤 *Destinataire :* ${order.customer_name || "Client"}\n` +
       `📍 *Adresse / Repère :* ${addressStr}\n` +
       `📞 *Contact Client :* ${order.customer_phone || "--"}\n\n` +
@@ -137,7 +137,7 @@ export default function AssignCourierModal({
         .insert({
           courier_id: selectedCourierId,
           order_id: order.id,
-          origin_address: order.shops?.name || "Boutique Partenaire",
+          origin_address: "Centre d'expédition KALAGBAN",
           destination_address: addressStr,
           status: "assigned",
           notes: notes.trim() || null,
@@ -240,15 +240,15 @@ export default function AssignCourierModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-white p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="font-bold text-slate-400 block uppercase">Client</span>
+                <span className="font-bold text-slate-400 block uppercase">Client Destinataire</span>
                 <p className="font-extrabold text-slate-900">{order.customer_name || "Client"}</p>
                 <p className="text-slate-600 font-mono">{order.customer_phone || "Pas de numéro"}</p>
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-slate-200/60 space-y-1">
-                <span className="font-bold text-slate-400 block uppercase">Boutique</span>
-                <p className="font-extrabold text-slate-900">{order.shops?.name || "Boutique Partenaire"}</p>
-                <p className="text-slate-600 font-mono">{order.shops?.payout_phone || "--"}</p>
+                <span className="font-bold text-slate-400 block uppercase">Expéditeur Officiel</span>
+                <p className="font-extrabold text-indigo-600">KALAGBAN Express</p>
+                <p className="text-slate-500 font-medium text-[11px]">Plateforme Centrale Kalagban</p>
               </div>
             </div>
 
