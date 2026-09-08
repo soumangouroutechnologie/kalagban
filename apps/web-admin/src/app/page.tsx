@@ -26,7 +26,9 @@ import {
   Truck,
   Megaphone,
   BarChart3,
-  FileText
+  FileText,
+  RefreshCw,
+  CheckCircle2
 } from "lucide-react";
 
 interface OrderSummary {
@@ -64,6 +66,9 @@ export default function AdminDashboardPage() {
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
   const [recentNotifs, setRecentNotifs] = useState<AdminNotifItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState<string>("");
+  const [syncNotice, setSyncNotice] = useState(false);
 
   const fetchDashboardMetrics = useCallback(async () => {
     try {
@@ -134,12 +139,30 @@ export default function AdminDashboardPage() {
         setRecentNotifs(notifData as AdminNotifItem[]);
       }
 
+      // Update sync timestamp
+      const now = new Date();
+      setLastSyncedTime(now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+
     } catch (err) {
       console.error("Error fetching admin dashboard metrics:", err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await fetchDashboardMetrics();
+      setSyncNotice(true);
+      setTimeout(() => setSyncNotice(false), 3000);
+    } catch (err) {
+      console.error("Manual refresh error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -339,16 +362,37 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        {(isSuperAdmin || hasPermission("can_edit_cms")) && (
-          <div className="flex items-center gap-3 z-10 shrink-0">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 z-10 shrink-0">
+          <button
+            id="admin-refresh-dashboard-btn"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="bg-white/10 hover:bg-white/20 active:scale-95 border border-white/20 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="Rafraîchir instantanément toutes les statistiques, alertes et notifications sans recharger la page"
+          >
+            <RefreshCw size={15} className={`${isRefreshing ? "animate-spin text-indigo-300" : "text-indigo-200 group-hover:rotate-180 transition-transform duration-500"}`} />
+            <span>{isRefreshing ? "Actualisation..." : "Actualiser"}</span>
+            {syncNotice && (
+              <span className="flex items-center gap-1 text-[11px] text-emerald-300 font-bold bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-400/30 animate-pulse">
+                <CheckCircle2 size={12} /> À jour
+              </span>
+            )}
+            {!syncNotice && lastSyncedTime && (
+              <span className="text-[10px] text-indigo-200/60 font-medium hidden md:inline ml-1">
+                ({lastSyncedTime})
+              </span>
+            )}
+          </button>
+
+          {(isSuperAdmin || hasPermission("can_edit_cms")) && (
             <Link
               href="/cms"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all cursor-pointer"
+              className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all cursor-pointer"
             >
               <Palette size={16} /> Éditeur Visuel CMS
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Overview Stat Cards Grid - Filtered strictly by permissions */}
