@@ -27,8 +27,10 @@ interface DeliveryCourseData {
   deliveryType?: string;
   createdAt: string;
   shop?: {
-    id: string;
-    name: string;
+    id?: string;
+    name?: string;
+    address?: string;
+    landmark?: string;
     payout_phone?: string;
   };
   items?: Array<{
@@ -339,9 +341,25 @@ export default function CourierDeliveryPage({ params }: { params: Promise<{ orde
             )}
           </div>
 
-          <div className="bg-slate-950/60 rounded-2xl p-3.5 border border-slate-800/60">
-            <h3 className="font-bold text-base text-white">Centre d&apos;Expédition KALAGBAN</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Plateforme Centrale de Distribution Express</p>
+          <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/60 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400 uppercase font-bold">Point d&apos;Enlèvement</span>
+              <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                Point A (Retrait Boutique)
+              </span>
+            </div>
+            <h3 className="font-extrabold text-base text-white">
+              {course.shop?.name || "Boutique Partenaire KALAGBAN"}
+            </h3>
+            <div className="flex items-start gap-1.5 text-xs text-slate-300 mt-1">
+              <MapPin size={14} className="text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                {course.shop?.address && course.shop.address !== "Adresse de retrait boutique"
+                  ? course.shop.address
+                  : "Centre d'Expédition / Adresse commerçant"}
+                {course.shop?.landmark ? ` (${course.shop.landmark})` : ""}
+              </span>
+            </div>
           </div>
 
           {/* BOUTON CLÉ : CONFIRMER RÉCUPÉRATION DU COLIS */}

@@ -153,6 +153,36 @@ export async function GET(req: Request) {
       courierData = courier;
     }
 
+    // 5. Récupérer les informations de la boutique pour le retrait (Point A)
+    const shopData = {
+      name: "Boutique Partenaire KALAGBAN",
+      address: "Adresse de retrait boutique",
+      landmark: "",
+      payout_phone: ""
+    };
+
+    const orderShopId = (order as unknown as { shop_id?: string }).shop_id;
+    if (orderShopId) {
+      const { data: s } = await client
+        .from("shops")
+        .select("name")
+        .eq("id", orderShopId)
+        .maybeSingle();
+      if (s?.name) {
+        shopData.name = s.name;
+      }
+
+      const { data: cert } = await client
+        .from("seller_certifications")
+        .select("store_address, location_description")
+        .eq("shop_id", orderShopId)
+        .maybeSingle();
+      if (cert) {
+        if (cert.store_address) shopData.address = cert.store_address;
+        if (cert.location_description) shopData.landmark = cert.location_description;
+      }
+    }
+
     return NextResponse.json({
       success: true,
       order: {
@@ -166,10 +196,7 @@ export async function GET(req: Request) {
         status: order.status,
         deliveryType: order.delivery_type || "home_delivery",
         createdAt: order.created_at,
-        shop: {
-          name: "Plateforme KALAGBAN Express",
-          payout_phone: ""
-        },
+        shop: shopData,
         items: itemsData,
         assignment: assignment
           ? {

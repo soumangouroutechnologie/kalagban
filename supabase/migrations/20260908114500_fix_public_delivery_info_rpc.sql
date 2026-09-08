@@ -80,39 +80,59 @@ BEGIN
     WHERE c.id = v_assignment.courier_id;
   END IF;
 
-  -- 4. Construction de la réponse sécurisée (SANS coordonnées directes de la boutique)
-  v_result := jsonb_build_object(
-    'success', true,
-    'order', jsonb_build_object(
-      'id', v_order.id,
-      'orderCode', 'KB-' || UPPER(SUBSTRING(v_order.id::text, 1, 8)),
-      'customerName', COALESCE(v_order.customer_name, 'Client'),
-      'customerPhone', COALESCE(v_order.customer_phone, ''),
-      'customerEmail', COALESCE(v_order.customer_email, ''),
-      'shippingAddress', COALESCE(v_order.shipping_address, 'Abidjan'),
-      'totalAmount', COALESCE(v_order.total_amount, 0),
-      'status', v_order.status,
-      'deliveryType', COALESCE(v_order.delivery_type, 'home_delivery'),
-      'createdAt', v_order.created_at,
-      'shop', jsonb_build_object(
-        'name', 'Plateforme KALAGBAN Express',
-        'payout_phone', ''
-      ),
-      'items', v_items,
-      'assignment', CASE 
-        WHEN v_assignment.id IS NOT NULL THEN
-          jsonb_build_object(
-            'id', v_assignment.id,
-            'status', v_assignment.status,
-            'assigned_at', v_assignment.assigned_at,
-            'delivered_at', v_assignment.delivered_at,
-            'notes', v_assignment.notes,
-            'couriers', v_courier
-          )
-        ELSE NULL
-      END
-    )
-  );
+  -- 4. Récupération des informations de la boutique (Nom + Adresse physique de retrait)
+  DECLARE
+    v_shop_name text := 'Boutique Partenaire KALAGBAN';
+    v_shop_address text := 'Adresse de retrait boutique';
+    v_shop_landmark text := '';
+  BEGIN
+    IF v_order.shop_id IS NOT NULL THEN
+      SELECT 
+        COALESCE(s.name, 'Boutique Partenaire KALAGBAN'),
+        COALESCE(sc.store_address, 'Centre d''Expédition Vendeur'),
+        COALESCE(sc.location_description, '')
+      INTO v_shop_name, v_shop_address, v_shop_landmark
+      FROM public.shops s
+      LEFT JOIN public.seller_certifications sc ON sc.shop_id = s.id
+      WHERE s.id = v_order.shop_id;
+    END IF;
+
+    -- 5. Construction de la réponse sécurisée
+    v_result := jsonb_build_object(
+      'success', true,
+      'order', jsonb_build_object(
+        'id', v_order.id,
+        'orderCode', 'KB-' || UPPER(SUBSTRING(v_order.id::text, 1, 8)),
+        'customerName', COALESCE(v_order.customer_name, 'Client'),
+        'customerPhone', COALESCE(v_order.customer_phone, ''),
+        'customerEmail', COALESCE(v_order.customer_email, ''),
+        'shippingAddress', COALESCE(v_order.shipping_address, 'Abidjan'),
+        'totalAmount', COALESCE(v_order.total_amount, 0),
+        'status', v_order.status,
+        'deliveryType', COALESCE(v_order.delivery_type, 'home_delivery'),
+        'createdAt', v_order.created_at,
+        'shop', jsonb_build_object(
+          'name', COALESCE(v_shop_name, 'Boutique Partenaire KALAGBAN'),
+          'address', COALESCE(v_shop_address, 'Adresse de retrait boutique'),
+          'landmark', COALESCE(v_shop_landmark, ''),
+          'payout_phone', ''
+        ),
+        'items', v_items,
+        'assignment', CASE 
+          WHEN v_assignment.id IS NOT NULL THEN
+            jsonb_build_object(
+              'id', v_assignment.id,
+              'status', v_assignment.status,
+              'assigned_at', v_assignment.assigned_at,
+              'delivered_at', v_assignment.delivered_at,
+              'notes', v_assignment.notes,
+              'couriers', v_courier
+            )
+          ELSE NULL
+        END
+      )
+    );
+  END;
 
   RETURN v_result;
 END;
