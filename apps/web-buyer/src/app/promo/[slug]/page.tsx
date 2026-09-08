@@ -343,8 +343,14 @@ export default function WebBuyerPromoCampaignPage() {
   }, [products, selectedCategory, searchTerm]);
 
   const themeColor = campaign?.theme_color || "#E65100";
+  const isCampaignExpired = campaign?.status === "ended" || timeLeft.isExpired;
 
   const handleAddToCart = (item: CampaignProduct) => {
+    if (isCampaignExpired) {
+      toast.error("Cette promotion est désormais terminée.", "Offre Clôturée");
+      return;
+    }
+
     addToCart({
       productId: item.id,
       shopId: item.shop_id,
@@ -635,14 +641,21 @@ export default function WebBuyerPromoCampaignPage() {
 
                         {/* Action Button */}
                         <button
-                          onClick={() => handleAddToCart(item)}
-                          className={`w-full py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${
-                            isJustAdded
-                              ? "bg-emerald-600 text-white"
-                              : "bg-slate-900 hover:bg-slate-800 text-white"
+                          onClick={() => !isCampaignExpired && handleAddToCart(item)}
+                          disabled={isCampaignExpired}
+                          className={`w-full py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
+                            isCampaignExpired
+                              ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                              : isJustAdded
+                              ? "bg-emerald-600 text-white cursor-pointer shadow-sm"
+                              : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer shadow-sm"
                           }`}
                         >
-                          {isJustAdded ? (
+                          {isCampaignExpired ? (
+                            <>
+                              <Clock size={14} className="text-gray-400" /> Offre Terminée
+                            </>
+                          ) : isJustAdded ? (
                             <>
                               <Check size={14} /> Ajouté !
                             </>

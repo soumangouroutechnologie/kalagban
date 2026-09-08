@@ -92,27 +92,46 @@ export default function StatsPage() {
         .select('id, total_amount, subtotal, status, created_at')
         .eq('shop_id', session.user.id);
 
-      let sales = 0;
+      // Determine date cutoff based on timeFilter
+      let startDate: Date | null = null;
+      const now = new Date();
+      if (timeFilter === "Aujourd'hui") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      } else if (timeFilter === "Cette semaine") {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+        startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0);
+      } else if (timeFilter === "Ce mois-ci") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      }
+
+      let periodSales = 0;
       let deliveredGross = 0;
       let inTransitGross = 0;
-      const orderIds: string[] = [];
+      const periodOrderIds: string[] = [];
 
       if (orders) {
         orders.forEach(o => {
           if (o.status !== 'cancelled') {
             const amount = Number(o.subtotal || o.total_amount || 0);
-            sales += amount;
-            orderIds.push(o.id);
+            const orderDate = new Date(o.created_at);
 
+            // Wallet is lifetime balance
             if (o.status === 'delivered' || o.status === 'picked_up') {
               deliveredGross += amount;
             } else {
               inTransitGross += amount;
             }
+
+            // KPIs & Top products are filtered by period
+            if (!startDate || orderDate >= startDate) {
+              periodSales += amount;
+              periodOrderIds.push(o.id);
+            }
           }
         });
       }
-      setTotalSales(sales);
+      setTotalSales(periodSales);
 
       // 2. Fetch Payouts to subtract from available balance
       const { data: payoutsData } = await supabase
@@ -140,15 +159,15 @@ export default function StatsPage() {
       setAvailableBalance(calcAvailable);
       setPendingBalance(calcPending);
 
-      // 3. Fetch Order Items to get top products and total items sold
+      // 3. Fetch Order Items for the selected period to get top products and total items sold
       let totalItems = 0;
       const productSales: Record<string, number> = {};
 
-      if (orderIds.length > 0) {
+      if (periodOrderIds.length > 0) {
         const { data: orderItems } = await supabase
           .from('order_items')
           .select('product_id, quantity')
-          .in('order_id', orderIds);
+          .in('order_id', periodOrderIds);
 
         if (orderItems) {
           orderItems.forEach(item => {

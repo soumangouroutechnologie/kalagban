@@ -181,7 +181,7 @@ export default function CMSPage() {
   };
 
   const uploadFileToSupabase = async (file: File): Promise<string | null> => {
-    if (file.size > MAX_CONTENT_LENGTH) {
+    if (!file || file.size > 10485760 || file.size > MAX_CONTENT_LENGTH) {
       console.warn("Fichier trop volumineux (max 10 Mo).");
       return null;
     }
@@ -226,7 +226,7 @@ export default function CMSPage() {
 
   const handleHeroFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || file.size > MAX_CONTENT_LENGTH) return;
+    if (!file || file.size > 10485760 || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingHero(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -241,7 +241,7 @@ export default function CMSPage() {
 
   const handleSellerFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || file.size > MAX_CONTENT_LENGTH) return;
+    if (!file || file.size > 10485760 || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingSeller(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -253,7 +253,7 @@ export default function CMSPage() {
 
   const handlePromoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || file.size > MAX_CONTENT_LENGTH) return;
+    if (!file || file.size > 10485760 || file.size > MAX_CONTENT_LENGTH) return;
 
     setUploadingPromo(true);
     const publicUrl = await uploadFileToSupabase(file);
@@ -265,6 +265,19 @@ export default function CMSPage() {
       }));
     }
     setUploadingPromo(false);
+  };
+
+  const handlePopupFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || file.size > 10485760 || file.size > MAX_CONTENT_LENGTH) return;
+
+    setUploadingPopup(true);
+    const url = await uploadFileToSupabase(file);
+    if (url) {
+      const newSlide = { image_url: url, link_url: popupBanner.target_url || "#catalogue" };
+      setPopupBanner((prev) => ({ ...prev, images: [...(prev.images || []), newSlide] }));
+    }
+    setUploadingPopup(false);
   };
 
   const fetchSiteSettings = useCallback(async () => {
@@ -696,18 +709,7 @@ export default function CMSPage() {
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file && file.size <= MAX_CONTENT_LENGTH) {
-                          setUploadingPopup(true);
-                          const url = await uploadFileToSupabase(file);
-                          if (url) {
-                            const newSlide = { image_url: url, link_url: popupBanner.target_url || "#catalogue" };
-                            setPopupBanner({ ...popupBanner, images: [...(popupBanner.images || []), newSlide] });
-                          }
-                          setUploadingPopup(false);
-                        }
-                      }}
+                      onChange={handlePopupFileUpload}
                       disabled={uploadingPopup}
                       className="hidden"
                     />

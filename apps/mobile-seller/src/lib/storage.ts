@@ -1,5 +1,16 @@
 import { supabase } from './supabase';
 
+function decodeBase64ToUint8Array(base64: string): Uint8Array {
+  const cleanBase64 = base64.replace(/^data:image\/\w+;base64,/, '');
+  const binaryString = atob(cleanBase64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export async function uploadMedia(localUri: string, prefix = 'media'): Promise<string | null> {
   try {
     if (!localUri) return null;
@@ -7,16 +18,38 @@ export async function uploadMedia(localUri: string, prefix = 'media'): Promise<s
       return localUri;
     }
 
-    const fileExt = localUri.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}.${fileExt}`;
-    const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'webp' ? 'image/webp' : 'image/jpeg';
+    const isBase64DataUrl = localUri.startsWith('data:');
+    let fileExt = 'jpg';
+    let contentType = 'image/jpeg';
 
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    if (isBase64DataUrl) {
+      if (localUri.startsWith('data:image/png')) {
+        fileExt = 'png';
+        contentType = 'image/png';
+      } else if (localUri.startsWith('data:image/webp')) {
+        fileExt = 'webp';
+        contentType = 'image/webp';
+      }
+    } else {
+      const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
+      fileExt = ext === 'png' ? 'png' : ext === 'webp' ? 'webp' : 'jpg';
+      contentType = fileExt === 'png' ? 'image/png' : fileExt === 'webp' ? 'image/webp' : 'image/jpeg';
+    }
+
+    const fileName = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 10000)}.${fileExt}`;
+
+    let bodyData: Uint8Array | ArrayBuffer;
+
+    if (isBase64DataUrl) {
+      bodyData = decodeBase64ToUint8Array(localUri);
+    } else {
+      const response = await fetch(localUri);
+      bodyData = await response.arrayBuffer();
+    }
 
     const { error: uploadError } = await supabase.storage
       .from('kalagban_media')
-      .upload(fileName, blob, {
+      .upload(fileName, bodyData, {
         contentType,
         upsert: true,
       });

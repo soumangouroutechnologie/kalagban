@@ -342,8 +342,11 @@ export default function DynamicPromoCampaignScreen() {
   }, [products, selectedCategory]);
 
   const themeColor = campaign?.theme_color || '#E65100';
+  const isCampaignExpired = campaign?.status === 'ended' || (timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0);
 
   const handleAddToCart = (product: CampaignProduct) => {
+    if (isCampaignExpired) return;
+
     addToCart(
       {
         id: product.id,
@@ -632,13 +635,23 @@ export default function DynamicPromoCampaignScreen() {
 
                         {/* Action Button */}
                         <TouchableOpacity
+                          disabled={isCampaignExpired}
                           style={[
                             styles.cardActionBtn,
-                            isJustAdded ? styles.cardActionBtnSuccess : { backgroundColor: '#0F172A' },
+                            isCampaignExpired
+                              ? { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' }
+                              : isJustAdded
+                              ? styles.cardActionBtnSuccess
+                              : { backgroundColor: '#0F172A' },
                           ]}
-                          onPress={() => handleAddToCart(item)}
+                          onPress={() => !isCampaignExpired && handleAddToCart(item)}
                         >
-                          {isJustAdded ? (
+                          {isCampaignExpired ? (
+                            <>
+                              <Clock size={14} color="#94A3B8" />
+                              <Text style={[styles.cardActionText, { color: '#94A3B8' }]}>Offre Terminée</Text>
+                            </>
+                          ) : isJustAdded ? (
                             <>
                               <Check size={14} color="#FFFFFF" />
                               <Text style={styles.cardActionText}>Ajouté !</Text>

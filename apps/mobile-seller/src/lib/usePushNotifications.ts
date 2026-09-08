@@ -69,8 +69,12 @@ export function usePushNotifications(initialUserId?: string | null) {
         if (activeUserId && token) {
           await registerForPushNotificationsAsync(activeUserId, token);
         }
-      } catch (e) {
-        console.warn("Erreur lors de la récupération de l'Expo Push Token vendeur:", e);
+      } catch (e: any) {
+        if (__DEV__) {
+          console.log("[PushNotifications] Push token non disponible sur simulateur (normal en développement).");
+        } else {
+          console.warn("Erreur lors de la récupération de l'Expo Push Token vendeur:", e);
+        }
       }
 
       if (Platform.OS === "android") {

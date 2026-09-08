@@ -28,6 +28,7 @@ import {
   FileCheck,
 } from 'lucide-react-native';
 import { SellerNotificationsModal } from '../../components/notifications/SellerNotificationsModal';
+import SellerKycModal from '../../components/verification/SellerKycModal';
 
 interface DashboardProduct {
   id: string;
@@ -73,6 +74,7 @@ export default function SellerDashboardScreen() {
 
   const [kycInfo, setKycInfo] = useState<KycData | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -277,6 +279,15 @@ export default function SellerDashboardScreen() {
               <Text style={styles.kycDescVerified}>
                 Vos documents sont validés par la Conformité. Vos clients commandent en toute confiance.
               </Text>
+
+              <TouchableOpacity
+                style={styles.kycActionButtonVerified}
+                onPress={() => setIsKycModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <FileCheck size={14} color="#15803D" />
+                <Text style={styles.kycActionButtonTextVerified}>Voir mon dossier KYC</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : kycInfo?.status === 'pending' ? (
@@ -295,6 +306,15 @@ export default function SellerDashboardScreen() {
               <Text style={styles.kycDescPending}>
                 Vos pièces sont en cours de vérification. Vous recevrez une alerte dès l&apos;activation.
               </Text>
+
+              <TouchableOpacity
+                style={styles.kycActionButtonPending}
+                onPress={() => setIsKycModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Clock size={14} color="#B45309" />
+                <Text style={styles.kycActionButtonTextPending}>Consulter mon dossier</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : (
@@ -313,6 +333,15 @@ export default function SellerDashboardScreen() {
               <Text style={styles.kycDescAction}>
                 Déposez vos pièces d&apos;identité et photos de boutique pour booster vos ventes.
               </Text>
+
+              <TouchableOpacity
+                style={styles.kycActionButtonAction}
+                onPress={() => setIsKycModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <ShieldCheck size={14} color="#4338CA" />
+                <Text style={styles.kycActionButtonTextAction}>Déposer mon dossier KYC</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -571,6 +600,16 @@ export default function SellerDashboardScreen() {
         shopId={shop?.id || user?.id}
         onUnreadCountChange={setUnreadNotifCount}
       />
+
+      {/* KYC Certification Modal */}
+      <SellerKycModal
+        visible={isKycModalOpen}
+        onClose={() => setIsKycModalOpen(false)}
+        shopName={shop?.name || ''}
+        kycInfo={kycInfo as any}
+        isVerified={isVerified}
+        onRefresh={fetchDashboardData}
+      />
     </View>
   );
 }
@@ -770,6 +809,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#166534',
     lineHeight: 17,
+  },
+  kycActionButtonVerified: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  kycActionButtonTextVerified: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  kycActionButtonPending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  kycActionButtonTextPending: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  kycActionButtonAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  kycActionButtonTextAction: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#4338CA',
   },
   kycStatusPillPending: {
     backgroundColor: '#D97706',

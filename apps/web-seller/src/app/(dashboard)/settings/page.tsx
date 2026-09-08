@@ -81,7 +81,7 @@ export default function SettingsPage() {
   }, []);
 
   const uploadFile = async (file: File, pathPrefix: string): Promise<string | null> => {
-    if (file.size > MAX_CONTENT_LENGTH) {
+    if (!file || file.size > 5242880 || file.size > MAX_CONTENT_LENGTH) {
       toast.error("Le fichier est trop volumineux (maximum 5 Mo autorisés).");
       return null;
     }
@@ -115,10 +115,11 @@ export default function SettingsPage() {
   };
 
   const handleShopLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > MAX_CONTENT_LENGTH) {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5242880 || file.size > MAX_CONTENT_LENGTH) {
         toast.error("Le fichier dépasse la limite autorisée de 5 Mo.");
+        if (shopLogoRef.current) shopLogoRef.current.value = "";
         return;
       }
       const url = await uploadFile(file, 'shop_logo');
@@ -134,10 +135,11 @@ export default function SettingsPage() {
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > MAX_CONTENT_LENGTH) {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5242880 || file.size > MAX_CONTENT_LENGTH) {
         toast.error("Le fichier dépasse la limite autorisée de 5 Mo.");
+        if (avatarRef.current) avatarRef.current.value = "";
         return;
       }
       const url = await uploadFile(file, 'avatar');
