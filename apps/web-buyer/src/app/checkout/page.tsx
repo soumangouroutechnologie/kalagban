@@ -683,37 +683,54 @@ export default function CheckoutPage() {
                   {/* Option 1: Retrait en Point Relais (Active & Prioritaire) */}
                   <div
                     onClick={() => setDeliveryType("pickup_point")}
-                    className="p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50/70 text-indigo-950 flex items-center gap-3 text-left transition-all cursor-pointer shadow-sm ring-2 ring-indigo-600/20"
+                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 text-left transition-all cursor-pointer shadow-sm ${
+                      deliveryType === "pickup_point"
+                        ? "border-indigo-600 bg-indigo-50/70 text-indigo-950 ring-2 ring-indigo-600/20"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-md shadow-indigo-600/30">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md ${
+                      deliveryType === "pickup_point"
+                        ? "bg-indigo-600 text-white shadow-indigo-600/30"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
                       📍
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-extrabold text-sm text-indigo-950">Retrait en Point Relais</h4>
+                        <h4 className="font-extrabold text-sm text-gray-900">Retrait en Point Relais</h4>
                         <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
                           Recommandé
                         </span>
                       </div>
-                      <p className="text-xs text-indigo-800/80 font-medium">Récupération sécurisée par Code OTP</p>
+                      <p className="text-xs text-gray-500 font-medium">Récupération sécurisée par Code OTP</p>
                     </div>
                   </div>
 
-                  {/* Option 2: Livraison à Domicile (Bientôt disponible) */}
+                  {/* Option 2: Livraison à Domicile (Désormais active) */}
                   <div
-                    className="p-4 rounded-2xl border-2 border-gray-200 bg-gray-50/70 text-gray-400 flex items-center gap-3 text-left relative overflow-hidden cursor-not-allowed opacity-75 select-none"
+                    onClick={() => setDeliveryType("home_delivery")}
+                    className={`p-4 rounded-2xl border-2 flex items-center gap-3 text-left transition-all cursor-pointer shadow-sm ${
+                      deliveryType === "home_delivery"
+                        ? "border-indigo-600 bg-indigo-50/70 text-indigo-950 ring-2 ring-indigo-600/20"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm shrink-0">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-md ${
+                      deliveryType === "home_delivery"
+                        ? "bg-indigo-600 text-white shadow-indigo-600/30"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
                       🏠
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-extrabold text-sm text-gray-600">Livraison à Domicile</h4>
-                        <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
-                          Bientôt
+                        <h4 className="font-extrabold text-sm text-gray-900">Livraison à Domicile</h4>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md">
+                          Express
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400">Prochainement disponible</p>
+                      <p className="text-xs text-gray-500 font-medium">Par coursier dédié à votre adresse</p>
                     </div>
                   </div>
                 </div>
