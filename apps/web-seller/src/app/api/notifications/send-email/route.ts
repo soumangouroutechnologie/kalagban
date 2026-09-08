@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateShippedEmailHtml, generateReadyForPickupEmailHtml } from "@/lib/email-templates";
+import { 
+  generateShippedEmailHtml, 
+  generateReadyForPickupEmailHtml,
+  generateDeliveredThankYouEmailHtml
+} from "@/lib/email-templates";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,6 +54,16 @@ export async function POST(req: NextRequest) {
         relayAddress: relayAddress || "Abidjan",
         relayCommune: relayCommune || "",
         trackingUrl: trackingUrl || "https://kalagban.com/account",
+      });
+    } else if (type === "DELIVERED_THANK_YOU") {
+      subject = `🎁 Merci pour votre commande #${cleanOrderCode} sur Kalagban !`;
+      htmlContent = generateDeliveredThankYouEmailHtml({
+        orderCode: cleanOrderCode,
+        customerName: cleanCustomerName,
+        shopName: shopName || "Boutique Partenaire",
+        deliveryType: deliveryType || "Point Relais",
+        reviewUrl: trackingUrl || "https://kalagban.com/account",
+        marketplaceUrl: "https://kalagban.com",
       });
     } else {
       return NextResponse.json(

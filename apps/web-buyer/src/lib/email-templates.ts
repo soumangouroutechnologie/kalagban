@@ -393,3 +393,108 @@ export function generateOrderConfirmationEmailHtml(props: OrderConfirmationEmail
   `;
 }
 
+export interface DeliveredThankYouEmailProps {
+  orderCode: string;
+  customerName: string;
+  shopName?: string;
+  deliveryType?: string;
+  reviewUrl?: string;
+  marketplaceUrl?: string;
+}
+
+/**
+ * 4. Email : COMMANDE LIVRÉE & REMERCIEMENT 🎉
+ */
+export function generateDeliveredThankYouEmailHtml(props: DeliveredThankYouEmailProps): string {
+  const {
+    orderCode,
+    customerName,
+    shopName = "Boutique Partenaire",
+    deliveryType = "Point Relais",
+    reviewUrl = "https://kalagban.com/account",
+    marketplaceUrl = "https://kalagban.com",
+  } = props;
+
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merci pour votre confiance sur Kalagban !</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0F172A; -webkit-font-smoothing: antialiased;">
+  <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 30px 15px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #FFFFFF; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #E2E8F0;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10B981 0%, #047857 100%); padding: 36px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #FFFFFF; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">Kalagban</h1>
+              <p style="margin: 6px 0 0 0; color: #D1FAE5; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Commande Livrée avec Succès</p>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 36px 30px;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <div style="display: inline-block; width: 68px; height: 68px; line-height: 68px; border-radius: 22px; background-color: #ECFDF5; font-size: 34px; text-align: center; margin-bottom: 12px; border: 1px solid #A7F3D0;">
+                  🎁
+                </div>
+                <h2 style="margin: 0; font-size: 22px; font-weight: 900; color: #0F172A;">Merci pour votre confiance !</h2>
+                <p style="margin: 8px 0 0 0; color: #64748B; font-size: 14px; font-weight: 500; line-height: 1.5;">
+                  Bonjour <strong style="color: #0F172A;">${customerName}</strong>,<br>
+                  Votre commande <strong>#${orderCode}</strong> a bien été réceptionnée via <strong>${deliveryType === "pickup_point" ? "votre Point Relais" : "notre service de Livraison à Domicile"}</strong>.
+                </p>
+              </div>
+
+              <!-- Thank You Card -->
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F0FDF4; border-radius: 16px; border: 1px solid #BBF7D0; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 20px; text-align: center;">
+                    <p style="margin: 0; font-size: 14px; font-weight: 600; color: #166534; line-height: 1.6;">
+                      Toute l'équipe de <strong>KALAGBAN</strong> et la boutique <strong>${shopName}</strong> vous remercient chaleureusement d'avoir utilisé notre plateforme. Nous espérons que vos articles vous apportent entière satisfaction !
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Action button for reviews -->
+              <div style="text-align: center; margin-bottom: 24px;">
+                <a href="${reviewUrl}" style="display: inline-block; background-color: #4F46E5; color: #FFFFFF; font-size: 14px; font-weight: 800; text-decoration: none; padding: 16px 32px; border-radius: 16px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);">
+                  ⭐ Laisser un avis sur vos articles
+                </a>
+              </div>
+
+              <div style="text-align: center; margin-bottom: 20px;">
+                <a href="${marketplaceUrl}" style="color: #64748B; font-size: 13px; font-weight: 600; text-decoration: underline;">
+                  Découvrir de nouvelles offres sur Kalagban →
+                </a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F1F5F9; padding: 24px 30px; text-align: center; border-top: 1px solid #E2E8F0;">
+              <p style="margin: 0; font-size: 12px; color: #64748B; font-weight: 500;">
+                Une question ou une remarque ? Notre support client est disponible sur WhatsApp au <strong>+225 07 77 62 08 64</strong>.
+              </p>
+              <p style="margin: 8px 0 0 0; font-size: 11px; color: #94A3B8;">
+                © 2026 Kalagban Marketplace • SOUMANGOUROU TECHNOLOGIE
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
