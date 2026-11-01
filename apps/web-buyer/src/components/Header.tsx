@@ -197,26 +197,14 @@ export default function Header({
   const isAccountPage = pathname === "/account";
 
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-xs">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
+    <header className="fashion-header sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-xs">
+      <div className="fashion-header-inner max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-4">
         
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group shrink-0">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 bg-linear-to-br from-indigo-600 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-black text-lg sm:text-2xl shadow-md shadow-indigo-500/30 group-hover:scale-105 transition-transform">
-            K
-          </div>
-          <div className="hidden sm:flex flex-col">
-            <span className="text-lg sm:text-2xl font-black tracking-tight text-gray-900 leading-none">
-              Kalagban
-            </span>
-            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 mt-0.5">
-              Marketplace
-            </span>
-          </div>
-        </Link>
+        <Link href="/" className="fashion-wordmark" aria-label="Kalagban, accueil">KALAGBAN<span>LA MODE NOUS RASSEMBLE</span></Link>
 
         {/* Search Bar with Live Autocompletion */}
-        <div className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-4 flex relative" ref={searchRef}>
+        <div className="fashion-search flex-1 min-w-0 max-w-lg mx-1 sm:mx-4 flex relative" ref={searchRef}>
           <div className="relative w-full">
             <input
               type="text"
@@ -337,7 +325,7 @@ export default function Header({
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="fashion-header-actions flex items-center gap-1.5 sm:gap-3 shrink-0">
           
           {/* Notification Bell (If logged in) */}
           {user && (
@@ -473,6 +461,16 @@ export default function Header({
           </button>
         </div>
       </div>
+      <nav className="fashion-nav" aria-label="Navigation principale">
+        <Link href="/#catalogue">Nouveautés</Link>
+        <Link href="/category/femme">Femme</Link>
+        <Link href="/category/homme">Homme</Link>
+        <Link href="/category/enfants">Enfant</Link>
+        <Link href="/category/chaussures-femmes">Chaussures</Link>
+        <Link href="/category/accessoires-femmes">Accessoires</Link>
+        <Link href="/category/deco-maison">Maison & déco</Link>
+        <a href="https://vendeur.kalagban.com/register" className="fashion-seller-link">Ouvrir ma boutique <Store size={14}/></a>
+      </nav>
     </header>
   );
 }

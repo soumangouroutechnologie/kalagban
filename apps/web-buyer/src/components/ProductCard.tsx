@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element */
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ShoppingBag, Image as ImageIcon, Eye, Heart } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -22,7 +21,6 @@ export interface ProductType {
 }
 
 export default function ProductCard({ product }: { product: ProductType }) {
-  const router = useRouter();
   const { addToCart } = useCart();
   const { isFavorite, toggleFavorite } = useFavorites();
   const isFav = isFavorite(product.id);
@@ -50,13 +48,14 @@ export default function ProductCard({ product }: { product: ProductType }) {
   const isValidUrl = product.image_url && !product.image_url.startsWith("file://") && !imgError;
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 flex flex-col group relative min-w-0">
+    <div className="fashion-product-card bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 flex flex-col group relative min-w-0">
       
       {/* Image Container */}
-      <Link href={`/products/${product.id}`} className="block relative aspect-square bg-gray-50 rounded-xl sm:rounded-2xl overflow-hidden mb-2 sm:mb-4">
+      <Link href={`/products/${product.id}`} className="fashion-product-image block relative aspect-[3/4] bg-gray-50 rounded-xl sm:rounded-2xl overflow-hidden mb-2 sm:mb-4">
         {isValidUrl ? (
           <img 
             src={product.image_url!} 
+            loading="lazy"
             alt={product.title}
             onError={() => setImgError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
@@ -83,6 +82,9 @@ export default function ProductCard({ product }: { product: ProductType }) {
 
         {/* Heart Favorite Button */}
         <button
+          type="button"
+          aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
+          aria-pressed={isFav}
           onClick={handleFavoriteClick}
           className="absolute top-2 sm:top-3 right-2 sm:right-3 z-20 w-7 h-7 sm:w-9 sm:h-9 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer"
           title="Ajouter aux favoris (Connexion requise)"
@@ -120,7 +122,7 @@ export default function ProductCard({ product }: { product: ProductType }) {
               </span>
               <span className="text-[8px] sm:text-xs font-bold text-gray-500">FCFA</span>
             </div>
-            {product.old_price && (
+            {product.old_price && product.old_price > product.price && (
               <span className="text-[8px] sm:text-xs text-gray-400 line-through font-medium truncate">
                 {product.old_price.toLocaleString("fr-FR")} FCFA
               </span>

@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProductCard, { ProductType } from "@/components/ProductCard";
-import { CATEGORY_TREE } from "@/lib/categories";
+import { CATEGORY_TREE, PRODUCT_CATEGORIES } from "@/lib/categories";
 import { supabase } from "@/lib/supabase";
 import {
   Sparkles,
@@ -28,10 +28,12 @@ export default function DedicatedWebCategoryPage() {
   const rawId = (params?.id as string) || "femme";
   const categoryId = rawId.toLowerCase();
 
+  const routeCategory = PRODUCT_CATEGORIES.find(c => c.id === categoryId);
+  const parentId = routeCategory?.parentId || categoryId;
   const activeParentCategory =
-    CATEGORY_TREE.find((c) => c.id.toLowerCase() === categoryId) || CATEGORY_TREE[0];
+    CATEGORY_TREE.find((c) => c.id.toLowerCase() === parentId) || CATEGORY_TREE[0];
 
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>(routeCategory?.parentId ? categoryId : "all");
   const [products, setProducts] = useState<ProductType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -52,6 +54,10 @@ export default function DedicatedWebCategoryPage() {
   const currentMinPrice = customMinPrice !== null ? customMinPrice : minPossiblePrice;
   const currentMaxPrice = customMaxPrice !== null ? customMaxPrice : maxPossiblePrice;
   const isPriceFiltered = (customMinPrice !== null && customMinPrice > minPossiblePrice) || (customMaxPrice !== null && customMaxPrice < maxPossiblePrice);
+
+  useEffect(() => {
+    setSelectedSubCategory(routeCategory?.parentId ? categoryId : "all");
+  }, [categoryId, routeCategory?.parentId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -183,9 +189,6 @@ export default function DedicatedWebCategoryPage() {
         (p.description && p.description.toLowerCase().includes(q)) ||
         (p.category && p.category.toLowerCase().includes(q));
 
-      if (q) {
-        return matchesSearch;
-      }
 
       const prodCat = (p.category || "").toLowerCase();
       const subIds = activeParentCategory.subCategories.map((s) => s.id.toLowerCase());

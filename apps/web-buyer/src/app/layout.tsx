@@ -10,13 +10,12 @@ import { TelemetryErrorBoundary, TelemetryInitializer } from "@/components/Telem
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
-  title: "Kalagban - Le Marché des Meilleurs Commerçants",
-  description: "Achetez les meilleurs produits en ligne en Côte d'Ivoire. Livraison rapide, paiement par Mobile Money ou à la livraison.",
+  title: "Kalagban — La mode nous rassemble",
+  description: "Découvrez la mode femme, homme et enfant sur Kalagban : vêtements, chaussures et accessoires en Côte d’Ivoire. Prix en FCFA.",
 };
 
 export default function RootLayout({
