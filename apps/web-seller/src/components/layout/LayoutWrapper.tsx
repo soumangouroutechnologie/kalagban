@@ -21,7 +21,9 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
         document.cookie = "kalagban_seller_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         localStorage.clear();
         await supabase.auth.signOut();
-        router.push("/register");
+        // Connexion (et non inscription) : un compte créé mais non confirmé
+        // peut y être activé avec le code de vérification.
+        router.push("/login");
         return;
       }
 

@@ -19,6 +19,32 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
+  const [needsOtp, setNeedsOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+
+  // Confirmation d'un compte non vérifié, puis connexion avec le mot de passe
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+
+    const token = otpCode.trim();
+    const { data, error } =
+      authMethod === "phone"
+        ? await supabase.auth.verifyOtp({ phone: phone as string, token, type: "sms" })
+        : await supabase.auth.verifyOtp({ email: email.trim(), token, type: "signup" });
+
+    if (error || !data.session) {
+      setErrorMsg("Code invalide ou expiré : " + (error?.message || "veuillez réessayer."));
+      setIsLoading(false);
+      return;
+    }
+
+    document.cookie = "kalagban_seller_auth=true; path=/; max-age=86400; SameSite=Lax";
+    router.push("/");
+    router.refresh();
+  };
 
   // Password validation state (visual only for login)
   const passwordCriteria = {
@@ -50,6 +76,22 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword(loginData);
 
     if (error) {
+      // Compte créé mais jamais confirmé : on renvoie un code et on demande de le saisir
+      if (/not confirmed/i.test(error.message)) {
+        const { error: resendErr } =
+          authMethod === "phone"
+            ? await supabase.auth.resend({ type: "sms", phone: phone as string })
+            : await supabase.auth.resend({ type: "signup", email: email.trim() });
+        if (resendErr) {
+          setErrorMsg("Votre compte n'est pas encore confirmé et le code n'a pas pu être envoyé : " + resendErr.message);
+        } else {
+          setOtpCode("");
+          setNeedsOtp(true);
+          setInfoMsg("Votre compte n'est pas encore confirmé. Saisissez le code que nous venons de vous envoyer.");
+        }
+        setIsLoading(false);
+        return;
+      }
       if (error.message.includes("Invalid login credentials")) {
         setErrorMsg("Identifiants incorrects ou compte inexistant. Veuillez vous inscrire d'abord.");
       } else {
@@ -103,6 +145,47 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {needsOtp ? (
+            <form className="flex flex-col gap-4" onSubmit={handleVerifyOtp}>
+              {errorMsg && (
+                <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-sm font-medium border border-red-100">
+                  {errorMsg}
+                </div>
+              )}
+              {infoMsg && (
+                <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm font-medium border border-emerald-100">
+                  {infoMsg}
+                </div>
+              )}
+              <label className="text-sm font-bold text-gray-700 text-center">Code de vérification</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                maxLength={8}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="••••••"
+                className="w-full bg-gray-50 border-2 border-primary text-gray-900 rounded-2xl py-3 px-4 text-center font-black text-2xl tracking-[10px] focus:outline-none focus:ring-4 focus:ring-primary/20"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || otpCode.length < 6}
+                className="w-full bg-primary text-white font-bold text-base rounded-2xl py-3.5 shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-all flex justify-center items-center gap-2 disabled:opacity-70"
+              >
+                {isLoading ? <Loader2 className="animate-spin" size={22} /> : <>Confirmer mon compte <ShieldCheck size={18} /></>}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNeedsOtp(false); setInfoMsg(""); setErrorMsg(""); }}
+                className="text-xs font-bold text-gray-500 hover:text-gray-900"
+              >
+                ← Retour à la connexion
+              </button>
+            </form>
+          ) : (
           <form className="flex flex-col gap-4" onSubmit={handleLogin}>
             {errorMsg && (
               <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-sm font-medium border border-red-100">
@@ -204,6 +287,7 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+          )}
 
           {/* Sign up link */}
           <p className="mt-6 text-center text-gray-600 font-medium text-sm">
