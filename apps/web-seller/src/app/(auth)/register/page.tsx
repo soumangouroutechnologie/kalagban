@@ -29,8 +29,12 @@ import "../login/phone-input.css";
 export default function RegisterPage() {
   const router = useRouter();
 
-  // Wizard Step: 1 = Credentials, 2 = Shop Details
-  const [step, setStep] = useState<1 | 2>(1);
+  // Wizard Step: 1 = Credentials, 2 = Shop Details, 3 = Code de vérification (OTP)
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Step 3 State (OTP)
+  const [otpCode, setOtpCode] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
 
   // Step 1 State
   const [authMethod, setAuthMethod] = useState<"phone" | "email">("phone");
@@ -96,11 +100,58 @@ export default function RegisterPage() {
     }
   };
 
-  // Handle Full Registration & Shop Creation
+  // Création de la boutique et du profil vendeur.
+  // N'est appelée QUE lorsqu'une session Supabase existe (compte confirmé),
+  // sinon les règles RLS refusent l'écriture et le tableau de bord reste vide.
+  const createShopForUser = async (userId: string) => {
+    // 1. Upload du Logo si sélectionné
+    let uploadedLogoUrl: string | null = null;
+    if (logoFile) {
+      const fileExt = logoFile.name.split(".").pop();
+      const fileName = `shop_logo_${userId}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("kalagban_media")
+        .upload(fileName, logoFile);
+
+      if (!uploadErr) {
+        const { data: publicUrlData } = supabase.storage
+          .from("kalagban_media")
+          .getPublicUrl(fileName);
+        uploadedLogoUrl = publicUrlData.publicUrl;
+      }
+    }
+
+    // 2. Profil vendeur dans public.profiles (avant la boutique)
+    const { error: profileErr } = await supabase.from("profiles").upsert({
+      id: userId,
+      phone: authMethod === "phone" ? phone || null : null,
+      email: authMethod === "email" ? email.trim() : null,
+      avatar_url: uploadedLogoUrl,
+      role: "seller",
+    });
+    if (profileErr) throw new Error("Profil vendeur : " + profileErr.message);
+
+    // 3. Boutique dans public.shops
+    const { error: shopErr } = await supabase.from("shops").upsert({
+      id: userId,
+      name: shopName.trim(),
+      description: shopDescription.trim() || "Boutique officielle sur Kalagban",
+      logo_url: uploadedLogoUrl,
+    });
+    if (shopErr) throw new Error("Boutique : " + shopErr.message);
+
+    // Cookie lu par le middleware (la vraie vérification est la session Supabase)
+    document.cookie = "kalagban_seller_auth=true; path=/; max-age=86400; SameSite=Lax";
+    setShowSuccessModal(true);
+  };
+
+  // Étape 2 → création du compte Auth, puis envoi du code de vérification
   const handleFinalRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg("");
+    setInfoMsg("");
 
     if (!shopName.trim()) {
       setErrorMsg("Veuillez donner un nom à votre boutique.");
@@ -109,7 +160,7 @@ export default function RegisterPage() {
     }
 
     try {
-      // 1. Inscription Auth dans Supabase
+      const options = { data: { role: "seller", shop_name: shopName.trim() } };
       let registerData;
       if (authMethod === "phone") {
         if (!phone) {
@@ -117,65 +168,86 @@ export default function RegisterPage() {
           setIsLoading(false);
           return;
         }
-        registerData = { phone: phone as string, password };
+        registerData = { phone: phone as string, password, options };
       } else {
-        registerData = { email, password };
+        registerData = { email: email.trim(), password, options };
       }
 
       const { data: authData, error: authError } = await supabase.auth.signUp(registerData);
 
       if (authError || !authData.user) {
         setErrorMsg("Erreur d'inscription : " + (authError?.message || "Impossible de créer le compte."));
-        setIsLoading(false);
         return;
       }
 
-      const userId = authData.user.id;
-
-      // 2. Upload du Logo si sélectionné
-      let uploadedLogoUrl: string | null = null;
-      if (logoFile) {
-        const fileExt = logoFile.name.split(".").pop();
-        const fileName = `shop_logo_${userId}_${Date.now()}.${fileExt}`;
-        
-        const { error: uploadErr } = await supabase.storage
-          .from("kalagban_media")
-          .upload(fileName, logoFile);
-
-        if (!uploadErr) {
-          const { data: publicUrlData } = supabase.storage
-            .from("kalagban_media")
-            .getPublicUrl(fileName);
-          uploadedLogoUrl = publicUrlData.publicUrl;
-        }
+      // Compte déjà existant et confirmé : Supabase renvoie un utilisateur sans identité
+      if (authData.user.identities && authData.user.identities.length === 0) {
+        setErrorMsg("Un compte existe déjà avec cet identifiant. Veuillez vous connecter.");
+        return;
       }
 
-      // 3. Insertion / Mise à jour de la boutique dans public.shops
-      await supabase.from("shops").upsert({
-        id: userId,
-        name: shopName.trim(),
-        description: shopDescription.trim() || "Boutique officielle sur Kalagban",
-        logo_url: uploadedLogoUrl,
-      });
+      if (authData.session) {
+        // Confirmation désactivée côté Supabase : session immédiate
+        await createShopForUser(authData.user.id);
+        return;
+      }
 
-      // 4. Insertion / Mise à jour du profil vendeur dans public.profiles
-      await supabase.from("profiles").upsert({
-        id: userId,
-        phone: phone || null,
-        avatar_url: uploadedLogoUrl,
-        role: "seller"
-      });
-
-      // Set auth cookie
-      document.cookie = "kalagban_seller_auth=true; path=/; max-age=86400";
-
-      setIsLoading(false);
-      setShowSuccessModal(true);
-
+      // Confirmation requise : on demande le code reçu
+      setOtpCode("");
+      setStep(3);
+      setInfoMsg(
+        authMethod === "phone"
+          ? `Un code de vérification a été envoyé au ${phone}.`
+          : `Un code de vérification a été envoyé à ${email.trim()}.`
+      );
     } catch (err: unknown) {
       console.error("Register Error:", err);
-      setErrorMsg("Une erreur inattendue est survenue.");
+      setErrorMsg(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
+    } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Étape 3 → vérification du code puis création de la boutique
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      const token = otpCode.trim();
+      const { data, error } =
+        authMethod === "phone"
+          ? await supabase.auth.verifyOtp({ phone: phone as string, token, type: "sms" })
+          : await supabase.auth.verifyOtp({ email: email.trim(), token, type: "signup" });
+
+      if (error || !data.session || !data.user) {
+        setErrorMsg("Code invalide ou expiré : " + (error?.message || "veuillez réessayer."));
+        return;
+      }
+
+      await createShopForUser(data.user.id);
+    } catch (err: unknown) {
+      console.error("OTP Error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    setErrorMsg("");
+    setInfoMsg("");
+    const { error } =
+      authMethod === "phone"
+        ? await supabase.auth.resend({ type: "sms", phone: phone as string })
+        : await supabase.auth.resend({ type: "signup", email: email.trim() });
+    setIsLoading(false);
+    if (error) {
+      setErrorMsg("Impossible de renvoyer le code : " + error.message);
+    } else {
+      setInfoMsg("Un nouveau code vient d'être envoyé.");
     }
   };
 
@@ -254,27 +326,29 @@ export default function RegisterPage() {
 
             {/* Step Counter */}
             <span className="text-xs font-extrabold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
-              Étape {step} sur 2
+              Étape {step} sur 3
             </span>
           </div>
 
           {/* Progress Bar Indicator */}
           <div className="w-full bg-gray-100 h-1.5 rounded-full mb-5 overflow-hidden">
-            <div 
+            <div
               className="bg-primary h-full transition-all duration-500 ease-out rounded-full"
-              style={{ width: step === 1 ? "50%" : "100%" }}
+              style={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }}
             />
           </div>
 
           {/* Title Header */}
           <div className="mb-5">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1 tracking-tight">
-              {step === 1 ? "Vos Identifiants 🚀" : "Votre Boutique 🏪"}
+              {step === 1 ? "Vos Identifiants 🚀" : step === 2 ? "Votre Boutique 🏪" : "Vérification 🔐"}
             </h1>
             <p className="text-gray-500 font-medium text-xs">
-              {step === 1 
-                ? "Créez vos accès sécurisés pour accéder au portail vendeur." 
-                : "Personnalisez l'identité visuelle de votre boutique en ligne."}
+              {step === 1
+                ? "Créez vos accès sécurisés pour accéder au portail vendeur."
+                : step === 2
+                ? "Personnalisez l'identité visuelle de votre boutique en ligne."
+                : "Saisissez le code reçu pour activer votre compte vendeur."}
             </p>
           </div>
 
@@ -282,6 +356,64 @@ export default function RegisterPage() {
             <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-xs font-medium border border-red-100 mb-4">
               {errorMsg}
             </div>
+          )}
+
+          {infoMsg && (
+            <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-medium border border-emerald-100 mb-4">
+              {infoMsg}
+            </div>
+          )}
+
+          {/* STEP 3: OTP VERIFICATION */}
+          {step === 3 && (
+            <form className="flex flex-col gap-4" onSubmit={handleVerifyOtp}>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-gray-700 text-center">Code de vérification</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  maxLength={8}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="••••••"
+                  className="w-full bg-gray-50 border-2 border-primary text-gray-900 rounded-2xl py-3 px-4 text-center font-black text-2xl tracking-[10px] focus:outline-none focus:ring-4 focus:ring-primary/20"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || otpCode.length < 6}
+                className="w-full bg-primary text-white font-bold text-base rounded-2xl py-3.5 shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-all flex justify-center items-center gap-2 disabled:opacity-70"
+              >
+                {isLoading ? <Loader2 className="animate-spin" size={22} /> : (
+                  <>
+                    Valider et créer ma boutique
+                    <ShieldCheck size={18} />
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => { setStep(1); setInfoMsg(""); setErrorMsg(""); }}
+                  className="text-gray-500 hover:text-gray-900 flex items-center gap-1"
+                >
+                  <ArrowLeft size={14} /> Modifier mes identifiants
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
+                  className="text-primary hover:underline disabled:opacity-60"
+                >
+                  Renvoyer le code
+                </button>
+              </div>
+            </form>
           )}
 
           {/* STEP 1: CREDENTIALS */}

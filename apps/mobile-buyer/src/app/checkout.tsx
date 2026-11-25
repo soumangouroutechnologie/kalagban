@@ -34,6 +34,10 @@ import { supabase } from '@/lib/supabase';
 import { useCart } from '@/context/cart-context';
 import { calculateApplicationFee } from '@/lib/fee';
 
+// Phase de test : paiement en espèces uniquement.
+// Pour réactiver le Mobile Money : EXPO_PUBLIC_CASH_ONLY_PAYMENTS=false puis nouveau build.
+const CASH_ONLY_PAYMENTS = process.env.EXPO_PUBLIC_CASH_ONLY_PAYMENTS !== 'false';
+
 interface PickupPoint {
   id: string;
   code: string;
@@ -542,10 +546,15 @@ export default function MobileCheckoutScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.paymentTitle}>Paiement au Retrait / à la Livraison</Text>
-              <Text style={styles.paymentSub}>Espèces ou Mobile Money lors de la récupération du colis</Text>
+              <Text style={styles.paymentSub}>
+                {CASH_ONLY_PAYMENTS
+                  ? 'Espèces uniquement (phase de test), à régler lors de la récupération du colis'
+                  : 'Espèces ou Mobile Money lors de la récupération du colis'}
+              </Text>
             </View>
           </TouchableOpacity>
 
+          {!CASH_ONLY_PAYMENTS && (
           <TouchableOpacity
             style={[styles.paymentCard, paymentMethod === 'wave' && styles.paymentCardActive]}
             onPress={() => setPaymentMethod('wave')}
@@ -558,6 +567,7 @@ export default function MobileCheckoutScreen() {
               <Text style={styles.paymentSub}>Wave, Orange Money, MTN, Moov (Passerelle Sécurisée)</Text>
             </View>
           </TouchableOpacity>
+          )}
         </View>
 
         {/* Summary Card */}

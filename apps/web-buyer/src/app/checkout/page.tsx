@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
 import { calculateApplicationFee } from "@/lib/fee";
 import { supabase } from "@/lib/supabase";
+import { CASH_ONLY_PAYMENTS, CASH_ONLY_MESSAGE } from "@/lib/payments/mode";
 import { useToast } from "@/context/ToastContext";
 import { 
   ArrowLeft, 
@@ -38,7 +39,7 @@ export default function CheckoutPage() {
   const [city, setCity] = useState("Abidjan");
   const [district, setDistrict] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("kpay"); // 'kpay' | 'cod'
+  const [paymentMethod, setPaymentMethod] = useState(CASH_ONLY_PAYMENTS ? "cod" : "kpay"); // 'kpay' | 'cod'
   const [deliveryType, setDeliveryType] = useState<"home_delivery" | "pickup_point">("pickup_point");
   const [selectedCommune, setSelectedCommune] = useState("");
   const [selectedRelayId, setSelectedRelayId] = useState("");
@@ -883,8 +884,15 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3.5">
-                  {/* Option 1: K-PAY Online Instant Payment (Recommended) */}
-                  <label 
+                  {CASH_ONLY_PAYMENTS && (
+                    <p className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      {CASH_ONLY_MESSAGE}
+                    </p>
+                  )}
+
+                  {/* Option 1: K-PAY Online Instant Payment (Recommended) — masqué en phase de test */}
+                  {!CASH_ONLY_PAYMENTS && (
+                  <label
                     onClick={() => setPaymentMethod("kpay")}
                     className={`p-5 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer transition-all ${
                       paymentMethod === "kpay" 
@@ -919,6 +927,7 @@ export default function CheckoutPage() {
                       <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-extrabold">💳 CB / Visa</span>
                     </div>
                   </label>
+                  )}
 
                   {/* Option 2: Cash / Mobile Money on Delivery */}
                   <label 
@@ -938,7 +947,9 @@ export default function CheckoutPage() {
                       <div className="space-y-0.5">
                         <h4 className="font-black text-sm text-gray-900">Paiement à la livraison</h4>
                         <p className="text-xs text-gray-500 font-medium">
-                          Espèces ou Mobile Money lors de la réception du colis par le livreur
+                          {CASH_ONLY_PAYMENTS
+                            ? "Espèces uniquement, à régler lors de la réception du colis"
+                            : "Espèces ou Mobile Money lors de la réception du colis par le livreur"}
                         </p>
                       </div>
                     </div>
